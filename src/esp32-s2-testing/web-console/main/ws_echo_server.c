@@ -28,6 +28,9 @@ static const char *TAG = "ws_echo_server";
 #define EXAMPLE_ESP_WIFI_CHANNEL   CONFIG_ESP_WIFI_CHANNEL
 #define EXAMPLE_MAX_STA_CONN       CONFIG_ESP_MAX_STA_CONN
 
+extern const char console_start[] asm("_binary_console_html_start");
+extern const char console_end[] asm("_binary_console_html_end");
+
 /*
  * Structure holding server handle
  * and internal socket fd in order
@@ -109,19 +112,35 @@ static esp_err_t echo_handler(httpd_req_t *req)
         free(buf);
         return trigger_async_send(req->handle, req);
     }
-
+    int offset = 8;
+    uint8_t *send_buf = NULL;
+    send_buf = calloc(1, ws_pkt.len + offset + 1);
+    for(int i = 0; i < ws_pkt.len; ++i){
+        send_buf[offset + i] = ws_pkt.payload[i];
+    } 
+    const char* prefix = "server: ";
+    for(int i = 0; i < offset; ++i){
+        send_buf[i] = prefix[i];
+    }
+    ws_pkt.payload = send_buf;
+    ws_pkt.len = ws_pkt.len + offset;
     ret = httpd_ws_send_frame(req, &ws_pkt);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "httpd_ws_send_frame failed with %d", ret);
     }
+    free(send_buf);
     free(buf);
     return ret;
 }
 
 static esp_err_t home_handler(httpd_req_t *req)
 {
-    const char* resp_str = "Hello, world!";
-    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    const uint32_t console_len = console_end - console_start;
+
+    ESP_LOGI(TAG, "Serve console");
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_send(req, console_start, console_len);
+
     return ESP_OK;
 }
 
