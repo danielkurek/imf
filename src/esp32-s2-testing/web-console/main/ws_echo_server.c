@@ -39,32 +39,43 @@ extern const char console_end[] asm("_binary_console_html_end");
 struct async_resp_arg {
     httpd_handle_t hd;
     int fd;
+    uint8_t* payload;
+    int len;
 };
 
+struct client{
+    httpd_handle_t hd;
+    int fd;
+};
+
+#define max_clients 10
+struct client clients[max_clients];
+size_t num_clients = 0;
 /*
  * async send function, which we put into the httpd work queue
  */
 static void ws_async_send(void *arg)
 {
-    static const char * data = "Async data";
     struct async_resp_arg *resp_arg = arg;
     httpd_handle_t hd = resp_arg->hd;
     int fd = resp_arg->fd;
     httpd_ws_frame_t ws_pkt;
     memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
-    ws_pkt.payload = (uint8_t*)data;
-    ws_pkt.len = strlen(data);
+    ws_pkt.payload = resp_arg->payload;
+    ws_pkt.len = resp_arg->len;
     ws_pkt.type = HTTPD_WS_TYPE_TEXT;
 
     httpd_ws_send_frame_async(hd, fd, &ws_pkt);
     free(resp_arg);
 }
 
-static esp_err_t trigger_async_send(httpd_handle_t handle, httpd_req_t *req)
+static esp_err_t trigger_async_send(httpd_handle_t handle, int fd, uint8_t* msg, int msg_len)
 {
     struct async_resp_arg *resp_arg = malloc(sizeof(struct async_resp_arg));
-    resp_arg->hd = req->handle;
-    resp_arg->fd = httpd_req_to_sockfd(req);
+    resp_arg->hd = handle;
+    resp_arg->fd = fd;
+    resp_arg->payload = msg;
+    resp_arg->len = msg_len;
     return httpd_queue_work(handle, ws_async_send, resp_arg);
 }
 
@@ -76,8 +87,15 @@ static esp_err_t echo_handler(httpd_req_t *req)
 {
     if (req->method == HTTP_GET) {
         ESP_LOGI(TAG, "Handshake done, the new connection was opened");
+        // TODO: remove clients when disconnected
+        if(num_clients < max_clients) {
+            clients[num_clients].hd = req->handle;
+            clients[num_clients].fd = httpd_req_to_sockfd(req);
+            ++num_clients;
+        }
         return ESP_OK;
     }
+    ESP_LOGI(TAG, "%d", httpd_req_to_sockfd(req));
     httpd_ws_frame_t ws_pkt;
     uint8_t *buf = NULL;
     memset(&ws_pkt, 0, sizeof(httpd_ws_frame_t));
@@ -107,24 +125,21 @@ static esp_err_t echo_handler(httpd_req_t *req)
         ESP_LOGI(TAG, "Got packet with message: %s", ws_pkt.payload);
     }
     ESP_LOGI(TAG, "Packet type: %d", ws_pkt.type);
-    if (ws_pkt.type == HTTPD_WS_TYPE_TEXT &&
-        strcmp((char*)ws_pkt.payload,"Trigger async") == 0) {
-        free(buf);
-        return trigger_async_send(req->handle, req);
-    }
-    int offset = 8;
     uint8_t *send_buf = NULL;
-    send_buf = calloc(1, ws_pkt.len + offset + 1);
-    for(int i = 0; i < ws_pkt.len; ++i){
-        send_buf[offset + i] = ws_pkt.payload[i];
-    } 
-    const char* prefix = "server: ";
-    for(int i = 0; i < offset; ++i){
-        send_buf[i] = prefix[i];
+    if (ws_pkt.type == HTTPD_WS_TYPE_TEXT) {
+        int offset = 8;
+        send_buf = calloc(1, ws_pkt.len + offset + 1);
+        for(int i = 0; i < ws_pkt.len; ++i){
+            send_buf[offset + i] = ws_pkt.payload[i];
+        } 
+        const char* prefix = "server: ";
+        for(int i = 0; i < offset; ++i){
+            send_buf[i] = prefix[i];
+        }
+        for(int i = 0; i < num_clients; ++i){
+            trigger_async_send(clients[i].hd, clients[i].fd, (uint8_t*) "ahoj", 4);
+        }
     }
-    ws_pkt.payload = send_buf;
-    ws_pkt.len = ws_pkt.len + offset;
-    ret = httpd_ws_send_frame(req, &ws_pkt);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "httpd_ws_send_frame failed with %d", ret);
     }
