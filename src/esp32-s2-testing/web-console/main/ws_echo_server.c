@@ -51,6 +51,9 @@ struct client{
 #define max_clients 10
 struct client clients[max_clients];
 size_t num_clients = 0;
+
+uint8_t *ws_payload;
+int len;
 /*
  * async send function, which we put into the httpd work queue
  */
@@ -125,25 +128,27 @@ static esp_err_t echo_handler(httpd_req_t *req)
         ESP_LOGI(TAG, "Got packet with message: %s", ws_pkt.payload);
     }
     ESP_LOGI(TAG, "Packet type: %d", ws_pkt.type);
-    uint8_t *send_buf = NULL;
+    int original_len = ws_pkt.len;
     if (ws_pkt.type == HTTPD_WS_TYPE_TEXT) {
-        int offset = 8;
-        send_buf = calloc(1, ws_pkt.len + offset + 1);
-        for(int i = 0; i < ws_pkt.len; ++i){
-            send_buf[offset + i] = ws_pkt.payload[i];
-        } 
         const char* prefix = "server: ";
+        int offset = strlen(prefix);
+        free(ws_payload);
+        ws_payload = calloc(1, original_len + offset + 1);
+        for(int i = 0; i < ws_pkt.len; ++i){
+            ws_payload[offset + i] = ws_pkt.payload[i];
+        } 
         for(int i = 0; i < offset; ++i){
-            send_buf[i] = prefix[i];
+            ws_payload[i] = prefix[i];
         }
         for(int i = 0; i < num_clients; ++i){
-            trigger_async_send(clients[i].hd, clients[i].fd, (uint8_t*) "ahoj", 4);
+            ws_pkt.payload = ws_payload;
+            ws_pkt.len = original_len + offset;
+            httpd_ws_send_frame_async(clients[i].hd, clients[i].fd, &ws_pkt);
         }
     }
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "httpd_ws_send_frame failed with %d", ret);
     }
-    free(send_buf);
     free(buf);
     return ret;
 }
