@@ -19,6 +19,8 @@
 
 #include <esp_http_server.h>
 
+#include "ftm.h"
+
 /* A simple example that demonstrates using websocket echo server
  */
 static const char *TAG = "ws_echo_server";
@@ -204,30 +206,6 @@ static esp_err_t stop_webserver(httpd_handle_t server)
 {
     // Stop the httpd server
     return httpd_stop(server);
-}
-
-static void disconnect_handler(void* arg, esp_event_base_t event_base,
-                               int32_t event_id, void* event_data)
-{
-    httpd_handle_t* server = (httpd_handle_t*) arg;
-    if (*server) {
-        ESP_LOGI(TAG, "Stopping webserver");
-        if (stop_webserver(*server) == ESP_OK) {
-            *server = NULL;
-        } else {
-            ESP_LOGE(TAG, "Failed to stop http server");
-        }
-    }
-}
-
-static void connect_handler(void* arg, esp_event_base_t event_base,
-                            int32_t event_id, void* event_data)
-{
-    httpd_handle_t* server = (httpd_handle_t*) arg;
-    if (*server == NULL) {
-        ESP_LOGI(TAG, "Starting webserver");
-        *server = start_webserver();
-    }
 }
 
 void wifi_init_softap(void)
