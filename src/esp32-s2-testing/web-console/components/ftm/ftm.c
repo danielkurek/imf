@@ -244,7 +244,7 @@ static bool wifi_cmd_sta_join(const char *ssid, const char *pass)
     return true;
 }
 
-static int wifi_cmd_sta(int argc, char **argv)
+int wifi_cmd_sta(int argc, char **argv)
 {
     int nerrors = arg_parse(argc, argv, (void **) &sta_args);
 
@@ -299,7 +299,7 @@ static bool wifi_perform_scan(const char *ssid, bool internal)
     return true;
 }
 
-static int wifi_cmd_scan(int argc, char **argv)
+int wifi_cmd_scan(int argc, char **argv)
 {
     int nerrors = arg_parse(argc, argv, (void **) &scan_args);
 
@@ -339,7 +339,7 @@ static bool wifi_cmd_ap_set(const char* ssid, const char* pass)
     return true;
 }
 
-static int wifi_cmd_ap(int argc, char** argv)
+int wifi_cmd_ap(int argc, char** argv)
 {
     int nerrors = arg_parse(argc, argv, (void**) &ap_args);
 
@@ -356,7 +356,7 @@ static int wifi_cmd_ap(int argc, char** argv)
     return 0;
 }
 
-static int wifi_cmd_query(int argc, char **argv)
+int wifi_cmd_query(int argc, char **argv)
 {
     wifi_config_t cfg;
     wifi_mode_t mode;
@@ -416,7 +416,7 @@ retry:
     return NULL;
 }
 
-static int wifi_cmd_ftm(int argc, char **argv)
+int wifi_cmd_ftm(int argc, char **argv)
 {
     int nerrors = arg_parse(argc, argv, (void **) &ftm_args);
     wifi_ap_record_t *ap_record;
