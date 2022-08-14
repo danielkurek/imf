@@ -1,0 +1,38 @@
+<html>
+    <head></head>
+    <body>
+        <form action="#" onsubmit="start_ap()">
+            <input type="text" id="ssid" value="TEST">
+            <input type="submit" value="Start AP">
+        </form>
+        <button onclick="refresh_ap_list()">Refresh available AP</button>
+        <form action="#" onsubmit="start_ftm()">
+            <label for="responder_ssid">Responder SSID: </label>
+            <select id="responder_ssid">
+                <option>TEST</option> 
+                <!-- populate in JS -->
+            </select>
+            <br />
+            <input type="checkbox" id="raw_values">
+            <label for="raw_values">Raw Values</label>
+            <br />
+            <input type="submit" value="Start FTM">
+        </form>
+        <h1>Results</h1>
+        <div name="FTM results">
+        </div>
+        <script>
+            function refresh_ap_list(){
+                // TODO: get AP list
+            }
+            function start_ap(){
+                // TODO: start AP
+                return false; // avoid refreshing site
+            }
+            function start_ftm(){
+                // TODO: start FTM
+                return false; // avoid refreshing site
+            }
+        </script>
+    </body>
+</html>
