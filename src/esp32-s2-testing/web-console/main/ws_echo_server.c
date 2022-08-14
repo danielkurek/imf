@@ -208,12 +208,6 @@ static esp_err_t stop_webserver(httpd_handle_t server)
     return httpd_stop(server);
 }
 
-static esp_err_t stop_webserver(httpd_handle_t server)
-{
-    // Stop the httpd server
-    return httpd_stop(server);
-}
-
 static void disconnect_handler(void* arg, esp_event_base_t event_base,
                                int32_t event_id, void* event_data)
 {
