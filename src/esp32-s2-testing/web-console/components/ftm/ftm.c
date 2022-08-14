@@ -215,49 +215,6 @@ void initialise_wifi(void)
     initialized = true;
 }
 
-static bool wifi_cmd_sta_join(const char *ssid, const char *pass)
-{
-    int bits = xEventGroupWaitBits(s_wifi_event_group, CONNECTED_BIT, 0, 1, 0);
-
-    wifi_config_t wifi_config = { 0 };
-
-    strlcpy((char *) wifi_config.sta.ssid, ssid, sizeof(wifi_config.sta.ssid));
-    if (pass) {
-        strlcpy((char *) wifi_config.sta.password, pass, sizeof(wifi_config.sta.password));
-    }
-
-    if (bits & CONNECTED_BIT) {
-        s_reconnect = false;
-        xEventGroupClearBits(s_wifi_event_group, CONNECTED_BIT);
-        ESP_ERROR_CHECK( esp_wifi_disconnect() );
-        xEventGroupWaitBits(s_wifi_event_group, DISCONNECTED_BIT, 0, 1, portTICK_PERIOD_MS);
-    }
-
-    s_reconnect = true;
-    s_retry_num = 0;
-    ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA) );
-    ESP_ERROR_CHECK( esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config) );
-    ESP_ERROR_CHECK( esp_wifi_connect() );
-
-    xEventGroupWaitBits(s_wifi_event_group, CONNECTED_BIT, 0, 1, 5000 / portTICK_PERIOD_MS);
-
-    return true;
-}
-
-int wifi_cmd_sta(int argc, char **argv)
-{
-    int nerrors = arg_parse(argc, argv, (void **) &sta_args);
-
-    if (nerrors != 0) {
-        arg_print_errors(stderr, sta_args.end, argv[0]);
-        return 1;
-    }
-
-    ESP_LOGI(TAG_STA, "sta connecting to '%s'", sta_args.ssid->sval[0]);
-    wifi_cmd_sta_join(sta_args.ssid->sval[0], sta_args.password->sval[0]);
-    return 0;
-}
-
 static bool wifi_perform_scan(const char *ssid, bool internal)
 {
     wifi_scan_config_t scan_config = { 0 };
@@ -352,31 +309,6 @@ int wifi_cmd_ap(int argc, char** argv)
         ESP_LOGI(TAG_AP, "Starting SoftAP with FTM Responder support, SSID - %s, Password - %s", ap_args.ssid->sval[0], ap_args.password->sval[0]);
     else
         ESP_LOGE(TAG_AP, "Failed to start SoftAP!");
-
-    return 0;
-}
-
-int wifi_cmd_query(int argc, char **argv)
-{
-    wifi_config_t cfg;
-    wifi_mode_t mode;
-
-    esp_wifi_get_mode(&mode);
-    if (WIFI_MODE_AP == mode) {
-        esp_wifi_get_config(WIFI_IF_AP, &cfg);
-        ESP_LOGI(TAG_AP, "AP mode, %s %s", cfg.ap.ssid, cfg.ap.password);
-    } else if (WIFI_MODE_STA == mode) {
-        int bits = xEventGroupWaitBits(s_wifi_event_group, CONNECTED_BIT, 0, 1, 0);
-        if (bits & CONNECTED_BIT) {
-            esp_wifi_get_config(WIFI_IF_STA, &cfg);
-            ESP_LOGI(TAG_STA, "sta mode, connected %s", cfg.ap.ssid);
-        } else {
-            ESP_LOGI(TAG_STA, "sta mode, disconnected");
-        }
-    } else {
-        ESP_LOGI(TAG_STA, "NULL mode");
-        return 0;
-    }
 
     return 0;
 }
@@ -533,79 +465,57 @@ ftm_responder:
     return 0;
 }
 
-void register_wifi(void)
-{
-    sta_args.ssid = arg_str1(NULL, NULL, "<ssid>", "SSID of AP");
-    sta_args.password = arg_str0(NULL, NULL, "<pass>", "password of AP");
-    sta_args.end = arg_end(2);
+// void register_wifi(void)
+// {
+//     ap_args.ssid = arg_str1(NULL, NULL, "<ssid>", "SSID of AP");
+//     ap_args.password = arg_str0(NULL, NULL, "<pass>", "password of AP");
+//     ap_args.end = arg_end(2);
 
-    const esp_console_cmd_t sta_cmd = {
-        .command = "sta",
-        .help = "WiFi is station mode, join specified soft-AP",
-        .hint = NULL,
-        .func = &wifi_cmd_sta,
-        .argtable = &sta_args
-    };
+//     const esp_console_cmd_t ap_cmd = {
+//         .command = "ap",
+//         .help = "AP mode, configure ssid and password",
+//         .hint = NULL,
+//         .func = &wifi_cmd_ap,
+//         .argtable = &ap_args
+//     };
 
-    ESP_ERROR_CHECK( esp_console_cmd_register(&sta_cmd) );
+//     ESP_ERROR_CHECK( esp_console_cmd_register(&ap_cmd) );
 
-    ap_args.ssid = arg_str1(NULL, NULL, "<ssid>", "SSID of AP");
-    ap_args.password = arg_str0(NULL, NULL, "<pass>", "password of AP");
-    ap_args.end = arg_end(2);
+//     scan_args.ssid = arg_str0(NULL, NULL, "<ssid>", "SSID of AP want to be scanned");
+//     scan_args.end = arg_end(1);
 
-    const esp_console_cmd_t ap_cmd = {
-        .command = "ap",
-        .help = "AP mode, configure ssid and password",
-        .hint = NULL,
-        .func = &wifi_cmd_ap,
-        .argtable = &ap_args
-    };
+//     const esp_console_cmd_t scan_cmd = {
+//         .command = "scan",
+//         .help = "WiFi is station mode, start scan ap",
+//         .hint = NULL,
+//         .func = &wifi_cmd_scan,
+//         .argtable = &scan_args
+//     };
 
-    ESP_ERROR_CHECK( esp_console_cmd_register(&ap_cmd) );
+//     ESP_ERROR_CHECK( esp_console_cmd_register(&scan_cmd) );
 
-    scan_args.ssid = arg_str0(NULL, NULL, "<ssid>", "SSID of AP want to be scanned");
-    scan_args.end = arg_end(1);
+//     /* FTM Initiator commands */
+//     ftm_args.initiator = arg_lit0("I", "ftm_initiator", "FTM Initiator mode");
+//     ftm_args.ssid = arg_str0("s", "ssid", "SSID", "SSID of AP");
+//     ftm_args.frm_count = arg_int0("c", "frm_count", "<0/8/16/24/32/64>", "FTM frames to be exchanged (0: No preference)");
+//     ftm_args.burst_period = arg_int0("p", "burst_period", "<2-255 (x 100 mSec)>", "Periodicity of FTM bursts in 100's of miliseconds (0: No preference)");
+//     /* FTM Responder commands */
+//     ftm_args.responder = arg_lit0("R", "ftm_responder", "FTM Responder mode");
+//     ftm_args.enable = arg_lit0("e", "enable", "Restart SoftAP with FTM enabled");
+//     ftm_args.disable = arg_lit0("d", "disable", "Restart SoftAP with FTM disabled");
+//     ftm_args.offset = arg_int0("o", "offset", "Offset in cm", "T1 offset in cm for FTM Responder");
+//     ftm_args.end = arg_end(1);
 
-    const esp_console_cmd_t scan_cmd = {
-        .command = "scan",
-        .help = "WiFi is station mode, start scan ap",
-        .hint = NULL,
-        .func = &wifi_cmd_scan,
-        .argtable = &scan_args
-    };
+//     const esp_console_cmd_t ftm_cmd = {
+//         .command = "ftm",
+//         .help = "FTM command",
+//         .hint = NULL,
+//         .func = &wifi_cmd_ftm,
+//         .argtable = &ftm_args
+//     };
 
-    ESP_ERROR_CHECK( esp_console_cmd_register(&scan_cmd) );
-
-    const esp_console_cmd_t query_cmd = {
-        .command = "query",
-        .help = "query WiFi info",
-        .hint = NULL,
-        .func = &wifi_cmd_query,
-    };
-    ESP_ERROR_CHECK( esp_console_cmd_register(&query_cmd) );
-
-    /* FTM Initiator commands */
-    ftm_args.initiator = arg_lit0("I", "ftm_initiator", "FTM Initiator mode");
-    ftm_args.ssid = arg_str0("s", "ssid", "SSID", "SSID of AP");
-    ftm_args.frm_count = arg_int0("c", "frm_count", "<0/8/16/24/32/64>", "FTM frames to be exchanged (0: No preference)");
-    ftm_args.burst_period = arg_int0("p", "burst_period", "<2-255 (x 100 mSec)>", "Periodicity of FTM bursts in 100's of miliseconds (0: No preference)");
-    /* FTM Responder commands */
-    ftm_args.responder = arg_lit0("R", "ftm_responder", "FTM Responder mode");
-    ftm_args.enable = arg_lit0("e", "enable", "Restart SoftAP with FTM enabled");
-    ftm_args.disable = arg_lit0("d", "disable", "Restart SoftAP with FTM disabled");
-    ftm_args.offset = arg_int0("o", "offset", "Offset in cm", "T1 offset in cm for FTM Responder");
-    ftm_args.end = arg_end(1);
-
-    const esp_console_cmd_t ftm_cmd = {
-        .command = "ftm",
-        .help = "FTM command",
-        .hint = NULL,
-        .func = &wifi_cmd_ftm,
-        .argtable = &ftm_args
-    };
-
-    ESP_ERROR_CHECK( esp_console_cmd_register(&ftm_cmd) );
-}
+//     ESP_ERROR_CHECK( esp_console_cmd_register(&ftm_cmd) );
+// }
 
 void app_main(void)
 {
@@ -618,28 +528,9 @@ void app_main(void)
 
     initialise_wifi();
 
-    esp_console_repl_t *repl = NULL;
-    esp_console_repl_config_t repl_config = ESP_CONSOLE_REPL_CONFIG_DEFAULT();
-    esp_console_dev_uart_config_t uart_config = ESP_CONSOLE_DEV_UART_CONFIG_DEFAULT();
-    repl_config.prompt = "ftm>";
-    // init console REPL environment
-    ESP_ERROR_CHECK(esp_console_new_repl_uart(&uart_config, &repl_config, &repl));
     /* Register commands */
     register_system();
-    register_wifi();
+    // register_wifi();
 
-    printf("\n ==========================================================\n");
-    printf(" |                      Steps to test FTM                 |\n");
-    printf(" |                                                        |\n");
-    printf(" |  1. Use 'help' for detailed information on parameters  |\n");
-    printf(" |  2. Start SoftAP with command 'ap <SSID> <password>'   |\n");
-    printf(" |                          OR                            |\n");
-    printf(" |  2. Use 'scan' command to search for external AP's     |\n");
-    printf(" |  3. On second device initiate FTM with an AP using     |\n");
-    printf(" |     command 'ftm -I -s <SSID>'                         |\n");
-    printf(" ==========================================================\n\n");
-
-    // start console REPL
-    ESP_ERROR_CHECK(esp_console_start_repl(repl));
 }
 
