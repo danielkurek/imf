@@ -19,7 +19,7 @@
 
 #include <esp_http_server.h>
 
-#include "ftm.h"
+#include "ftm_control.h"
 
 /* A simple example that demonstrates using websocket echo server
  */
@@ -195,6 +195,7 @@ static httpd_handle_t start_webserver(void)
         ESP_LOGI(TAG, "Registering URI handlers");
         httpd_register_uri_handler(server, &ws);
         httpd_register_uri_handler(server, &home);
+        httpd_register_uri_handler(server, &ftm_control_ssid_list);
         return server;
     }
 
