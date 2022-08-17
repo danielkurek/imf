@@ -5,6 +5,8 @@
 #include "esp_wifi.h"
 #include "esp_err.h"
 #include <string.h>
+#include "cJSON.h"
+
 static const char *TAG_STA = "ftm_station";
 static const char *TAG_FTM = "ftm_control";
 
@@ -28,12 +30,11 @@ static esp_err_t wifi_perform_scan(httpd_req_t *req)
     uint8_t i;
 
     ESP_LOGI(TAG_FTM, "Serve /ftm/ssid-list");
-    httpd_resp_set_type(req, "text/html");
 
     ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_APSTA) );
     if (ESP_OK != esp_wifi_scan_start(&scan_config, true)) {
         ESP_LOGI(TAG_STA, "Failed to perform scan");
-        return false;
+        return ESP_FAIL;
     }
 
     uint16_t g_scan_ap_num;
@@ -42,51 +43,69 @@ static esp_err_t wifi_perform_scan(httpd_req_t *req)
     esp_wifi_scan_get_ap_num(&g_scan_ap_num);
     if (g_scan_ap_num == 0) {
         ESP_LOGI(TAG_STA, "No matching AP found");
-        return false;
+        return ESP_FAIL;
     }
 
     g_ap_list_buffer = malloc(g_scan_ap_num * sizeof(wifi_ap_record_t));
     if (g_ap_list_buffer == NULL) {
         ESP_LOGE(TAG_STA, "Failed to malloc buffer to print scan results");
-        return false;
+        return ESP_FAIL;
     }
 
-    int size = 0;
-    char* ap_list;
-    int index = 0;
+    cJSON *root = cJSON_CreateObject();
+    if(root == NULL){
+        ESP_LOGE(TAG_FTM, "Failed to create JSON root");
+        return ESP_FAIL;
+    }
+    cJSON *ap_list = cJSON_CreateArray();
+    if(ap_list == NULL){
+        ESP_LOGE(TAG_FTM, "Failed to create JSON array");
+        return ESP_FAIL;
+    }
+    cJSON_AddItemToObject(root, "ap_list", ap_list);
     if (esp_wifi_scan_get_ap_records(&g_scan_ap_num, (wifi_ap_record_t *)g_ap_list_buffer) == ESP_OK) {
-        // TODO: make JSON response
+        cJSON *ap_entry = NULL;
+        cJSON *name = NULL;
+        cJSON *FTM_responder = NULL;
+        cJSON *rssi = NULL;
         for (i = 0; i < g_scan_ap_num; i++) {
-            // show just ftm_responders
-            // if (g_ap_list_buffer[i].ftm_responder)
-            size += strlen((char*)g_ap_list_buffer[i].ssid);
-            ESP_LOGI(TAG_FTM, "%s", g_ap_list_buffer[i].ssid);
-        }
-        ESP_LOGI(TAG_FTM, "%d", size);
-        ap_list = malloc(size + (g_scan_ap_num-1));
-        for (i = 0; i < g_scan_ap_num; i++) {
-            // show just ftm_responders
-            // if (g_ap_list_buffer[i].ftm_responder)
-            int str_size = strlen((char*) g_ap_list_buffer[i].ssid);
-            for(int j = 0; j < str_size; ++j){
-                ap_list[index] = g_ap_list_buffer[i].ssid[j];
-                ++index;
+            ap_entry = cJSON_CreateObject();
+            if(ap_entry == NULL){
+                ESP_LOGE(TAG_FTM, "Failed to create JSON AP entry");
+                return ESP_FAIL;
             }
-            if(i+1 < g_scan_ap_num) {
-                ap_list[index] = ',';
-                index++;
+            cJSON_AddItemToArray(ap_list, ap_entry);
+
+            name = cJSON_CreateString((char *) g_ap_list_buffer[i].ssid);
+            if(name == NULL){
+                ESP_LOGE(TAG_FTM, "Failed to create JSON AP name");
+                return ESP_FAIL;
             }
+            cJSON_AddItemToObject(ap_entry, "SSID", name);
+
+            FTM_responder = g_ap_list_buffer[i].ftm_responder ? cJSON_CreateTrue() : cJSON_CreateFalse();
+            if(FTM_responder == NULL){
+                ESP_LOGE(TAG_FTM, "Failed to create JSON AP ftm_responder");
+                return ESP_FAIL;
+            }
+            cJSON_AddItemToObject(ap_entry, "ftm_responder", FTM_responder);
+
+            rssi = cJSON_CreateNumber(g_ap_list_buffer[i].rssi);
+            if(rssi == NULL){
+                ESP_LOGE(TAG_FTM, "Failed to create JSON AP rssi");
+                return ESP_FAIL;
+            }
+            cJSON_AddItemToObject(ap_entry, "RSSI", rssi);
         }
     }
 
     ESP_LOGI(TAG_STA, "sta scan done");
-    if(size == 0){
-        httpd_resp_send(req, "", 0);
-    }
-    else {
-        httpd_resp_send(req, ap_list, index);
-        ESP_LOGI(TAG_FTM, "%s", ap_list);
-    }
+
+    httpd_resp_set_type(req, "application/json");
+    
+    char *json_string = cJSON_PrintUnformatted(root);
+    httpd_resp_send(req, json_string, strlen(json_string));
+    ESP_LOGI(TAG_FTM, "%s", json_string);
 
     return ESP_OK;
 }
