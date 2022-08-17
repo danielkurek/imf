@@ -1,6 +1,6 @@
 <html>
     <head></head>
-    <body>
+    <body onload="loadDefaultData()">
         <form action="#" onsubmit="start_ap()">
             <input type="text" id="ssid" value="TEST">
             <input type="submit" value="Start AP">
@@ -9,7 +9,7 @@
         <form action="#" onsubmit="start_ftm()">
             <label for="responder_ssid">Responder SSID: </label>
             <select id="responder_ssid">
-                <option>TEST</option> 
+                <option>Please refresh available AP</option> 
                 <!-- populate in JS -->
             </select>
             <br />
@@ -23,8 +23,22 @@
         </div>
         <script>
             function refresh_ap_list(){
-                // TODO: get AP list
-                // HTTP GET request
+                fetch("/api/v1/ftm/ssid-list")
+                    .then((response) => response.json())
+                    .then(function(data){
+                        let select_ssid = document.getElementById("responder_ssid");
+                        while(select_ssid.hasChildNodes()){
+                            select_ssid.removeChild(select_ssid.firstChild);
+                        }
+                        data.ap_list.forEach((ap_entry) => {
+                            console.log(ap_entry.SSID);
+                            let option = document.createElement("option");
+                            option.value = ap_entry.SSID;
+                            option.innerHTML = `[${ap_entry.ftm_responder ? "x" : " "}] ` + ap_entry.SSID + ` [${ap_entry.RSSI}]`;
+                            select_ssid.appendChild(option);
+                        });
+                        console.log(data);
+                    });
             }
             function start_ap(){
                 // TODO: start AP
@@ -34,6 +48,9 @@
             function start_ftm(){
                 // TODO: start FTM
                 return false; // avoid refreshing site
+            }
+            function loadDefaultData(){
+                refresh_ap_list();
             }
         </script>
     </body>

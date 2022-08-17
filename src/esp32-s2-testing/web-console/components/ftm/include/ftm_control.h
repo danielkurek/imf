@@ -25,11 +25,13 @@ static esp_err_t ftm_control_handler(httpd_req_t *req){
 
 static esp_err_t wifi_perform_scan(httpd_req_t *req)
 {
+    // TODO: option to send only FTM responders
     wifi_scan_config_t scan_config = { 0 };
     scan_config.ssid = (uint8_t *) NULL;
     uint8_t i;
 
     ESP_LOGI(TAG_FTM, "Serve /ftm/ssid-list");
+    ESP_LOGI(TAG_FTM, "%s", req->uri);
 
     ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_APSTA) );
     if (ESP_OK != esp_wifi_scan_start(&scan_config, true)) {
@@ -102,6 +104,7 @@ static esp_err_t wifi_perform_scan(httpd_req_t *req)
     ESP_LOGI(TAG_STA, "sta scan done");
 
     httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     
     char *json_string = cJSON_PrintUnformatted(root);
     httpd_resp_send(req, json_string, strlen(json_string));
@@ -119,7 +122,7 @@ const httpd_uri_t ftm_control = {
 };
 
 const httpd_uri_t ftm_control_ssid_list = {
-        .uri        = "/ftm/ssid-list",
+        .uri        = "/api/v1/ftm/ssid-list",
         .method     = HTTP_GET,
         .handler    = wifi_perform_scan,
         .user_ctx   = NULL,
