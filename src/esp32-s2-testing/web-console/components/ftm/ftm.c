@@ -274,7 +274,7 @@ int wifi_cmd_scan(int argc, char **argv)
     return 0;
 }
 
-static bool wifi_cmd_ap_set(const char* ssid, const char* pass)
+bool wifi_cmd_ap_set(const char* ssid, const char* pass)
 {
     s_reconnect = false;
     strlcpy((char*) g_ap_config.ap.ssid, ssid, MAX_SSID_LEN);
@@ -293,6 +293,7 @@ static bool wifi_cmd_ap_set(const char* ssid, const char* pass)
 
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &g_ap_config));
+    ESP_LOGI(TAG_AP, "SSID:%s password:%s channel:%d", g_ap_config.ap.ssid, g_ap_config.ap.password, g_ap_config.ap.channel);
     return true;
 }
 
@@ -517,7 +518,7 @@ ftm_responder:
 //     ESP_ERROR_CHECK( esp_console_cmd_register(&ftm_cmd) );
 // }
 
-void app_main(void)
+void ftm_app_main(void)
 {
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {

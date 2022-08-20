@@ -7,6 +7,10 @@
 #include <string.h>
 #include "cJSON.h"
 
+#include "ftm.h"
+
+#define SCRATCH_BUFSIZE (10240)
+
 static const char *TAG_STA = "ftm_station";
 static const char *TAG_FTM = "ftm_control";
 
@@ -113,18 +117,66 @@ static esp_err_t wifi_perform_scan(httpd_req_t *req)
     return ESP_OK;
 }
 
-const httpd_uri_t ftm_control = {
+static esp_err_t ftm_start_ap(httpd_req_t *req)
+{
+    int total_len = req->content_len;
+    int cur_len = 0;
+    char *buf = (char *)(req->user_ctx);
+    int received = 0;
+    if (total_len >= SCRATCH_BUFSIZE) {
+        /* Respond with 500 Internal Server Error */
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "content too long");
+        return ESP_FAIL;
+    }
+    while (cur_len < total_len) {
+        received = httpd_req_recv(req, buf + cur_len, total_len);
+        if (received <= 0) {
+            /* Respond with 500 Internal Server Error */
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to post control value");
+            return ESP_FAIL;
+        }
+        cur_len += received;
+    }
+    buf[total_len] = '\0';
+
+    cJSON *root = cJSON_Parse(buf);
+    char* ap_ssid = cJSON_GetObjectItemCaseSensitive(root, "SSID")->valuestring;
+    ESP_LOGI(TAG_FTM, "Parsed SSID: %s", ap_ssid);
+    httpd_resp_sendstr(req, "Post control value successfully");
+
+    wifi_cmd_ap_set(ap_ssid, "");
+
+    cJSON_Delete(root);
+    
+    return ESP_OK;
+}
+
+esp_err_t ftm_register_uri(httpd_handle_t server){
+    char scratch_buffer[SCRATCH_BUFSIZE];
+
+    const httpd_uri_t ftm_control = {
         .uri        = "/ftm",
         .method     = HTTP_GET,
         .handler    = ftm_control_handler,
-        .user_ctx   = NULL,
-        .is_websocket = false
-};
+        .user_ctx   = scratch_buffer
+    };
+    httpd_register_uri_handler(server, &ftm_control);
 
-const httpd_uri_t ftm_control_ssid_list = {
-        .uri        = "/api/v1/ftm/ssid-list",
-        .method     = HTTP_GET,
-        .handler    = wifi_perform_scan,
-        .user_ctx   = NULL,
-        .is_websocket = false
-};
+    const httpd_uri_t ftm_control_ssid_list = {
+            .uri        = "/api/v1/ftm/ssid-list",
+            .method     = HTTP_GET,
+            .handler    = wifi_perform_scan,
+            .user_ctx   = scratch_buffer
+    };
+    httpd_register_uri_handler(server, &ftm_control_ssid_list);
+
+    const httpd_uri_t ftm_control_start_ap = {
+            .uri        = "/api/v1/ftm/start_ap",
+            .method     = HTTP_POST,
+            .handler    = ftm_start_ap,
+            .user_ctx   = scratch_buffer
+    };
+    httpd_register_uri_handler(server, &ftm_control_start_ap);
+
+    return ESP_OK;
+}

@@ -41,8 +41,18 @@
                     });
             }
             function start_ap(){
-                // TODO: start AP
-                // HTTP GET request
+                // HTTP POST request
+                const ssid = document.getElementById('ssid').value;
+                let data = {"SSID": ssid};
+                fetch("/api/v1/ftm/start_ap", {
+                    method: 'POST',
+                    mode: 'cors',
+                    cache: 'no-cache',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
                 return false; // avoid refreshing site
             }
             function start_ftm(){
