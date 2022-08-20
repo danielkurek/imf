@@ -31,13 +31,11 @@
                             select_ssid.removeChild(select_ssid.firstChild);
                         }
                         data.ap_list.forEach((ap_entry) => {
-                            console.log(ap_entry.SSID);
                             let option = document.createElement("option");
                             option.value = ap_entry.SSID;
                             option.innerHTML = `[${ap_entry.ftm_responder ? "x" : " "}] ` + ap_entry.SSID + ` [${ap_entry.RSSI}]`;
                             select_ssid.appendChild(option);
                         });
-                        console.log(data);
                     });
             }
             function start_ap(){
