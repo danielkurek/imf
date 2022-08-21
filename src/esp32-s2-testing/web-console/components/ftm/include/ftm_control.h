@@ -114,6 +114,8 @@ static esp_err_t wifi_perform_scan(httpd_req_t *req)
     httpd_resp_send(req, json_string, strlen(json_string));
     ESP_LOGI(TAG_FTM, "%s", json_string);
 
+    free(g_ap_list_buffer);
+    cJSON_Delete(root);
     return ESP_OK;
 }
 
@@ -147,9 +149,104 @@ static esp_err_t ftm_start_ap(httpd_req_t *req)
     wifi_cmd_ap_set(ap_ssid, "");
 
     cJSON_Delete(root);
-    
+
     return ESP_OK;
 }
+
+static esp_err_t ftm_measurement(httpd_req_t *req){
+    char *buf = (char *)(req->user_ctx);
+    char ssid[MAX_SSID_LEN];
+
+    ESP_ERROR_CHECK(httpd_req_get_url_query_str(req, buf, SCRATCH_BUFSIZE));
+    ESP_ERROR_CHECK(httpd_query_key_value(buf, "ssid", (char*) (&ssid), MAX_SSID_LEN));
+
+
+    ESP_LOGI(TAG_FTM, "Parsed SSID from query: %s", ssid);
+
+    wifi_event_ftm_report_t *ftm_report;
+    ftm_report = wifi_cmd_ftm(ssid);
+
+    if(ftm_report == NULL){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to get FTM report");
+        return ESP_FAIL;
+    }
+    cJSON *root = cJSON_CreateObject();
+    if(root == NULL){
+        ESP_LOGE(TAG_FTM, "Failed to create JSON root");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+        return ESP_FAIL;
+    }
+    if(cJSON_AddNumberToObject(root, "dist_est", ftm_report->dist_est) == NULL){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+        return ESP_FAIL;
+    }
+    if(cJSON_AddNumberToObject(root, "rtt_est", ftm_report->rtt_est) == NULL){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+        return ESP_FAIL;
+    }
+    if(cJSON_AddNumberToObject(root, "rtt_raw", ftm_report->rtt_raw) == NULL){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+        return ESP_FAIL;
+    }
+    if(cJSON_AddNumberToObject(root, "rtt_raw", ftm_report->rtt_raw) == NULL){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON *raw_data_list = cJSON_CreateArray();
+    if(raw_data_list == NULL){
+        ESP_LOGE(TAG_FTM, "Failed to create JSON array");
+        return ESP_FAIL;
+    }
+    cJSON_AddItemToObject(root, "raw_data_list", raw_data_list);
+    
+    cJSON *item = NULL;
+    for(int i = 0; i < ftm_report->ftm_report_num_entries; i++){
+        item = cJSON_CreateObject();
+        if(item == NULL){
+            cJSON_AddTrueToObject(root, "failed_raw_data");
+            break;
+        }
+        cJSON_AddItemToArray(raw_data_list, item);
+        if(cJSON_AddNumberToObject(item, "token", ftm_report->ftm_report_data[i].dlog_token) == NULL){
+            cJSON_AddTrueToObject(root, "failed_raw_data");
+            break;
+        }
+        if(cJSON_AddNumberToObject(item, "rtt", ftm_report->ftm_report_data[i].rtt) == NULL){
+            cJSON_AddTrueToObject(root, "failed_raw_data");
+            break;
+        }
+        if(cJSON_AddNumberToObject(item, "t1", ftm_report->ftm_report_data[i].t1) == NULL){
+            cJSON_AddTrueToObject(root, "failed_raw_data");
+            break;
+        }
+        if(cJSON_AddNumberToObject(item, "t2", ftm_report->ftm_report_data[i].t2) == NULL){
+            cJSON_AddTrueToObject(root, "failed_raw_data");
+            break;
+        }
+        if(cJSON_AddNumberToObject(item, "t3", ftm_report->ftm_report_data[i].t2) == NULL){
+            cJSON_AddTrueToObject(root, "failed_raw_data");
+            break;
+        }
+        if(cJSON_AddNumberToObject(item, "t4", ftm_report->ftm_report_data[i].t2) == NULL){
+            cJSON_AddTrueToObject(root, "failed_raw_data");
+            break;
+        }
+        if(cJSON_AddNumberToObject(item, "rssi", ftm_report->ftm_report_data[i].rssi) == NULL){
+            cJSON_AddTrueToObject(root, "failed_raw_data");
+            break;
+        }
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    
+    char *json_string = cJSON_PrintUnformatted(root);
+    httpd_resp_send(req, json_string, strlen(json_string));
+    ESP_LOGI(TAG_FTM, "JSON FTM report sent: %s", json_string);
+    return ESP_OK;
+}
+
 
 esp_err_t ftm_register_uri(httpd_handle_t server){
     char scratch_buffer[SCRATCH_BUFSIZE];
@@ -177,6 +274,14 @@ esp_err_t ftm_register_uri(httpd_handle_t server){
             .user_ctx   = scratch_buffer
     };
     httpd_register_uri_handler(server, &ftm_control_start_ap);
+
+    const httpd_uri_t ftm_control_measurement = {
+            .uri        = "/api/v1/ftm/measure_distance",
+            .method     = HTTP_GET,
+            .handler    = ftm_measurement,
+            .user_ctx   = scratch_buffer
+    };
+    httpd_register_uri_handler(server, &ftm_control_measurement);
 
     return ESP_OK;
 }

@@ -1,12 +1,12 @@
 <html>
     <head></head>
     <body onload="loadDefaultData()">
-        <form action="#" onsubmit="start_ap()">
+        <form action="" onSubmit="return start_ap()">
             <input type="text" id="ssid" value="TEST">
             <input type="submit" value="Start AP">
         </form>
         <button onclick="refresh_ap_list()">Refresh available AP</button>
-        <form action="#" onsubmit="start_ftm()">
+        <form action="" onSubmit="return start_ftm()">
             <label for="responder_ssid">Responder SSID: </label>
             <select id="responder_ssid">
                 <option>Please refresh available AP</option> 
@@ -19,7 +19,7 @@
             <input type="submit" value="Start FTM">
         </form>
         <h1>Results</h1>
-        <div name="FTM results">
+        <div name="FTM results" id="results">
         </div>
         <script>
             function refresh_ap_list(){
@@ -55,6 +55,17 @@
             }
             function start_ftm(){
                 // TODO: start FTM
+                let responder_ssid = document.getElementById('responder_ssid').value;
+                fetch("/api/v1/ftm/measure_distance?" + new URLSearchParams({
+                    ssid: responder_ssid
+                }))
+                    .then((response) => response.json())
+                    .then(function(data){
+                        let results = document.getElementById('results');
+                        let result = document.createElement("div");
+                        result.innerHTML = data.dist_est;
+                        results.appendChild(result);
+                    });
                 return false; // avoid refreshing site
             }
             function loadDefaultData(){

@@ -69,16 +69,10 @@ static int s_retry_num = 0;
 static const char *TAG_STA = "ftm_station";
 static const char *TAG_AP = "ftm_ap";
 
-static EventGroupHandle_t s_wifi_event_group;
-static const int CONNECTED_BIT = BIT0;
-static const int DISCONNECTED_BIT = BIT1;
-
 static EventGroupHandle_t s_ftm_event_group;
 static const int FTM_REPORT_BIT = BIT0;
 static const int FTM_FAILURE_BIT = BIT1;
-static wifi_ftm_report_entry_t *s_ftm_report;
-static uint8_t s_ftm_report_num_entries;
-static uint32_t s_rtt_est, s_dist_est;
+static wifi_event_ftm_report_t s_ftm_report;
 static bool s_ap_started;
 static uint8_t s_ap_channel;
 static uint8_t s_ap_bssid[ETH_ALEN];
@@ -104,43 +98,26 @@ wifi_ap_record_t *g_ap_list_buffer;
 static void event_handler(void *arg, esp_event_base_t event_base,
                           int32_t event_id, void *event_data)
 {
-	if (event_id == WIFI_EVENT_STA_CONNECTED) {
-        wifi_event_sta_connected_t *event = (wifi_event_sta_connected_t *)event_data;
-
-        ESP_LOGI(TAG_STA, "Connected to %s (BSSID: "MACSTR", Channel: %d)", event->ssid,
-                 MAC2STR(event->bssid), event->channel);
-
-        memcpy(s_ap_bssid, event->bssid, ETH_ALEN);
-        s_ap_channel = event->channel;
-        xEventGroupClearBits(s_wifi_event_group, DISCONNECTED_BIT);
-        xEventGroupSetBits(s_wifi_event_group, CONNECTED_BIT);
-    } else if (event_id == WIFI_EVENT_STA_DISCONNECTED) {
-        if (s_reconnect && ++s_retry_num < MAX_CONNECT_RETRY_ATTEMPTS) {
-            ESP_LOGI(TAG_STA, "sta disconnect, retry attempt %d...", s_retry_num);
-            esp_wifi_connect();
-        } else {
-            ESP_LOGI(TAG_STA, "sta disconnected");
-        }
-        xEventGroupClearBits(s_wifi_event_group, CONNECTED_BIT);
-        xEventGroupSetBits(s_wifi_event_group, DISCONNECTED_BIT);
-    } else if (event_id == WIFI_EVENT_FTM_REPORT) {
+    if (event_id == WIFI_EVENT_FTM_REPORT) {
         wifi_event_ftm_report_t *event = (wifi_event_ftm_report_t *) event_data;
 
         if (event->status == FTM_STATUS_SUCCESS) {
-            s_rtt_est = event->rtt_est;
-            s_dist_est = event->dist_est;
-            s_ftm_report = event->ftm_report_data;
-            s_ftm_report_num_entries = event->ftm_report_num_entries;
+            if(s_ftm_report.ftm_report_data){
+                free(s_ftm_report.ftm_report_data);
+                s_ftm_report.ftm_report_data = NULL;
+                s_ftm_report.ftm_report_num_entries = 0;
+            }
+            s_ftm_report.rtt_raw = event->rtt_raw;
+            s_ftm_report.rtt_est = event->rtt_est;
+            s_ftm_report.dist_est = event->dist_est;
+            s_ftm_report.ftm_report_data = event->ftm_report_data;
+            s_ftm_report.ftm_report_num_entries = event->ftm_report_num_entries;
             xEventGroupSetBits(s_ftm_event_group, FTM_REPORT_BIT);
         } else {
             ESP_LOGI(TAG_STA, "FTM procedure with Peer("MACSTR") failed! (Status - %d)",
                      MAC2STR(event->peer_mac), event->status);
             xEventGroupSetBits(s_ftm_event_group, FTM_FAILURE_BIT);
         }
-    } else if (event_id == WIFI_EVENT_AP_START) {
-        s_ap_started = true;
-    } else if (event_id == WIFI_EVENT_AP_STOP) {
-        s_ap_started = false;
     }
 }
 
@@ -164,29 +141,29 @@ static void ftm_process_report(void)
                  g_report_lvl & BIT3 ? "  RSSI  |":"");
     ESP_LOGI(TAG_STA, "FTM Report:");
     ESP_LOGI(TAG_STA, "|%s", log);
-    for (i = 0; i < s_ftm_report_num_entries; i++) {
+    for (i = 0; i < s_ftm_report.ftm_report_num_entries; i++) {
         char *log_ptr = log;
 
         bzero(log, 200);
         if (g_report_lvl & BIT0) {
-            log_ptr += sprintf(log_ptr, "%6d|", s_ftm_report[i].dlog_token);
+            log_ptr += sprintf(log_ptr, "%6d|", s_ftm_report.ftm_report_data[i].dlog_token);
         }
         if (g_report_lvl & BIT1) {
-            log_ptr += sprintf(log_ptr, "%7u  |", s_ftm_report[i].rtt);
+            log_ptr += sprintf(log_ptr, "%7u  |", s_ftm_report.ftm_report_data[i].rtt);
         }
         if (g_report_lvl & BIT2) {
-            log_ptr += sprintf(log_ptr, "%14llu  |%14llu  |%14llu  |%14llu  |", s_ftm_report[i].t1,
-                                        s_ftm_report[i].t2, s_ftm_report[i].t3, s_ftm_report[i].t4);
+            log_ptr += sprintf(log_ptr, "%14llu  |%14llu  |%14llu  |%14llu  |", s_ftm_report.ftm_report_data[i].t1,
+                                        s_ftm_report.ftm_report_data[i].t2, s_ftm_report.ftm_report_data[i].t3, s_ftm_report.ftm_report_data[i].t4);
         }
         if (g_report_lvl & BIT3) {
-            log_ptr += sprintf(log_ptr, "%6d  |", s_ftm_report[i].rssi);
+            log_ptr += sprintf(log_ptr, "%6d  |", s_ftm_report.ftm_report_data[i].rssi);
         }
         ESP_LOGI(TAG_STA, "|%s", log);
     }
     free(log);
 }
 
-void initialise_wifi(void)
+void ftm_initialise(void)
 {
     esp_log_level_set("wifi", ESP_LOG_WARN);
     static bool initialized = false;
@@ -195,23 +172,15 @@ void initialise_wifi(void)
         return;
     }
 
-    ESP_ERROR_CHECK(esp_netif_init());
-    s_wifi_event_group = xEventGroupCreate();
     s_ftm_event_group = xEventGroupCreate();
-    ESP_ERROR_CHECK( esp_event_loop_create_default() );
-    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
 
     esp_event_handler_instance_t instance_any_id;
     ESP_ERROR_CHECK(esp_event_handler_instance_register(WIFI_EVENT,
-                                                        ESP_EVENT_ANY_ID,
+                                                        WIFI_EVENT_FTM_REPORT,
                                                         &event_handler,
                                                         NULL,
                                                         &instance_any_id));
-
-    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM) );
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_NULL) );
-    ESP_ERROR_CHECK(esp_wifi_start() );
     initialized = true;
 }
 
@@ -221,7 +190,7 @@ static bool wifi_perform_scan(const char *ssid, bool internal)
     scan_config.ssid = (uint8_t *) ssid;
     uint8_t i;
 
-    ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_STA) );
+    ESP_ERROR_CHECK( esp_wifi_set_mode(WIFI_MODE_APSTA) );
     if (ESP_OK != esp_wifi_scan_start(&scan_config, true)) {
         ESP_LOGI(TAG_STA, "Failed to perform scan");
         return false;
@@ -291,7 +260,7 @@ bool wifi_cmd_ap_set(const char* ssid, const char* pass)
         g_ap_config.ap.authmode = WIFI_AUTH_OPEN;
     }
 
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_APSTA));
     ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &g_ap_config));
     ESP_LOGI(TAG_AP, "SSID:%s password:%s channel:%d", g_ap_config.ap.ssid, g_ap_config.ap.password, g_ap_config.ap.channel);
     return true;
@@ -349,9 +318,8 @@ retry:
     return NULL;
 }
 
-int wifi_cmd_ftm(int argc, char **argv)
+wifi_event_ftm_report_t *wifi_cmd_ftm(const char *ssid)
 {
-    int nerrors = arg_parse(argc, argv, (void **) &ftm_args);
     wifi_ap_record_t *ap_record;
     EventBits_t bits;
 
@@ -360,54 +328,12 @@ int wifi_cmd_ftm(int argc, char **argv)
         .burst_period = 2,
     };
 
-    if (nerrors != 0) {
-        arg_print_errors(stderr, ftm_args.end, argv[0]);
-        return 0;
-    }
-
-    if (ftm_args.initiator->count != 0 && ftm_args.responder->count != 0) {
-        ESP_LOGE(TAG_STA, "Invalid FTM cmd argument");
-        return 0;
-    }
-
-    if (ftm_args.responder->count != 0)
-        goto ftm_responder;
-
-    bits = xEventGroupWaitBits(s_wifi_event_group, CONNECTED_BIT, 0, 1, 0);
-    if (bits & CONNECTED_BIT && !ftm_args.ssid->count) {
-        memcpy(ftmi_cfg.resp_mac, s_ap_bssid, ETH_ALEN);
-        ftmi_cfg.channel = s_ap_channel;
-    } else if (ftm_args.ssid->count == 1) {
-        ap_record = find_ftm_responder_ap(ftm_args.ssid->sval[0]);
-        if (ap_record) {
-            memcpy(ftmi_cfg.resp_mac, ap_record->bssid, 6);
-            ftmi_cfg.channel = ap_record->primary;
-        } else {
-            return 0;
-        }
+    ap_record = find_ftm_responder_ap(ssid);
+    if (ap_record) {
+        memcpy(ftmi_cfg.resp_mac, ap_record->bssid, 6);
+        ftmi_cfg.channel = ap_record->primary;
     } else {
-        ESP_LOGE(TAG_STA, "Provide SSID of the AP in disconnected state!");
-        return 0;
-    }
-
-    if (ftm_args.frm_count->count != 0) {
-        uint8_t count = ftm_args.frm_count->ival[0];
-        if (count != 0 && count != 8 && count != 16 &&
-            count != 24 && count != 32 && count != 64) {
-            ESP_LOGE(TAG_STA, "Invalid Frame Count! Valid options are 0/8/16/24/32/64");
-            return 0;
-        }
-        ftmi_cfg.frm_count = count;
-    }
-
-    if (ftm_args.burst_period->count != 0) {
-        if (ftm_args.burst_period->ival[0] >= 2 &&
-                ftm_args.burst_period->ival[0] < 256) {
-            ftmi_cfg.burst_period = ftm_args.burst_period->ival[0];
-        } else {
-            ESP_LOGE(TAG_STA, "Invalid Burst Period! Valid range is 2-255");
-            return 0;
-        }
+        return NULL;
     }
 
     ESP_LOGI(TAG_STA, "Requesting FTM session with Frm Count - %d, Burst Period - %dmSec (0: No Preference)",
@@ -415,7 +341,7 @@ int wifi_cmd_ftm(int argc, char **argv)
 
     if (ESP_OK != esp_wifi_ftm_initiate_session(&ftmi_cfg)) {
         ESP_LOGE(TAG_STA, "Failed to start FTM session");
-        return 0;
+        return NULL;
     }
 
     bits = xEventGroupWaitBits(s_ftm_event_group, FTM_REPORT_BIT | FTM_FAILURE_BIT,
@@ -423,47 +349,14 @@ int wifi_cmd_ftm(int argc, char **argv)
     /* Processing data from FTM session */
     if (bits & FTM_REPORT_BIT) {
         ftm_process_report();
-        free(s_ftm_report);
-        s_ftm_report = NULL;
-        s_ftm_report_num_entries = 0;
         ESP_LOGI(TAG_STA, "Estimated RTT - %d nSec, Estimated Distance - %d.%02d meters",
-                          s_rtt_est, s_dist_est / 100, s_dist_est % 100);
+                          s_ftm_report.rtt_est, s_ftm_report.dist_est / 100, s_ftm_report.dist_est % 100);
+        return &s_ftm_report;
     } else {
         /* Failure case */
     }
 
-    return 0;
-
-ftm_responder:
-    if (ftm_args.offset->count != 0) {
-        int16_t offset_cm = ftm_args.offset->ival[0];
-
-        esp_wifi_ftm_resp_set_offset(offset_cm);
-    }
-
-    if (ftm_args.enable->count != 0) {
-        if (!s_ap_started) {
-            ESP_LOGE(TAG_AP, "Start the SoftAP first with 'ap' command");
-            return 0;
-        }
-        g_ap_config.ap.ftm_responder = true;
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &g_ap_config));
-        ESP_LOGI(TAG_AP, "Re-starting SoftAP with FTM Responder enabled");
-
-        return 0;
-    }
-
-    if (ftm_args.disable->count != 0) {
-        if (!s_ap_started) {
-            ESP_LOGE(TAG_AP, "Start the SoftAP first with 'ap' command");
-            return 0;
-        }
-        g_ap_config.ap.ftm_responder = false;
-        ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &g_ap_config));
-        ESP_LOGI(TAG_AP, "Re-starting SoftAP with FTM Responder disabled");
-    }
-
-    return 0;
+    return NULL;
 }
 
 // void register_wifi(void)
@@ -527,7 +420,7 @@ void ftm_app_main(void)
     }
     ESP_ERROR_CHECK( ret );
 
-    initialise_wifi();
+    ftm_initialise();
 
     /* Register commands */
     register_system();
