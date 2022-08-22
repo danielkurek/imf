@@ -111,11 +111,16 @@ static esp_err_t wifi_perform_scan(httpd_req_t *req)
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     
     char *json_string = cJSON_PrintUnformatted(root);
+    if(json_string == NULL){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed creating JSON");
+        return ESP_FAIL;
+    }
     httpd_resp_send(req, json_string, strlen(json_string));
     ESP_LOGI(TAG_FTM, "%s", json_string);
 
     free(g_ap_list_buffer);
     cJSON_Delete(root);
+    free(json_string);
     return ESP_OK;
 }
 
@@ -142,7 +147,12 @@ static esp_err_t ftm_start_ap(httpd_req_t *req)
     buf[total_len] = '\0';
 
     cJSON *root = cJSON_Parse(buf);
-    char* ap_ssid = cJSON_GetObjectItemCaseSensitive(root, "SSID")->valuestring;
+    cJSON *ap_ssid_obj = cJSON_GetObjectItemCaseSensitive(root, "SSID");
+    if(!(cJSON_IsString(ap_ssid_obj) && (ap_ssid_obj->valuestring != NULL))){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to parse SSID");
+        return ESP_FAIL;
+    }
+    char *ap_ssid = ap_ssid_obj->valuestring;
     ESP_LOGI(TAG_FTM, "Parsed SSID: %s", ap_ssid);
     httpd_resp_sendstr(req, "Post control value successfully");
 
@@ -242,8 +252,18 @@ static esp_err_t ftm_measurement(httpd_req_t *req){
     httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
     
     char *json_string = cJSON_PrintUnformatted(root);
+    if(json_string == NULL){
+        ESP_LOGE(TAG_FTM, "JSON could not print");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+        return ESP_FAIL;
+    }
     httpd_resp_send(req, json_string, strlen(json_string));
+
     ESP_LOGI(TAG_FTM, "JSON FTM report sent: %s", json_string);
+
+    cJSON_Delete(root);
+    free(json_string);
+
     return ESP_OK;
 }
 
