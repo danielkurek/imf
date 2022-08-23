@@ -18,20 +18,30 @@
             <br />
             <input type="submit" value="Start FTM">
         </form>
+        <button onclick="periodic_ftm_start()">continuous FTM ON</button>
+        <button onclick="periodic_ftm_stop()">continuous FTM OFF</button> 
+        <br />
+        <button onclick="download_csv('ftm_main.csv', csv_data_main)">download main</button>
+        <button onclick="download_csv('ftm_raw.csv', csv_data_raw)">download raw</button> 
         <h1>Results</h1>
         <div name="FTM results" id="results">
         </div>
         <script>
+            window.onbeforeunload = function () {return false;}
+            var ftm_interval;
+            const csv_data_main = [["index", "dist_est", "rtt_est", "rtt_raw"]];
+            const csv_data_raw = [["index_main", "token", "rtt", "rssi"]];
+            let counter = 1;
             function refresh_ap_list(){
                 fetch("/api/v1/ftm/ssid-list")
                     .then((response) => response.json())
                     .then(function(data){
-                        let select_ssid = document.getElementById("responder_ssid");
+                        const select_ssid = document.getElementById("responder_ssid");
                         while(select_ssid.hasChildNodes()){
                             select_ssid.removeChild(select_ssid.firstChild);
                         }
                         data.ap_list.forEach((ap_entry) => {
-                            let option = document.createElement("option");
+                            const option = document.createElement("option");
                             option.value = ap_entry.SSID;
                             option.innerHTML = `[${ap_entry.ftm_responder ? "x" : " "}] ` + ap_entry.SSID + ` [${ap_entry.RSSI}]`;
                             select_ssid.appendChild(option);
@@ -41,7 +51,7 @@
             function start_ap(){
                 // HTTP POST request
                 const ssid = document.getElementById('ssid').value;
-                let data = {"SSID": ssid};
+                const data = {"SSID": ssid};
                 fetch("/api/v1/ftm/start_ap", {
                     method: 'POST',
                     mode: 'cors',
@@ -55,21 +65,46 @@
             }
             function start_ftm(){
                 // TODO: start FTM
-                let responder_ssid = document.getElementById('responder_ssid').value;
+                const responder_ssid = document.getElementById('responder_ssid').value;
                 fetch("/api/v1/ftm/measure_distance?" + new URLSearchParams({
                     ssid: responder_ssid
                 }))
                     .then((response) => response.json())
                     .then(function(data){
-                        let results = document.getElementById('results');
-                        let result = document.createElement("div");
-                        result.innerHTML = data.dist_est;
-                        results.appendChild(result);
+                        view_ftm_result(data);
                     });
                 return false; // avoid refreshing site
             }
+            function view_ftm_result(data){
+                const results = document.getElementById('results');
+                const result = document.createElement('div');
+                const today = new Date();
+                const date = document.createElement('span');
+                date.innerText = today.toISOString() + " ";
+                date.classList.add("date");
+                result.appendChild(date);
+
+                const dist = document.createElement('span');
+                dist.innerText = data.dist_est;
+                date.classList.add("distance");
+                result.appendChild(dist);
+                results.appendChild(result);
+
+                // CSV
+                csv_data_main.push([counter, data.dist_est, data.rtt_est, data.rtt_raw]);
+                data.raw_data_list.forEach((elem) => {
+                    csv_data_raw.push([counter, elem.token, elem.rtt, elem.rssi]);
+                });
+                counter = counter + 1;
+            }
             function loadDefaultData(){
                 refresh_ap_list();
+            }
+            function periodic_ftm_start(){
+                ftm_interval = setInterval(start_ftm, 2200);
+            }
+            function periodic_ftm_stop(){
+                clearInterval(ftm_interval);
             }
         </script>
     </body>
