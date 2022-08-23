@@ -198,10 +198,6 @@ static esp_err_t ftm_measurement(httpd_req_t *req){
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
         return ESP_FAIL;
     }
-    if(cJSON_AddNumberToObject(root, "rtt_raw", ftm_report->rtt_raw) == NULL){
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
-        return ESP_FAIL;
-    }
 
     cJSON *raw_data_list = cJSON_CreateArray();
     if(raw_data_list == NULL){
@@ -234,11 +230,11 @@ static esp_err_t ftm_measurement(httpd_req_t *req){
             cJSON_AddTrueToObject(root, "failed_raw_data");
             break;
         }
-        if(cJSON_AddNumberToObject(item, "t3", ftm_report->ftm_report_data[i].t2) == NULL){
+        if(cJSON_AddNumberToObject(item, "t3", ftm_report->ftm_report_data[i].t3) == NULL){
             cJSON_AddTrueToObject(root, "failed_raw_data");
             break;
         }
-        if(cJSON_AddNumberToObject(item, "t4", ftm_report->ftm_report_data[i].t2) == NULL){
+        if(cJSON_AddNumberToObject(item, "t4", ftm_report->ftm_report_data[i].t4) == NULL){
             cJSON_AddTrueToObject(root, "failed_raw_data");
             break;
         }
