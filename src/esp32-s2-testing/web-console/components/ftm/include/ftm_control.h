@@ -263,6 +263,26 @@ static esp_err_t ftm_measurement(httpd_req_t *req){
     return ESP_OK;
 }
 
+static esp_err_t ftm_calibration(httpd_req_t *req){
+    char *buf = (char *)(req->user_ctx);
+    char offset_str[8];
+    int16_t offset;
+
+    ESP_ERROR_CHECK(httpd_req_get_url_query_str(req, buf, SCRATCH_BUFSIZE));
+    ESP_ERROR_CHECK(httpd_query_key_value(buf, "offset", (char*) (&offset_str), 8));
+    sscanf(offset_str, "%hi", &offset);
+    
+    ESP_LOGI(TAG_FTM, "Parsed offset %i", offset);
+
+    esp_err_t ret = ftm_set_offset(offset);
+    if(ret != ESP_OK){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to calibrate");
+    } else {
+        httpd_resp_sendstr(req, "Calibration successful");
+    }
+
+    return ret;
+}
 
 esp_err_t ftm_register_uri(httpd_handle_t server){
     char *scratch_buffer = malloc(SCRATCH_BUFSIZE);
@@ -298,6 +318,14 @@ esp_err_t ftm_register_uri(httpd_handle_t server){
             .user_ctx   = scratch_buffer
     };
     httpd_register_uri_handler(server, &ftm_control_measurement);
+
+    const httpd_uri_t ftm_calibrate = {
+            .uri        = "/api/v1/ftm/calibration",
+            .method     = HTTP_GET,
+            .handler    = ftm_calibration,
+            .user_ctx   = scratch_buffer
+    };
+    httpd_register_uri_handler(server, &ftm_calibrate);
 
     return ESP_OK;
 }

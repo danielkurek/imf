@@ -359,6 +359,10 @@ wifi_event_ftm_report_t *wifi_cmd_ftm(const char *ssid)
     return NULL;
 }
 
+esp_err_t ftm_set_offset(int16_t offset_cm){
+    return esp_wifi_ftm_resp_set_offset(offset_cm);
+}
+
 // void register_wifi(void)
 // {
 //     ap_args.ssid = arg_str1(NULL, NULL, "<ssid>", "SSID of AP");

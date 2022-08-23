@@ -18,6 +18,11 @@
             <br />
             <input type="submit" value="Start FTM">
         </form>
+        <form action="" onsubmit="return calibrate_ftm()">
+            <input type="number" id="calibrate_offset">
+            <label for="calibrate_offset">cm</label>
+            <input type="submit" value="Calibrate FTM">
+        </form>
         <button onclick="periodic_ftm_start()">continuous FTM ON</button>
         <button onclick="periodic_ftm_stop()">continuous FTM OFF</button> 
         <br />
@@ -105,6 +110,24 @@
             }
             function periodic_ftm_stop(){
                 clearInterval(ftm_interval);
+            }
+            function download_csv(name, csv){
+                let csv_content = "data:text/csv;charset=utf-8," +
+                    csv.map(e => e.join(",")).join("\n");
+                let encodedUri = encodeURI(csv_content);
+                let download_link = document.createElement("a");
+                download_link.setAttribute("href", encodedUri);
+                download_link.setAttribute("download", name);
+                document.body.appendChild(download_link);
+                download_link.click();
+                document.body.removeChild(download_link);
+            }
+            function calibrate_ftm(){
+                const offset_cm = document.getElementById('calibrate_offset').value;
+                fetch("/api/v1/ftm/calibration?" + new URLSearchParams({
+                    offset: offset_cm
+                }))
+                return false;
             }
         </script>
     </body>
