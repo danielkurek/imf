@@ -269,7 +269,7 @@ static esp_err_t ftm_measurement(httpd_req_t *req){
 
 
 esp_err_t ftm_register_uri(httpd_handle_t server){
-    char scratch_buffer[SCRATCH_BUFSIZE];
+    char *scratch_buffer = malloc(SCRATCH_BUFSIZE);
 
     const httpd_uri_t ftm_control = {
         .uri        = "/ftm",
