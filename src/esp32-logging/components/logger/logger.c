@@ -37,42 +37,6 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
     va_end(args);
 }
 
-
-// void logger_verbose(const char * tag, const char * format, ...){
-//     va_list args;
-//     va_start(args, format);
-//     logger_write(ESP_LOG_VERBOSE, tag, format, args);
-//     va_end(args);
-// }
-
-// void logger_debug(const char * tag, const char * format, ...){
-//     va_list args;
-//     va_start(args, format);
-//     logger_write(ESP_LOG_DEBUG, tag, format, args);
-//     va_end(args);
-// }
-
-// void logger_info(const char * tag, const char * format, ...){
-//     va_list args;
-//     va_start(args, format);
-//     logger_write(ESP_LOG_INFO, tag, format, args);
-//     va_end(args);
-// }
-
-// void logger_warning(const char * tag, const char * format, ...){
-//     va_list args;
-//     va_start(args, format);
-//     logger_write(ESP_LOG_WARN, tag, format, args);
-//     va_end(args);
-// }
-
-// void logger_error(const char * tag, const char * format, ...){
-//     va_list args;
-//     va_start(args, format);
-//     logger_write(ESP_LOG_ERROR, tag, format, args);
-//     va_end(args);
-// }
-
 void logger_close(){
     if(conf.log_file != NULL){
         fclose(conf.log_file);

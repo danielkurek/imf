@@ -21,11 +21,6 @@ void logger_set_log_level(esp_log_level_t level);
 
 void logger_write(esp_log_level_t level, const char * tag, const char * format, ...);
 
-// void logger_verbose(const char* tag, const char * format, ...);
-// void logger_debug(const char* tag, const char * format, ...);
-// void logger_info(const char* tag, const char * format, ...);
-// void logger_warning(const char* tag, const char * format, ...);
-// void logger_error(const char* tag, const char * format, ...);
 #define LOGGER_FORMAT(letter, format) #letter " (%d) %s: " format "\n"
 #define LOGGER_V( tag, format, ...) logger_write(ESP_LOG_VERBOSE, tag, LOGGER_FORMAT(V, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
 #define LOGGER_D( tag, format, ...) logger_write(ESP_LOG_DEBUG, tag, LOGGER_FORMAT(D, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
