@@ -18,10 +18,11 @@ struct logger_conf{
   bool to_file;
   bool to_uart;
   bool to_default;
+  const char* log_file_name;
 };
 
 void logger_init(esp_log_level_t level);
-bool logger_init_output_to_file();
+bool logger_init_storage();
 bool logger_output_to_file(const char* filename);
 bool logger_output_to_uart(int pin);
 void logger_set_log_level(esp_log_level_t level);
@@ -35,7 +36,8 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
 #define LOGGER_W( tag, format, ...) logger_write(ESP_LOG_WARN, tag, LOGGER_FORMAT(W, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
 #define LOGGER_E( tag, format, ...) logger_write(ESP_LOG_ERROR, tag, LOGGER_FORMAT(E, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
 
-bool logger_dump_log_file(const char* filename);
+bool logger_dump_log_file();
+bool logger_delete_log(const char *filename);
 
 void logger_close();
 

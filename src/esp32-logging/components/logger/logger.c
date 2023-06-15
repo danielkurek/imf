@@ -6,6 +6,7 @@
 #include <stdbool.h>
 #include <esp_littlefs.h>
 #include <string.h>
+#include <unistd.h>
 
 static const char *TAG = "LOGGER";
 
@@ -16,7 +17,7 @@ void logger_init(esp_log_level_t level){
     conf.to_uart = true;
 }
 
-bool logger_init_output_to_file(){
+bool logger_init_storage(){
     esp_vfs_littlefs_conf_t conf = {
       .base_path = LOGGER_STORAGE_MOUNT,
       .partition_label = LOGGER_STORAGE_LABEL,
@@ -48,11 +49,12 @@ bool logger_init_output_to_file(){
 }
 
 bool logger_output_to_file(const char* filename){
-    conf.log_file = fopen(filename, "a");
+    conf.log_file = fopen(filename, "a+");
     if(conf.log_file == NULL){
         return false;
     }
     conf.to_file = true;
+    // conf.log_file_name = filename;
     fprintf(conf.log_file, "\n####[START OF LOG]####\n\n");
     return true;
 }
@@ -80,24 +82,42 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
     va_end(args);
 }
 
-bool logger_dump_log_file(const char* filename){
-    FILE *f = fopen(filename, "r");
-    if(f == NULL){
-        ESP_LOGE(TAG, "Failed to open file for reading");
+bool logger_dump_log_file(){
+    if(conf.log_file == NULL || !conf.to_file){
         return false;
     }
+    fpos_t orig_pos;
+    if(fgetpos(conf.log_file, &orig_pos) != 0){
+        ESP_LOGE(TAG, "cannot get position of log file");
+        return false;
+    }
+    rewind(conf.log_file);
+
     char line[128];
     char *pos;
     ESP_LOGI(TAG, "#########################\nSTART OF DUMP\n");
-    while( fgets(line, sizeof(line), f) != NULL){
+    while(fgets(line, sizeof(line), conf.log_file) != NULL){
         pos = strchr(line, '\n');
         if (pos) {
                 *pos = '\0';
         }
         ESP_LOGI(TAG, "File read: %s", line);
     }
-    fclose(f);
+    if(fsetpos(conf.log_file, &orig_pos) != 0){
+        ESP_LOGE(TAG, "cannot set position of log file");
+        return false;
+    }
     return true;
+}
+
+bool logger_delete_log(const char *filename){
+    if(conf.to_file){
+        ESP_LOGE(TAG, "Cannot remove opened file");
+        return false;
+    }
+    int res = remove(filename);
+    ESP_LOGI(TAG, "remove status %d", res);
+    return res != 0;
 }
 
 void logger_close(){
