@@ -5,18 +5,25 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <esp_log.h>
+#include <stdbool.h>
 
+// Log storage config
+#define LOGGER_STORAGE_MOUNT "/logs"
+#define LOGGER_STORAGE_LABEL "logs"
+#define LOGGER_FILE(filename) LOGGER_STORAGE_MOUNT "/" filename
 struct logger_conf{
   esp_log_level_t level;
   FILE *log_file;
   int uart_pin;
-  int to_file;
-  int to_uart;
+  bool to_file;
+  bool to_uart;
+  bool to_default;
 };
 
 void logger_init(esp_log_level_t level);
-void logger_output_to_file(const char* filename);
-void logger_output_to_uart(int pin);
+bool logger_init_output_to_file();
+bool logger_output_to_file(const char* filename);
+bool logger_output_to_uart(int pin);
 void logger_set_log_level(esp_log_level_t level);
 
 void logger_write(esp_log_level_t level, const char * tag, const char * format, ...);
@@ -27,6 +34,8 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
 #define LOGGER_I( tag, format, ...) logger_write(ESP_LOG_INFO, tag, LOGGER_FORMAT(I, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
 #define LOGGER_W( tag, format, ...) logger_write(ESP_LOG_WARN, tag, LOGGER_FORMAT(W, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
 #define LOGGER_E( tag, format, ...) logger_write(ESP_LOG_ERROR, tag, LOGGER_FORMAT(E, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
+
+bool logger_dump_log_file(const char* filename);
 
 void logger_close();
 
