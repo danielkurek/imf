@@ -1,0 +1,27 @@
+# TODO list
+ - [ ] BLE mesh
+   - [ ] simple example
+   - [ ] try centralized logging
+ - [ ] WIFI configuration
+   - [ ] each device can have its own AP
+   - [ ] switch to configuration mode by holding button at boot
+   - [ ] dump log
+   - [ ] NVS configuration
+   - [ ] centralized configuration
+     - [ ] discover other devices
+     - [ ] external WIFI network (devices will not have its own AP)
+       - [ ] multiple options
+         - [ ] detect if there is external network (by SSID); otherwise create own
+         - [ ] special key combination to enter this mode
+     - [ ] web interface
+     - [ ] synchronize logs?
+ - [ ] logging
+   - [ ] test UART log
+   - [ ] more space efficient
+     - [ ] simple compression?? (probably not)
+     - [ ] shorter tags
+     - [ ] simpler messages
+ - [ ] OTA updates
+   - [ ] simple test
+   - [ ] through centralized configuration?
+     - [ ] select which devices should get which firmware
