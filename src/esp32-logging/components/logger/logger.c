@@ -7,14 +7,16 @@
 #include <esp_littlefs.h>
 #include <string.h>
 #include <unistd.h>
+#include <driver/uart.h>
 
 static const char *TAG = "LOGGER";
 
 static struct logger_conf conf;
+static QueueHandle_t uart_queue;
 
 void logger_init(esp_log_level_t level){
     conf.level = level;
-    conf.to_uart = true;
+    conf.to_default = true;
 }
 
 bool logger_init_storage(){
@@ -58,8 +60,34 @@ bool logger_output_to_file(const char* filename){
     fprintf(conf.log_file, "\n####[START OF LOG]####\n\n");
     return true;
 }
-bool logger_output_to_uart(int pin){
-    return false;
+bool logger_output_to_uart(const uart_port_t port, int tx_io_num, int rx_io_num, int rts_io_num, int cts_io_num){
+    conf.uart_num = port;
+
+    uart_config_t uart_config = {
+        .baud_rate = 115200,
+        .data_bits = UART_DATA_8_BITS,
+        .parity = UART_PARITY_DISABLE,
+        .stop_bits = UART_STOP_BITS_1,
+        .flow_ctrl = UART_HW_FLOWCTRL_CTS_RTS,
+        .rx_flow_ctrl_thresh = 122,
+    };
+    
+    if(uart_param_config(uart_num, &uart_config) != ESP_OK){
+        return false;
+    }
+
+    if(uart_set_pin(port, tx_io_num, rx_io_num, rts_io_num, cts_io_num) != ESP_OK){
+        return false;
+    }
+
+    const int uart_buffer_size = (1024 * 2);
+    if(uart_driver_install(port, uart_buffer_size, uart_buffer_size, 10, &uart_queue, 0) != ESP_OK){
+        return false;
+    }
+    
+    conf.to_uart = true;
+
+    return true;
 }
 void logger_set_log_level(esp_log_level_t level){
     conf.level = level;
@@ -73,12 +101,22 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
     
     va_start(args, format);
 
-    if(conf.to_uart){
+    if(conf.to_default){
         esp_log_writev(level, tag, format, args);
     }
+
     if(conf.to_file){
         vfprintf(conf.log_file, format, args);
     }
+
+    if(conf.to_uart){
+        char out[128];
+        int ret = vsnprintf(out, sizeof(out), format, args);
+        if (ret >= 0){
+            uart_write_bytes(conf.uart_num, out, strlen(out));
+        }
+    }
+
     va_end(args);
 }
 

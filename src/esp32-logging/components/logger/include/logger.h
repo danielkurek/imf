@@ -14,7 +14,7 @@
 struct logger_conf{
   esp_log_level_t level;
   FILE *log_file;
-  int uart_pin;
+  uart_port_t uart_num;
   bool to_file;
   bool to_uart;
   bool to_default;
