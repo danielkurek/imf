@@ -9,6 +9,7 @@ void app_main(void)
 {
     logger_init(ESP_LOG_INFO);
     logger_init_storage();
+    logger_output_to_uart(UART_NUM_1, 17, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     const char* filename = LOGGER_FILE("log.txt");
     int i=0;
     while(1){

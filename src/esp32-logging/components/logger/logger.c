@@ -68,20 +68,24 @@ bool logger_output_to_uart(const uart_port_t port, int tx_io_num, int rx_io_num,
         .data_bits = UART_DATA_8_BITS,
         .parity = UART_PARITY_DISABLE,
         .stop_bits = UART_STOP_BITS_1,
-        .flow_ctrl = UART_HW_FLOWCTRL_CTS_RTS,
+        .flow_ctrl = UART_HW_FLOWCTRL_DISABLE,
         .rx_flow_ctrl_thresh = 122,
+        .source_clk = UART_SCLK_DEFAULT,
     };
     
     if(uart_param_config(port, &uart_config) != ESP_OK){
+        ESP_LOGE(TAG, "cannot set UART params");
         return false;
     }
 
     if(uart_set_pin(port, tx_io_num, rx_io_num, rts_io_num, cts_io_num) != ESP_OK){
+        ESP_LOGE(TAG, "cannot set UART pins");
         return false;
     }
 
     const int uart_buffer_size = (1024 * 2);
     if(uart_driver_install(port, uart_buffer_size, uart_buffer_size, 10, &uart_queue, 0) != ESP_OK){
+        ESP_LOGE(TAG, "cannot install UART driver");
         return false;
     }
     
@@ -110,10 +114,13 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
     }
 
     if(conf.to_uart){
+        ESP_LOGI(TAG, "printing to UART");
         char out[128];
         int ret = vsnprintf(out, sizeof(out), format, args);
         if (ret >= 0){
             uart_write_bytes(conf.uart_num, out, strlen(out));
+        } else{
+            ESP_LOGE(TAG, "cannot print to UART");
         }
     }
 
