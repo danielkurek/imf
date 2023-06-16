@@ -16,11 +16,13 @@
      - [ ] web interface
      - [ ] synchronize logs?
  - [ ] logging
-   - [ ] test UART log
+   - [x] test UART log
    - [ ] more space efficient
      - [ ] simple compression?? (probably not)
      - [ ] shorter tags
      - [ ] simpler messages
+   - [ ] detect full capacity
+     - [ ] overwrite log from beginning?
  - [ ] OTA updates
    - [ ] simple test
    - [ ] through centralized configuration?
