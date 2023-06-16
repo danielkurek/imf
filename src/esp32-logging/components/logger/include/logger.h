@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <esp_log.h>
 #include <stdbool.h>
+#include <driver/uart.h>
 
 // Log storage config
 #define LOGGER_STORAGE_MOUNT "/logs"
@@ -24,7 +25,7 @@ struct logger_conf{
 void logger_init(esp_log_level_t level);
 bool logger_init_storage();
 bool logger_output_to_file(const char* filename);
-bool logger_output_to_uart(int pin);
+bool logger_output_to_uart(const uart_port_t port, int tx_io_num, int rx_io_num, int rts_io_num, int cts_io_num);
 void logger_set_log_level(esp_log_level_t level);
 
 void logger_write(esp_log_level_t level, const char * tag, const char * format, ...);

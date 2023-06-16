@@ -72,7 +72,7 @@ bool logger_output_to_uart(const uart_port_t port, int tx_io_num, int rx_io_num,
         .rx_flow_ctrl_thresh = 122,
     };
     
-    if(uart_param_config(uart_num, &uart_config) != ESP_OK){
+    if(uart_param_config(port, &uart_config) != ESP_OK){
         return false;
     }
 
