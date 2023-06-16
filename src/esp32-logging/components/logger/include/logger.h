@@ -20,12 +20,15 @@ struct logger_conf{
   bool to_uart;
   bool to_default;
   const char* log_file_name;
+  size_t storage_size_total;
+  size_t storage_size_used;
 };
 
 void logger_init(esp_log_level_t level);
 bool logger_init_storage();
 bool logger_output_to_file(const char* filename);
 bool logger_output_to_uart(const uart_port_t port, int tx_io_num, int rx_io_num, int rts_io_num, int cts_io_num);
+void logger_set_file_overwrite();
 void logger_set_log_level(esp_log_level_t level);
 
 void logger_write(esp_log_level_t level, const char * tag, const char * format, ...);

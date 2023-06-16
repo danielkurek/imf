@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <driver/uart.h>
+#include <inttypes.h>
 
 static const char *TAG = "LOGGER";
 
@@ -20,12 +21,12 @@ void logger_init(esp_log_level_t level){
 }
 
 bool logger_init_storage(){
-    esp_vfs_littlefs_conf_t conf = {
+    esp_vfs_littlefs_conf_t storage_conf = {
       .base_path = LOGGER_STORAGE_MOUNT,
       .partition_label = LOGGER_STORAGE_LABEL,
       .format_if_mount_failed = true
     };
-    esp_err_t ret = esp_vfs_littlefs_register(&conf);
+    esp_err_t ret = esp_vfs_littlefs_register(&storage_conf);
     if (ret != ESP_OK) {
         if (ret == ESP_FAIL) {
                 ESP_LOGE(TAG, "Failed to mount or format filesystem");
@@ -38,28 +39,53 @@ bool logger_init_storage(){
     }
 
     size_t total = 0, used = 0;
-    ret = esp_littlefs_info(conf.partition_label, &total, &used);
+    ret = esp_littlefs_info(storage_conf.partition_label, &total, &used);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get SPIFFS partition information (%s). Formatting...", esp_err_to_name(ret));
-        esp_littlefs_format(conf.partition_label);
+        esp_littlefs_format(storage_conf.partition_label);
         return false;
     } else {
         ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
+        if(total >= used){
+            conf.storage_size_total = total;
+            conf.storage_size_used = used;
+        }
     }
 
     return true;
 }
 
+
+
 bool logger_output_to_file(const char* filename){
-    conf.log_file = fopen(filename, "a+");
+    conf.log_file = fopen(filename, "w+");
     if(conf.log_file == NULL){
         return false;
     }
+    fseek(conf.log_file, 0, SEEK_END);
     conf.to_file = true;
-    // conf.log_file_name = filename;
-    fprintf(conf.log_file, "\n####[START OF LOG]####\n\n");
+    conf.log_file_name = filename;
+    // fprintf(conf.log_file, "\n####[START OF LOG]####\n\n");
     return true;
 }
+
+void logger_set_file_overwrite(){
+    long file_size = ftell(conf.log_file);
+    // fclose(conf.log_file);
+    // conf.log_file = fopen(conf.log_file_name, "w+");
+    rewind(conf.log_file);
+    size_t total = 0, used = 0;
+    esp_err_t ret = esp_littlefs_info(LOGGER_STORAGE_LABEL, &total, &used);
+    if(ret != ESP_OK){
+        return;
+    }
+    ESP_LOGI(TAG, "file %s size %"PRId32", used %d", conf.log_file_name, file_size, used);
+    if(total >= used){
+        conf.storage_size_total = total;
+        conf.storage_size_used = used - file_size;
+    }
+}
+
 bool logger_output_to_uart(const uart_port_t port, int tx_io_num, int rx_io_num, int rts_io_num, int cts_io_num){
     conf.uart_num = port;
 
@@ -110,7 +136,12 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
     }
 
     if(conf.to_file){
-        vfprintf(conf.log_file, format, args);
+        // if(conf.storage_size_used >= 0.8 * conf.storage_size_total){
+        if(conf.storage_size_used >= 30000){
+            logger_set_file_overwrite();
+        }
+        int written = vfprintf(conf.log_file, format, args);
+        conf.storage_size_used += written;
     }
 
     if(conf.to_uart){
@@ -170,4 +201,5 @@ void logger_close(){
         fclose(conf.log_file);
     }
     conf.to_file = false;
+    esp_vfs_littlefs_unregister(LOGGER_STORAGE_LABEL);
 }
