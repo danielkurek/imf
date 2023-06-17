@@ -10,7 +10,7 @@ void app_main(void)
     logger_init(ESP_LOG_INFO);
     logger_init_storage();
     logger_output_to_uart(UART_NUM_1, 17, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-    const char* filename = LOGGER_FILE("log.txt");
+    const char* filename = "/logs/log.txt";
     logger_output_to_file(filename);
     logger_dump_log_file();
     
@@ -27,9 +27,10 @@ void app_main(void)
             logger_dump_log_file();
         vTaskDelay(50 / portTICK_PERIOD_MS);
         i++;
-        if(i >= 1000){
+        if(i >= 10){
             break;
         }
     }
+    logger_dump_log_file();
     logger_close();
 }
