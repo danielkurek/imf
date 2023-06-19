@@ -9,6 +9,7 @@
 #include <unistd.h>
 #include <driver/uart.h>
 #include <inttypes.h>
+#include <sys/stat.h>
 
 static const char *TAG = "LOGGER";
 
@@ -25,7 +26,7 @@ bool logger_init_storage(){
       .base_path = "/logs",
       .partition_label = "logs",
       .max_files = 5,
-      .format_if_mount_failed = true
+      .format_if_mount_failed = false
     };
     esp_err_t ret = esp_vfs_spiffs_register(&storage_conf);
     if (ret != ESP_OK) {
@@ -59,14 +60,22 @@ bool logger_init_storage(){
 
 
 bool logger_output_to_file(const char* filename){
-    conf.log_file = fopen("/logs/logs.txt", "w+");
+    struct stat st;
+    if (stat("/logs/logs.txt", &st) == 0) {
+        ESP_LOGI(TAG, "opening file in r+ mode");
+        conf.log_file = fopen("/logs/logs.txt", "r+");
+    } else {
+        ESP_LOGI(TAG, "opening file in w+ mode");
+        conf.log_file = fopen("/logs/logs.txt", "w+");
+    }
     if(conf.log_file == NULL){
+        ESP_LOGE(TAG, "cannot open file for logging");
         return false;
     }
-    // fseek(conf.log_file, 0, SEEK_END);
+    fseek(conf.log_file, 0, SEEK_END);
     conf.to_file = true;
     conf.log_file_name = "/logs/logs.txt";
-    // fprintf(conf.log_file, "\n####[START OF LOG]####\n\n");
+    fprintf(conf.log_file, "\n####[START OF LOG]####\n\n");
     return true;
 }
 
@@ -163,6 +172,7 @@ bool logger_dump_log_file(){
     if(conf.log_file == NULL || !conf.to_file){
         return false;
     }
+    fflush(conf.log_file);
     fpos_t orig_pos;
     if(fgetpos(conf.log_file, &orig_pos) != 0){
         ESP_LOGE(TAG, "cannot get position of log file");
@@ -203,9 +213,11 @@ bool logger_delete_log(const char *filename){
 
 void logger_close(){
     if(conf.log_file != NULL){
+        ESP_LOGI(TAG, "closing file");
         fflush(conf.log_file);
         fclose(conf.log_file);
     }
     conf.to_file = false;
+    ESP_LOGI(TAG, "unregistering spiffs");
     esp_vfs_spiffs_unregister(LOGGER_STORAGE_LABEL);
 }

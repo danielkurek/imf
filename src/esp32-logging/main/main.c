@@ -21,11 +21,11 @@ void app_main(void)
         //     bool res = logger_delete_log(filename);
         //     ESP_LOGI("DEL", "delete status %d, out %d", res, logger_output_to_file(filename));
         // }
-        LOGGER_E("LOGGER_TEST", "Hello world %d!", i);
-        vTaskDelay(50 / portTICK_PERIOD_MS);
+        LOGGER_E("LOGGER_TEST", "------------------------Hello world %d!", i);
+        // vTaskDelay(50 / portTICK_PERIOD_MS);
         if(i%100 == 0)
             logger_dump_log_file();
-        vTaskDelay(50 / portTICK_PERIOD_MS);
+        // vTaskDelay(50 / portTICK_PERIOD_MS);
         i++;
         if(i >= 10){
             break;
