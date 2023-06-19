@@ -4,12 +4,13 @@
 #include <stdlib.h>
 #include <esp_log.h>
 #include <stdbool.h>
-#include "esp_spiffs.h"
+#include "esp_littlefs.h"
 #include <string.h>
 #include <unistd.h>
 #include <driver/uart.h>
 #include <inttypes.h>
 #include <sys/stat.h>
+#include <errno.h>
 
 static const char *TAG = "LOGGER";
 
@@ -22,13 +23,12 @@ void logger_init(esp_log_level_t level){
 }
 
 bool logger_init_storage(){
-    esp_vfs_spiffs_conf_t storage_conf = {
+    esp_vfs_littlefs_conf_t storage_conf = {
       .base_path = "/logs",
       .partition_label = "logs",
-      .max_files = 5,
-      .format_if_mount_failed = false
+      .format_if_mount_failed = true,
     };
-    esp_err_t ret = esp_vfs_spiffs_register(&storage_conf);
+    esp_err_t ret = esp_vfs_littlefs_register(&storage_conf);
     if (ret != ESP_OK) {
         if (ret == ESP_FAIL) {
                 ESP_LOGE(TAG, "Failed to mount or format filesystem");
@@ -41,16 +41,18 @@ bool logger_init_storage(){
     }
 
     size_t total = 0, used = 0;
-    ret = esp_spiffs_info(storage_conf.partition_label, &total, &used);
+    ret = esp_littlefs_info(storage_conf.partition_label, &total, &used);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to get SPIFFS partition information (%s). Formatting...", esp_err_to_name(ret));
-        esp_spiffs_format(storage_conf.partition_label);
+        esp_littlefs_format(storage_conf.partition_label);
         return false;
     } else {
         ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
         if(total >= used){
             conf.storage_size_total = total;
             conf.storage_size_used = used;
+            conf.storage_size_threshold = 0.75*total;
+            ESP_LOGI(TAG, "Size threshold %d", conf.storage_size_threshold);
         }
     }
 
@@ -61,38 +63,45 @@ bool logger_init_storage(){
 
 bool logger_output_to_file(const char* filename){
     struct stat st;
-    if (stat("/logs/logs.txt", &st) == 0) {
-        ESP_LOGI(TAG, "opening file in r+ mode");
-        conf.log_file = fopen("/logs/logs.txt", "r+");
+    if (stat(filename, &st) == 0) {
+        // File exists
+        ESP_LOGI(TAG, "file already exists, opening in r+ mode");
+        conf.log_file = fopen(filename, "r+");
     } else {
-        ESP_LOGI(TAG, "opening file in w+ mode");
-        conf.log_file = fopen("/logs/logs.txt", "w+");
+        conf.log_file = fopen(filename, "w+");
     }
+
     if(conf.log_file == NULL){
         ESP_LOGE(TAG, "cannot open file for logging");
         return false;
     }
+
     fseek(conf.log_file, 0, SEEK_END);
+
     conf.to_file = true;
-    conf.log_file_name = "/logs/logs.txt";
+    conf.log_file_name = filename;
+
     fprintf(conf.log_file, "\n####[START OF LOG]####\n\n");
     return true;
 }
 
 void logger_set_file_overwrite(){
     long file_size = ftell(conf.log_file);
-    // fclose(conf.log_file);
-    // conf.log_file = fopen(conf.log_file_name, "w+");
-    rewind(conf.log_file);
+
+    fseek(conf.log_file, 0, SEEK_SET);
+
     size_t total = 0, used = 0;
-    esp_err_t ret = esp_spiffs_info(LOGGER_STORAGE_LABEL, &total, &used);
+    esp_err_t ret = esp_littlefs_info(LOGGER_STORAGE_LABEL, &total, &used);  
     if(ret != ESP_OK){
         return;
     }
-    ESP_LOGI(TAG, "file %s size %"PRId32", used %d", "/logs/logs.txt", file_size, used);
+
+    ESP_LOGI(TAG, "file %s size %"PRId32", used %d", conf.log_file_name, file_size, used);
     if(total >= used){
         conf.storage_size_total = total;
         conf.storage_size_used = used - file_size;
+        conf.storage_size_threshold = 0.75*total;
+        ESP_LOGI(TAG, "Size threshold %d", conf.storage_size_threshold);
     }
 }
 
@@ -146,8 +155,8 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
     }
 
     if(conf.to_file){
-        // if(conf.storage_size_used >= 0.8 * conf.storage_size_total){
-        if(conf.storage_size_used >= 30000){
+        if(conf.storage_size_used >= conf.storage_size_threshold){
+            ESP_LOGI(TAG, "file estimation reached %d; starting overwrite", conf.storage_size_used);
             logger_set_file_overwrite();
         }
         int written = vfprintf(conf.log_file, format, args);
@@ -155,7 +164,6 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
     }
 
     if(conf.to_uart){
-        ESP_LOGI(TAG, "printing to UART");
         char out[128];
         int ret = vsnprintf(out, sizeof(out), format, args);
         if (ret >= 0){
@@ -170,17 +178,17 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
 
 bool logger_dump_log_file(){
     if(conf.log_file == NULL || !conf.to_file){
+        ESP_LOGE(TAG, "log file is not opened");
         return false;
     }
-    fflush(conf.log_file);
     fpos_t orig_pos;
+    ESP_LOGI(TAG, "getting position");
     if(fgetpos(conf.log_file, &orig_pos) != 0){
-        ESP_LOGE(TAG, "cannot get position of log file");
+        ESP_LOGE(TAG, "cannot get position of log file; %s", strerror(errno));
         return false;
     }
-    // fclose(conf.log_file);
-    // conf.log_file = fopen("/logs/logs.txt", "r");
-    rewind(conf.log_file);
+    ESP_LOGI(TAG, "rewinding");
+    fseek(conf.log_file, 0, SEEK_SET);
 
     char line[128];
     char *pos;
@@ -192,10 +200,9 @@ bool logger_dump_log_file(){
         }
         ESP_LOGI(TAG, "File read: %s", line);
     }
-    // fclose(conf.log_file);
-    // conf.log_file = fopen("/logs/logs.txt", "w+");
+    ESP_LOGI(TAG, "setting position");
     if(fsetpos(conf.log_file, &orig_pos) != 0){
-        ESP_LOGE(TAG, "cannot set position of log file");
+        ESP_LOGE(TAG, "cannot set position of log file; %s", strerror(errno));
         return false;
     }
     return true;
@@ -214,10 +221,9 @@ bool logger_delete_log(const char *filename){
 void logger_close(){
     if(conf.log_file != NULL){
         ESP_LOGI(TAG, "closing file");
-        fflush(conf.log_file);
         fclose(conf.log_file);
     }
     conf.to_file = false;
     ESP_LOGI(TAG, "unregistering spiffs");
-    esp_vfs_spiffs_unregister(LOGGER_STORAGE_LABEL);
+    esp_vfs_littlefs_unregister(LOGGER_STORAGE_LABEL);
 }

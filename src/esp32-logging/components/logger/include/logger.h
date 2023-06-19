@@ -22,6 +22,7 @@ struct logger_conf{
   const char* log_file_name;
   size_t storage_size_total;
   size_t storage_size_used;
+  size_t storage_size_threshold;
 };
 
 void logger_init(esp_log_level_t level);
