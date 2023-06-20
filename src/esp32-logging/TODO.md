@@ -21,8 +21,13 @@
      - [ ] simple compression?? (probably not)
      - [ ] shorter tags
      - [ ] simpler messages
-   - [ ] detect full capacity
-     - [ ] overwrite log from beginning?
+   - [x] detect full capacity
+     - [x] overwrite log from beginning?
+   - [ ] better dumping (to file on PC)
+     - maybe only through WIFI interface??
+     - could be useful to transfer it through serial
+   - [ ] C++ support
+     - [ ] namespace LOG + simple function names
  - [ ] OTA updates
    - [ ] simple test
    - [ ] through centralized configuration?
