@@ -18,12 +18,11 @@
 
 static const char *TAG = "LOGGER";
 
-static struct logger_conf conf;
+static logger_conf_t conf;
 static QueueHandle_t uart_queue;
 
 void logger_init(esp_log_level_t level){
     conf.level = level;
-    conf.to_default = true;
 }
 
 bool logger_init_storage(){
@@ -63,7 +62,9 @@ bool logger_init_storage(){
     return true;
 }
 
-
+bool logger_output_to_default(){
+    conf.to_default = true;
+}
 
 bool logger_output_to_file(const char* filename){
     struct stat st;
@@ -222,7 +223,7 @@ bool logger_delete_log(const char *filename){
     return res != 0;
 }
 
-void logger_close(){
+void logger_storage_close(){
     if(conf.log_file != NULL){
         ESP_LOGI(TAG, "closing file");
         fclose(conf.log_file);
@@ -230,4 +231,10 @@ void logger_close(){
     conf.to_file = false;
     ESP_LOGI(TAG, "unregistering spiffs");
     esp_vfs_littlefs_unregister(LOGGER_STORAGE_LABEL);
+}
+
+void logger_stop(){
+    conf.to_default = false;
+    conf.to_uart = false;
+    logger_storage_close();
 }

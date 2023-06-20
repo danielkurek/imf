@@ -7,10 +7,13 @@
 
 void test_logging(void *pvParameters){
     logger_init(ESP_LOG_INFO);
+    logger_output_to_default();
     logger_init_storage();
+
     logger_output_to_uart(UART_NUM_1, 17, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     const char* filename = "/logs/log.txt";
     logger_output_to_file(filename);
+
     vTaskDelay(10000 / portTICK_PERIOD_MS);
     logger_dump_log_file();
     vTaskDelay(2000 / portTICK_PERIOD_MS);
@@ -19,7 +22,7 @@ void test_logging(void *pvParameters){
         LOGGER_E("LOGGER_TEST", "%d Hello world %d!", i, i);
         vTaskDelay(50 / portTICK_PERIOD_MS);
     }
-    
+
     vTaskDelay(2000 / portTICK_PERIOD_MS);
     logger_dump_log_file();
     vTaskDelay(2000 / portTICK_PERIOD_MS);
@@ -29,5 +32,6 @@ void test_logging(void *pvParameters){
 
 void app_main(void)
 {
-    xTaskCreate(test_logging, "DumpLogFile", 8192, NULL, tskIDLE_PRIORITY, NULL);
+    // avoid watchdog for IDLE task (needs to run once in a while)
+    xTaskCreate(test_logging, "Logging Test", 8192, NULL, tskIDLE_PRIORITY, NULL);
 }
