@@ -51,7 +51,7 @@ bool logger_init_storage(){
         if(total >= used){
             conf.storage_size_total = total;
             conf.storage_size_used = used;
-            conf.storage_size_threshold = 0.75*total;
+            conf.storage_size_threshold = total - 10 * 4096;
             ESP_LOGI(TAG, "Size threshold %d", conf.storage_size_threshold);
         }
     }
@@ -76,7 +76,11 @@ bool logger_output_to_file(const char* filename){
         return false;
     }
 
-    fseek(conf.log_file, 0, SEEK_END);
+    int whence = SEEK_END;
+    if(conf.storage_size_used >= conf.storage_size_threshold){
+        whence = SEEK_SET;
+    }
+    fseek(conf.log_file, 0, whence);
 
     conf.to_file = true;
     conf.log_file_name = filename;
@@ -85,24 +89,34 @@ bool logger_output_to_file(const char* filename){
     return true;
 }
 
-void logger_set_file_overwrite(){
-    long file_size = ftell(conf.log_file);
-
-    fseek(conf.log_file, 0, SEEK_SET);
-
-    size_t total = 0, used = 0;
-    esp_err_t ret = esp_littlefs_info(LOGGER_STORAGE_LABEL, &total, &used);  
-    if(ret != ESP_OK){
+void logger_sync_file(){
+    if(conf.log_file == NULL || conf.to_file == false){
         return;
     }
+    fflush(conf.log_file);
+    fsync(fileno(conf.log_file));
+}
 
-    ESP_LOGI(TAG, "file %s size %"PRId32", used %d", conf.log_file_name, file_size, used);
-    if(total >= used){
-        conf.storage_size_total = total;
-        conf.storage_size_used = used - file_size;
-        conf.storage_size_threshold = 0.75*total;
-        ESP_LOGI(TAG, "Size threshold %d", conf.storage_size_threshold);
-    }
+void logger_set_file_overwrite(){
+    logger_sync_file();
+    // long file_size = ftell(conf.log_file);
+
+    fseek(conf.log_file, 0, SEEK_SET);
+    conf.storage_size_used = 8192;
+
+    // size_t total = 0, used = 0;
+    // esp_err_t ret = esp_littlefs_info(LOGGER_STORAGE_LABEL, &total, &used);  
+    // if(ret != ESP_OK){
+    //     return;
+    // }
+
+    // // ESP_LOGI(TAG, "file %s size %"PRId32", used %d", conf.log_file_name, file_size, used);
+    // if(total >= used){
+    //     conf.storage_size_total = total;
+    //     conf.storage_size_used = used - file_size;
+    //     conf.storage_size_threshold = total - 6 * 4096;
+    //     ESP_LOGI(TAG, "Size threshold %d, used %d, new used %d", conf.storage_size_threshold, used, conf.storage_size_used);
+    // }
 }
 
 bool logger_output_to_uart(const uart_port_t port, int tx_io_num, int rx_io_num, int rts_io_num, int cts_io_num){
@@ -181,6 +195,7 @@ bool logger_dump_log_file(){
         ESP_LOGE(TAG, "log file is not opened");
         return false;
     }
+    logger_sync_file();
     fpos_t orig_pos;
     ESP_LOGI(TAG, "getting position");
     if(fgetpos(conf.log_file, &orig_pos) != 0){

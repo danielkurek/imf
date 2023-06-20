@@ -29,6 +29,7 @@ void logger_init(esp_log_level_t level);
 bool logger_init_storage();
 bool logger_output_to_file(const char* filename);
 bool logger_output_to_uart(const uart_port_t port, int tx_io_num, int rx_io_num, int rts_io_num, int cts_io_num);
+void logger_sync_file();
 void logger_set_file_overwrite();
 void logger_set_log_level(esp_log_level_t level);
 
