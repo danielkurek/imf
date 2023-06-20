@@ -8,6 +8,10 @@
 #include <stdbool.h>
 #include <driver/uart.h>
 
+#ifdef __cplusplus
+extern "C"{
+#endif
+
 // Log storage config
 #define LOGGER_STORAGE_MOUNT "/logs"
 #define LOGGER_STORAGE_LABEL "logs"
@@ -51,5 +55,9 @@ bool logger_delete_log(const char *filename);
 
 void logger_close();
 void logger_stop();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
