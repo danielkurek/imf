@@ -18,22 +18,8 @@ void test_logging(void *pvParameters){
     for(int i = 0; i < 568; i++){
         LOGGER_E("LOGGER_TEST", "%d Hello world %d!", i, i);
         vTaskDelay(50 / portTICK_PERIOD_MS);
-        // if(i%100 == 0){
-        //     logger_dump_log_file();
-        //     vTaskDelay(500 / portTICK_PERIOD_MS);
-        // }
     }
-    // vTaskDelay(2000 / portTICK_PERIOD_MS);
-    // logger_dump_log_file();
-    // vTaskDelay(2000 / portTICK_PERIOD_MS);
-    // logger_set_file_overwrite();
-    // vTaskDelay(2000 / portTICK_PERIOD_MS);
-    // logger_dump_log_file();
-    // vTaskDelay(2000 / portTICK_PERIOD_MS);
-    // for(int i = 0; i < 60; i++){
-    //     LOGGER_E("LOGGER_TEST", "####Overwrite %d!", i);
-    //     vTaskDelay(50 / portTICK_PERIOD_MS);
-    // }
+    
     vTaskDelay(2000 / portTICK_PERIOD_MS);
     logger_dump_log_file();
     vTaskDelay(2000 / portTICK_PERIOD_MS);

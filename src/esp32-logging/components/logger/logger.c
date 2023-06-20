@@ -12,6 +12,10 @@
 #include <sys/stat.h>
 #include <errno.h>
 
+#define BLOCK_SIZE 4096
+#define MIN_BLOCKS_FREE 10
+#define MIN_FREE_SPACE MIN_BLOCKS_FREE * BLOCK_SIZE
+
 static const char *TAG = "LOGGER";
 
 static struct logger_conf conf;
@@ -51,7 +55,7 @@ bool logger_init_storage(){
         if(total >= used){
             conf.storage_size_total = total;
             conf.storage_size_used = used;
-            conf.storage_size_threshold = total - 10 * 4096;
+            conf.storage_size_threshold = total - MIN_FREE_SPACE;
             ESP_LOGI(TAG, "Size threshold %d", conf.storage_size_threshold);
         }
     }
@@ -76,16 +80,12 @@ bool logger_output_to_file(const char* filename){
         return false;
     }
 
-    int whence = SEEK_END;
-    if(conf.storage_size_used >= conf.storage_size_threshold){
-        whence = SEEK_SET;
-    }
-    fseek(conf.log_file, 0, whence);
+    fseek(conf.log_file, 0, SEEK_END);
 
     conf.to_file = true;
     conf.log_file_name = filename;
 
-    fprintf(conf.log_file, "\n####[START OF LOG]####\n\n");
+    LOGGER_E("", "\n####[START OF LOG]####\n\n");
     return true;
 }
 
@@ -99,24 +99,13 @@ void logger_sync_file(){
 
 void logger_set_file_overwrite(){
     logger_sync_file();
-    // long file_size = ftell(conf.log_file);
 
+    fseek(conf.log_file, 0, SEEK_END);
+    long file_size = ftell(conf.log_file);
     fseek(conf.log_file, 0, SEEK_SET);
-    conf.storage_size_used = 8192;
 
-    // size_t total = 0, used = 0;
-    // esp_err_t ret = esp_littlefs_info(LOGGER_STORAGE_LABEL, &total, &used);  
-    // if(ret != ESP_OK){
-    //     return;
-    // }
-
-    // // ESP_LOGI(TAG, "file %s size %"PRId32", used %d", conf.log_file_name, file_size, used);
-    // if(total >= used){
-    //     conf.storage_size_total = total;
-    //     conf.storage_size_used = used - file_size;
-    //     conf.storage_size_threshold = total - 6 * 4096;
-    //     ESP_LOGI(TAG, "Size threshold %d, used %d, new used %d", conf.storage_size_threshold, used, conf.storage_size_used);
-    // }
+    ESP_LOGI(TAG, "file %s size %"PRId32", used %d", conf.log_file_name, file_size, conf.storage_size_used);
+    conf.storage_size_used -= file_size;
 }
 
 bool logger_output_to_uart(const uart_port_t port, int tx_io_num, int rx_io_num, int rts_io_num, int cts_io_num){
