@@ -1,8 +1,10 @@
 #ifndef _OTA_H
 #define _OTA_H
 
-void ota_init();
+#include "esp_https_ota.h"
+
+void ota_init(void * event_handler_arg);
 void ota_rollback_checkpoint();
-void ota_task(void *pvParameter);
+esp_err_t ota_task();
 
 #endif

@@ -62,7 +62,7 @@ bool logger_init_storage(){
     return true;
 }
 
-bool logger_output_to_default(){
+void logger_output_to_default(){
     conf.to_default = true;
 }
 

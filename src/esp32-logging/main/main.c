@@ -1,37 +1,14 @@
 #include <stdio.h>
-#include "logger.h"
+// #include "logger.h"
 #include <esp_log.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/task.h>
 #include <stdbool.h>
 #include "ota.h"
+#include "esp_event.h"
+#include "esp_system.h"
 
-void test_logging(void *pvParameters){
-    logger_init(ESP_LOG_INFO);
-    logger_output_to_default();
-    logger_init_storage();
-    
-    ota_rollback_checkpoint();
-
-    logger_output_to_uart(UART_NUM_1, 17, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
-    const char* filename = "/logs/log.txt";
-    logger_output_to_file(filename);
-
-    vTaskDelay(10000 / portTICK_PERIOD_MS);
-    logger_dump_log_file();
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
-    
-    for(int i = 0; i < 568; i++){
-        LOGGER_E("LOGGER_TEST", "%d Hello world %d!", i, i);
-        vTaskDelay(50 / portTICK_PERIOD_MS);
-    }
-
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
-    logger_dump_log_file();
-    vTaskDelay(2000 / portTICK_PERIOD_MS);
-    logger_close();
-    vTaskDelete(NULL);
-}
+static const char *TAG = "MAIN";
 
 /* Event handler for catching system events */
 static void event_handler(void* arg, esp_event_base_t event_base,
@@ -70,10 +47,44 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
+void test_logging(void *pvParameters){
+    ota_init(&event_handler);
+    ota_task();
+
+    // logger_init(ESP_LOG_INFO);
+    // logger_output_to_default();
+    // logger_init_storage();
+    
+    ota_rollback_checkpoint();
+
+    for(int i = 0; i < 20; i++){
+        ESP_LOGI(TAG, "new OTA image");
+    }
+
+    // logger_output_to_uart(UART_NUM_1, 17, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
+    // const char* filename = "/logs/log.txt";
+    // logger_output_to_file(filename);
+
+    // vTaskDelay(10000 / portTICK_PERIOD_MS);
+    // logger_dump_log_file();
+    // vTaskDelay(2000 / portTICK_PERIOD_MS);
+    
+    // for(int i = 0; i < 568; i++){
+    //     LOGGER_E("LOGGER_TEST", "%d Hello world %d!", i, i);
+    //     vTaskDelay(50 / portTICK_PERIOD_MS);
+    // }
+
+    // vTaskDelay(2000 / portTICK_PERIOD_MS);
+    // logger_dump_log_file();
+    // vTaskDelay(2000 / portTICK_PERIOD_MS);
+    // logger_stop();
+    vTaskDelete(NULL);
+}
+
+
 void app_main(void)
 {
-    ota_init();
-    xTaskCreate(&ota_task, "ota_task", 1024 * 8, NULL, 5, NULL);
+    // xTaskCreate(&ota_task, "ota_task", 1024 * 8, NULL, 5, NULL);
 
     // avoid watchdog for IDLE task (needs to run once in a while)
     xTaskCreate(test_logging, "Logging Test", 1024 * 8, NULL, tskIDLE_PRIORITY, NULL);

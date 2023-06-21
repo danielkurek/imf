@@ -1,4 +1,4 @@
-menu "Example Configuration"
+menu "OTA"
 
     config OTA_FIRMWARE_UPGRADE_URL
         string "Firmware Upgrade URL"

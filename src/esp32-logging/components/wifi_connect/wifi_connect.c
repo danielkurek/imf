@@ -23,6 +23,8 @@ static const char *TAG = "WiCON";
 static esp_netif_t *s_sta_netif = NULL;
 static SemaphoreHandle_t s_semph_get_ip_addrs = NULL;
 
+#define WIFI_CONNECT_NETIF_DESC_STA "wifi_connect_netif_sta"
+
 #if CONFIG_WIFI_CONNECT_SCAN_METHOD_FAST
 #define WIFI_CONNECT_SCAN_METHOD WIFI_FAST_SCAN
 #elif CONFIG_WIFI_CONNECT_SCAN_METHOD_ALL_CHANNEL
@@ -57,11 +59,16 @@ static SemaphoreHandle_t s_semph_get_ip_addrs = NULL;
 
 static int s_retry_num = 0;
 
+static bool is_our_netif(const char *prefix, esp_netif_t *netif)
+{
+    return strncmp(prefix, esp_netif_get_desc(netif), strlen(prefix) - 1) == 0;
+}
+
 static void handler_on_wifi_disconnect(void *arg, esp_event_base_t event_base,
                                int32_t event_id, void *event_data)
 {
     s_retry_num++;
-    if (s_retry_num > CONFIG_WIFI_CONNECT_CONN_MAX_RETRY) {
+    if (s_retry_num > CONFIG_WIFI_CONN_MAX_RETRY) {
         ESP_LOGI(TAG, "WiFi Connect failed %d times, stop reconnect.", s_retry_num);
         if (s_semph_get_ip_addrs) {
             xSemaphoreGive(s_semph_get_ip_addrs);
@@ -82,7 +89,7 @@ static void handler_on_sta_got_ip(void *arg, esp_event_base_t event_base,
 {
     s_retry_num = 0;
     ip_event_got_ip_t *event = (ip_event_got_ip_t *)event_data;
-    if (!example_is_our_netif(WIFI_CONNECT_NETIF_DESC_STA, event->esp_netif)) {
+    if (!is_our_netif(WIFI_CONNECT_NETIF_DESC_STA, event->esp_netif)) {
         return;
     }
     ESP_LOGI(TAG, "Got IPv4 event: Interface \"%s\" address: " IPSTR, esp_netif_get_desc(event->esp_netif), IP2STR(&event->ip_info.ip));
@@ -138,7 +145,6 @@ esp_err_t wifi_sta_do_connect(wifi_config_t wifi_config, bool wait)
     s_retry_num = 0;
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &handler_on_wifi_disconnect, NULL));
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &handler_on_sta_got_ip, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, &handler_on_wifi_connect, s_sta_netif));
 
     ESP_LOGI(TAG, "Connecting to %s...", wifi_config.sta.ssid);
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config));
@@ -161,7 +167,6 @@ esp_err_t wifi_sta_do_disconnect(void)
 {
     ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &handler_on_wifi_disconnect));
     ESP_ERROR_CHECK(esp_event_handler_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, &handler_on_sta_got_ip));
-    ESP_ERROR_CHECK(esp_event_handler_unregister(WIFI_EVENT, WIFI_EVENT_STA_CONNECTED, &example_handler_on_wifi_connect));
     if (s_semph_get_ip_addrs) {
         vSemaphoreDelete(s_semph_get_ip_addrs);
     }

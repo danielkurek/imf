@@ -26,9 +26,10 @@
    - [ ] better dumping (to file on PC)
      - maybe only through WIFI interface??
      - could be useful to transfer it through serial
-   - [ ] C++ support
+   - [x] C++ support
      - [ ] namespace LOG + simple function names
  - [ ] OTA updates
-   - [ ] simple test
+   - [x] simple test
+   - [ ] detect version (do not update to same version)
    - [ ] through centralized configuration?
      - [ ] select which devices should get which firmware
