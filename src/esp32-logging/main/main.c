@@ -44,6 +44,12 @@ static void event_handler(void* arg, esp_event_base_t event_base,
                 ESP_LOGI(TAG, "OTA abort");
                 break;
         }
+    } else if (event_base == OTA_EVENT){
+        switch(event_id){
+            case OTA_IMG_SIZE:
+                ESP_LOGI(TAG, "Total image size: %d", *(int *)event_data);
+                break;
+        }
     }
 }
 

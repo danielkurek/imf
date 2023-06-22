@@ -16,6 +16,7 @@
 #include "esp_netif.h"
 #include "esp_wifi.h"
 
+ESP_EVENT_DEFINE_BASE(OTA_EVENT);
 
 static const char *TAG = "advanced_https_ota";
 extern const uint8_t server_cert_pem_start[] asm("_binary_ca_cert_pem_start");
@@ -95,6 +96,14 @@ esp_err_t ota_task()
         ESP_LOGE(TAG, "ESP HTTPS OTA Begin failed");
         return ESP_FAIL;
     }
+    
+    int bin_size = esp_https_ota_get_image_size(https_ota_handle);
+    ESP_LOGI(TAG, "Total image size: %d", bin_size);
+
+    // esp_event copies the event_data, so no need to worry about it not being valid
+    if(esp_event_post(OTA_EVENT, OTA_IMG_SIZE, (void *)(&bin_size), sizeof(int), portMAX_DELAY) != ESP_OK){
+        ESP_LOGE(TAG, "Could not post event: OTA_IMG_SIZE");
+    }
 
     esp_app_desc_t app_desc;
     err = esp_https_ota_get_img_desc(https_ota_handle, &app_desc);
@@ -172,6 +181,7 @@ void ota_init(void * event_handler_arg)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     ESP_ERROR_CHECK(esp_event_handler_register(ESP_HTTPS_OTA_EVENT, ESP_EVENT_ANY_ID, event_handler_arg, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(OTA_EVENT, ESP_EVENT_ANY_ID, event_handler_arg, NULL));
     
     // connect to wifi according to menuconfig
     ESP_ERROR_CHECK(wifi_connect());
