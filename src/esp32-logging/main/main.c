@@ -58,7 +58,7 @@ void test_logging(void *pvParameters){
     ota_rollback_checkpoint();
 
     for(int i = 0; i < 20; i++){
-        ESP_LOGI(TAG, "new OTA image");
+        ESP_LOGI(TAG, "#####new OTA image");
     }
 
     // logger_output_to_uart(UART_NUM_1, 17, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);

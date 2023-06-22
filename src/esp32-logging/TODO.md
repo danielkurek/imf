@@ -30,6 +30,6 @@
      - [ ] namespace LOG + simple function names
  - [ ] OTA updates
    - [x] simple test
-   - [ ] detect version (do not update to same version)
+   - [x] detect version (do not update to same version)
    - [ ] through centralized configuration?
      - [ ] select which devices should get which firmware
