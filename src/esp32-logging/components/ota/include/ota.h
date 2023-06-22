@@ -6,5 +6,6 @@
 void ota_init(void * event_handler_arg);
 void ota_rollback_checkpoint();
 esp_err_t ota_task();
+void ota_deinit();
 
 #endif

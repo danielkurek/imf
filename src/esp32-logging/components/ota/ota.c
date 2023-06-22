@@ -178,3 +178,8 @@ void ota_init(void * event_handler_arg)
 
     esp_wifi_set_ps(WIFI_PS_NONE);
 }
+
+void ota_deinit(){
+    wifi_shutdown();
+    ESP_ERROR_CHECK(esp_event_loop_delete_default());
+}
