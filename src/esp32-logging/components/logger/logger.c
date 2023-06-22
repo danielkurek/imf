@@ -11,6 +11,7 @@
 #include <inttypes.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include "esp_random.h"
 
 #define BLOCK_SIZE 4096
 #define MIN_BLOCKS_FREE 10
@@ -23,6 +24,14 @@ static QueueHandle_t uart_queue;
 
 void logger_init(esp_log_level_t level){
     conf.level = level;
+    uint8_t rnd = (uint8_t) esp_random();
+    
+    // A-Z (65-90)
+    conf.rnd_char = 'A' + rnd % ('Z' - 'A');
+}
+
+char logger_get_current_rnd_letter(){
+    return conf.rnd_char;
 }
 
 bool logger_init_storage(){

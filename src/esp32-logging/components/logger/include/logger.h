@@ -23,6 +23,7 @@ typedef struct {
   bool to_file;
   bool to_uart;
   bool to_default;
+  char rnd_char;
   const char* log_file_name;
   size_t storage_size_total;
   size_t storage_size_used;
@@ -31,6 +32,8 @@ typedef struct {
 
 void logger_init(esp_log_level_t level);
 bool logger_init_storage();
+
+char logger_get_current_rnd_letter();
 
 void logger_output_to_default();
 bool logger_output_to_file(const char* filename);
@@ -43,12 +46,12 @@ void logger_set_log_level(esp_log_level_t level);
 
 void logger_write(esp_log_level_t level, const char * tag, const char * format, ...);
 
-#define LOGGER_FORMAT(letter, format) #letter " (%d) %s: " format "\r\n"
-#define LOGGER_V( tag, format, ...) logger_write(ESP_LOG_VERBOSE, tag, LOGGER_FORMAT(V, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
-#define LOGGER_D( tag, format, ...) logger_write(ESP_LOG_DEBUG, tag, LOGGER_FORMAT(D, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
-#define LOGGER_I( tag, format, ...) logger_write(ESP_LOG_INFO, tag, LOGGER_FORMAT(I, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
-#define LOGGER_W( tag, format, ...) logger_write(ESP_LOG_WARN, tag, LOGGER_FORMAT(W, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
-#define LOGGER_E( tag, format, ...) logger_write(ESP_LOG_ERROR, tag, LOGGER_FORMAT(E, format), esp_log_timestamp(), tag, ##__VA_ARGS__);
+#define LOGGER_FORMAT(letter, format) "%c|" #letter " (%d) %s: " format "\r\n"
+#define LOGGER_V( tag, format, ...) logger_write(ESP_LOG_VERBOSE, tag, LOGGER_FORMAT(V, format), logger_get_current_rnd_letter(), esp_log_timestamp(), tag, ##__VA_ARGS__);
+#define LOGGER_D( tag, format, ...) logger_write(ESP_LOG_DEBUG, tag, LOGGER_FORMAT(D, format), logger_get_current_rnd_letter(), esp_log_timestamp(), tag, ##__VA_ARGS__);
+#define LOGGER_I( tag, format, ...) logger_write(ESP_LOG_INFO, tag, LOGGER_FORMAT(I, format), logger_get_current_rnd_letter(), esp_log_timestamp(), tag, ##__VA_ARGS__);
+#define LOGGER_W( tag, format, ...) logger_write(ESP_LOG_WARN, tag, LOGGER_FORMAT(W, format), logger_get_current_rnd_letter(), esp_log_timestamp(), tag, ##__VA_ARGS__);
+#define LOGGER_E( tag, format, ...) logger_write(ESP_LOG_ERROR, tag, LOGGER_FORMAT(E, format), logger_get_current_rnd_letter(), esp_log_timestamp(), tag, ##__VA_ARGS__);
 
 bool logger_dump_log_file();
 bool logger_delete_log(const char *filename);
