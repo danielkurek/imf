@@ -30,6 +30,8 @@ typedef enum {
 } color_t;
 
 struct _led_state {
+    uint8_t state;
+    uint8_t blink_state;
     led_strip_handle_t *led_strip;
     uint8_t red;
     uint8_t green;
@@ -37,6 +39,10 @@ struct _led_state {
 };
 
 void board_led_operation(color_t color, uint8_t onoff);
+
+void board_start_blinking();
+
+void board_stop_blinking();
 
 void board_init(void);
 
