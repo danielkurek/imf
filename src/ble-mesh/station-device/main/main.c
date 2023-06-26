@@ -113,7 +113,7 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
 {
     ESP_LOGI(TAG, "net_idx: 0x%04x, addr: 0x%04x", net_idx, addr);
     ESP_LOGI(TAG, "flags: 0x%02x, iv_index: 0x%08" PRIx32, flags, iv_index);
-    board_led_operation(LED_G, LED_OFF);
+    board_led_operation(LED_GREEN, LED_OFF);
 }
 
 static void example_change_led_state(esp_ble_mesh_model_t *model,
@@ -121,24 +121,22 @@ static void example_change_led_state(esp_ble_mesh_model_t *model,
 {
     uint16_t primary_addr = esp_ble_mesh_get_primary_element_address();
     uint8_t elem_count = esp_ble_mesh_get_element_count();
-    struct _led_state *led = NULL;
     uint8_t i;
 
     if (ESP_BLE_MESH_ADDR_IS_UNICAST(ctx->recv_dst)) {
         for (i = 0; i < elem_count; i++) {
             if (ctx->recv_dst == (primary_addr + i)) {
-                led = &led_state[i];
-                board_led_operation(led->pin, onoff);
+                board_led_operation(i, onoff);
             }
         }
     } else if (ESP_BLE_MESH_ADDR_IS_GROUP(ctx->recv_dst)) {
         if (esp_ble_mesh_is_model_subscribed_to_group(model, ctx->recv_dst)) {
-            led = &led_state[model->element->element_addr - primary_addr];
-            board_led_operation(led->pin, onoff);
+            color_t color = model->element->element_addr - primary_addr;
+            board_led_operation(color, onoff);
         }
     } else if (ctx->recv_dst == 0xFFFF) {
-        led = &led_state[model->element->element_addr - primary_addr];
-        board_led_operation(led->pin, onoff);
+        color_t color = model->element->element_addr - primary_addr;
+        board_led_operation(color, onoff);
     }
 }
 
@@ -306,7 +304,7 @@ static esp_err_t ble_mesh_init(void)
 
     ESP_LOGI(TAG, "BLE Mesh Node initialized");
 
-    board_led_operation(LED_G, LED_ON);
+    board_led_operation(LED_GREEN, LED_ON);
 
     return err;
 }
