@@ -13,6 +13,7 @@
 #include "esp_log.h"
 #include "board.h"
 #include "led_strip.h"
+#include "esp_timer.h"
 
 #define LED_VALUE(x) ((x == LED_ON) ? 128 : 0)
 
@@ -21,8 +22,19 @@
 led_strip_handle_t led_strip;
 
 struct _led_state led_state = {
-    &led_strip, 0, 0, 0
+    LED_ON, LED_OFF, &led_strip, 0, 0, 0
 };
+
+esp_timer_handle_t blink_timer;
+
+static void update_led(){
+    if(led_state.state == LED_ON){
+        led_strip_set_pixel(*(led_state.led_strip), 0, led_state.red, led_state.green, led_state.blue);
+        led_strip_refresh(*(led_state.led_strip));
+    } else{
+        led_strip_clear(*(led_state.led_strip));
+    }
+}
 
 void board_led_operation(color_t color, uint8_t onoff)
 {
@@ -39,11 +51,40 @@ void board_led_operation(color_t color, uint8_t onoff)
         default:
             ESP_LOGE(TAG, "LED color not found");
     }
-    led_strip_set_pixel(*led_state.led_strip, 0, led_state.red, led_state.green, led_state.blue);
-    led_strip_refresh(*led_state.led_strip);
+    
+    update_led();
 
     // ESP_LOGE(TAG, "LED is not found!");
 }
+
+void blink_cb(){
+    if(led_state.blink_state == LED_ON){
+        led_state.blink_state = LED_OFF;
+        led_strip_clear(*(led_state.led_strip));
+    } else{
+        led_state.blink_state = LED_ON;
+        led_strip_set_pixel(*(led_state.led_strip), 0, LED_VALUE(LED_ON), led_state.green, led_state.blue);
+        led_strip_refresh(*(led_state.led_strip));
+    }
+}
+
+void board_start_blinking(){
+    esp_timer_start_periodic(blink_timer, 200 * 1000); // time in microseconds
+}
+
+void board_stop_blinking(){
+    esp_timer_stop(blink_timer);
+    update_led();
+}
+
+void board_blink_init(){
+    esp_timer_create_args_t args = {
+        .callback = blink_cb,
+        .name = "BlinkTimer",
+    };
+    esp_timer_create(&args, &blink_timer);
+}
+
 
 static void board_led_init(void)
 {
@@ -65,4 +106,5 @@ static void board_led_init(void)
 void board_init(void)
 {
     board_led_init();
+    board_blink_init();
 }

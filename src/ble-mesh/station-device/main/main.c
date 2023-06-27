@@ -20,6 +20,7 @@
 #include "esp_ble_mesh_provisioning_api.h"
 #include "esp_ble_mesh_config_model_api.h"
 #include "esp_ble_mesh_generic_model_api.h"
+#include "esp_ble_mesh_health_model_api.h"
 #include "esp_ble_mesh_local_data_operation_api.h"
 
 #include "board.h"
@@ -70,9 +71,20 @@ static esp_ble_mesh_gen_onoff_srv_t onoff_server_2 = {
     .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_RSP_BY_APP,
 };
 
+uint8_t test_ids[1] = {0x00};
+
+/** ESP BLE Mesh Health Server Model Context */
+ESP_BLE_MESH_MODEL_PUB_DEFINE(health_pub, 2 + 11, ROLE_NODE);
+static esp_ble_mesh_health_srv_t health_server = {
+    .health_test.id_count = 1,
+    .health_test.test_ids = test_ids,
+};
+
+
 static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_CFG_SRV(&config_server),
     ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub_0, &onoff_server_0),
+    ESP_BLE_MESH_MODEL_HEALTH_SRV(&health_server, &health_pub),
 };
 
 static esp_ble_mesh_model_t extend_model_0[] = {
@@ -282,6 +294,18 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
     }
 }
 
+static void example_ble_mesh_health_server_cb(esp_ble_mesh_health_server_cb_event_t event,
+                                                 esp_ble_mesh_health_server_cb_param_t *param)
+{
+    if(event == ESP_BLE_MESH_HEALTH_SERVER_ATTENTION_ON_EVT){
+        board_start_blinking();
+    }
+    if(event == ESP_BLE_MESH_HEALTH_SERVER_ATTENTION_OFF_EVT){
+        board_stop_blinking();
+    }
+}
+
+
 static esp_err_t ble_mesh_init(void)
 {
     esp_err_t err = ESP_OK;
@@ -289,6 +313,7 @@ static esp_err_t ble_mesh_init(void)
     esp_ble_mesh_register_prov_callback(example_ble_mesh_provisioning_cb);
     esp_ble_mesh_register_config_server_callback(example_ble_mesh_config_server_cb);
     esp_ble_mesh_register_generic_server_callback(example_ble_mesh_generic_server_cb);
+    esp_ble_mesh_register_health_server_callback(example_ble_mesh_health_server_cb);
 
     err = esp_ble_mesh_init(&provision, &composition);
     if (err != ESP_OK) {
