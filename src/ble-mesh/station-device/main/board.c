@@ -15,7 +15,7 @@
 #include "led_strip.h"
 #include "esp_timer.h"
 
-#define LED_VALUE(x) ((x == LED_ON) ? 128 : 0)
+#define LED_VALUE(x) ((x == LED_ON) ? 30 : 0)
 
 #define TAG "BOARD"
 
