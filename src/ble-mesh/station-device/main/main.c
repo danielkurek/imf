@@ -80,11 +80,15 @@ static esp_ble_mesh_health_srv_t health_server = {
     .health_test.test_ids = test_ids,
 };
 
+ESP_BLE_MESH_MODEL_PUB_DEFINE(location_pub, 2 + 9, ROLE_NODE);
+static esp_ble_mesh_client_t location_client;
+
 
 static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_CFG_SRV(&config_server),
     ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub_0, &onoff_server_0),
     ESP_BLE_MESH_MODEL_HEALTH_SRV(&health_server, &health_pub),
+    ESP_BLE_MESH_MODEL_GEN_LOCATION_CLI(&location_pub, &location_client)
 };
 
 static esp_ble_mesh_model_t extend_model_0[] = {
@@ -294,6 +298,78 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
     }
 }
 
+static void example_ble_mesh_send_gen_loc_local_set(){
+    esp_ble_mesh_generic_client_set_state_t set = {0};
+    esp_ble_mesh_client_common_param_t common = {0};
+    esp_err_t err = ESP_OK;
+
+    common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET_UNACK;
+    common.model = location_client.model;
+    common.ctx.net_idx = 0x0000;
+    common.ctx.app_idx = 0x0000;
+    common.ctx.addr = 0xFFFF;   /* to all nodes */
+    common.ctx.send_ttl = 3;
+    common.ctx.send_rel = false;
+    common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
+    common.msg_role = ROLE_NODE;
+
+    set.loc_local_set.local_north = 10;
+    set.loc_local_set.local_east = 15;
+    set.loc_local_set.local_altitude = 20; 
+    set.loc_local_set.floor_number = 30;
+    set.loc_local_set.uncertainty = 40;
+
+    err = esp_ble_mesh_generic_client_set_state(&common, &set);
+    if (err) {
+        ESP_LOGE(TAG, "Send Generic LocLocal Set Unack failed");
+        return;
+    }
+}
+
+static void example_ble_mesh_generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
+                                               esp_ble_mesh_generic_client_cb_param_t *param)
+{
+    ESP_LOGI(TAG, "Generic client, event %u, error code %d, opcode is 0x%04" PRIx32,
+        event, param->error_code, param->params->opcode);
+
+    switch (event) {
+    case ESP_BLE_MESH_GENERIC_CLIENT_GET_STATE_EVT:
+        ESP_LOGI(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_GET_STATE_EVT");
+        if (param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET) {
+            ESP_LOGI(TAG, "loc set:\nlocal_north: %d \nlocal_east: %d \nlocal_altitude: %d \nfloor_number: %d \nuncertainty:%d", 
+                param->status_cb.location_local_status.local_north,
+                param->status_cb.location_local_status.local_east,
+                param->status_cb.location_local_status.local_altitude,
+                param->status_cb.location_local_status.floor_number,
+                param->status_cb.location_local_status.uncertainty);
+        }
+        break;
+    case ESP_BLE_MESH_GENERIC_CLIENT_SET_STATE_EVT:
+        ESP_LOGI(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_SET_STATE_EVT");
+        if (param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET) {
+            ESP_LOGI(TAG, "loc set:\nlocal_north: %d \nlocal_east: %d \nlocal_altitude: %d \nfloor_number: %d \nuncertainty:%d", 
+                param->status_cb.location_local_status.local_north,
+                param->status_cb.location_local_status.local_east,
+                param->status_cb.location_local_status.local_altitude,
+                param->status_cb.location_local_status.floor_number,
+                param->status_cb.location_local_status.uncertainty);
+        }
+        break;
+    case ESP_BLE_MESH_GENERIC_CLIENT_PUBLISH_EVT:
+        ESP_LOGI(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_PUBLISH_EVT");
+        break;
+    case ESP_BLE_MESH_GENERIC_CLIENT_TIMEOUT_EVT:
+        ESP_LOGI(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_TIMEOUT_EVT");
+        if (param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET) {
+            /* If failed to get the response of Generic Loc Local Set, resend Generic Loc Local Set  */
+            example_ble_mesh_send_gen_loc_local_set();
+        }
+        break;
+    default:
+        break;
+    }
+}
+
 static void example_ble_mesh_health_server_cb(esp_ble_mesh_health_server_cb_event_t event,
                                                  esp_ble_mesh_health_server_cb_param_t *param)
 {
@@ -305,6 +381,9 @@ static void example_ble_mesh_health_server_cb(esp_ble_mesh_health_server_cb_even
     }
 }
 
+void example_button_cb(void){
+    example_ble_mesh_send_gen_loc_local_set();
+}
 
 static esp_err_t ble_mesh_init(void)
 {
@@ -313,6 +392,7 @@ static esp_err_t ble_mesh_init(void)
     esp_ble_mesh_register_prov_callback(example_ble_mesh_provisioning_cb);
     esp_ble_mesh_register_config_server_callback(example_ble_mesh_config_server_cb);
     esp_ble_mesh_register_generic_server_callback(example_ble_mesh_generic_server_cb);
+    esp_ble_mesh_register_generic_client_callback(example_ble_mesh_generic_client_cb);
     esp_ble_mesh_register_health_server_callback(example_ble_mesh_health_server_cb);
 
     err = esp_ble_mesh_init(&provision, &composition);

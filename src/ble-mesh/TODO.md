@@ -14,7 +14,8 @@
      - larger battery
      - larger display??
      - brighter/more LEDs
- - [ ] sensor example
+ - [x] sensor example - not suitable for my use case
+ - [x] location server/client example
  - [ ] external FTM sensor
  - [ ] throughput test
  - [ ] add proxy to all nodes

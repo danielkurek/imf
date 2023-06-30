@@ -90,11 +90,19 @@ static esp_ble_mesh_gen_location_srv_t location_server = {
     .state = &location_state
 };
 
+ESP_BLE_MESH_MODEL_PUB_DEFINE(location_setup_pub, 2 + LOC_LOCAL_SIZE, ROLE_NODE);
+static esp_ble_mesh_gen_location_setup_srv_t location_setup_server = {
+    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_RSP_BY_APP,
+    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_RSP_BY_APP,
+    .state = &location_state
+};
+
 static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_CFG_SRV(&config_server),
     ESP_BLE_MESH_MODEL_GEN_ONOFF_CLI(&onoff_cli_pub, &onoff_client),
     ESP_BLE_MESH_MODEL_HEALTH_SRV(&health_server, &health_pub),
     ESP_BLE_MESH_MODEL_GEN_LOCATION_SRV(&location_pub, &location_server),
+    ESP_BLE_MESH_MODEL_GEN_LOCATION_SETUP_SRV(&location_setup_pub, &location_setup_server),
 };
 
 static esp_ble_mesh_elem_t elements[] = {

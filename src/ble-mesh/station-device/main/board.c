@@ -12,12 +12,19 @@
 #include "driver/gpio.h"
 #include "esp_log.h"
 #include "board.h"
+
+#include "iot_button.h"
 #include "led_strip.h"
 #include "esp_timer.h"
 
 #define LED_VALUE(x) ((x == LED_ON) ? 30 : 0)
 
 #define TAG "BOARD"
+
+#define BUTTON_IO_NUM           1
+#define BUTTON_ACTIVE_LEVEL     0
+
+extern void example_button_cb(void);
 
 led_strip_handle_t led_strip;
 
@@ -103,8 +110,26 @@ static void board_led_init(void)
     ESP_ERROR_CHECK(led_strip_new_rmt_device(&strip_config, &rmt_config, &led_strip));
 }
 
+static void button_tap_cb(void* arg)
+{
+    ESP_LOGI(TAG, "tap cb (%s)", (char *)arg);
+
+    example_button_cb();
+}
+
+
+
+static void board_button_init(void)
+{
+    button_handle_t btn_handle = iot_button_create(BUTTON_IO_NUM, BUTTON_ACTIVE_LEVEL);
+    if (btn_handle) {
+        iot_button_set_evt_cb(btn_handle, BUTTON_CB_RELEASE, button_tap_cb, "RELEASE");
+    }
+}
+
 void board_init(void)
 {
     board_led_init();
+    board_button_init();
     board_blink_init();
 }
