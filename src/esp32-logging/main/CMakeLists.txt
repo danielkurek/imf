@@ -1,3 +1,3 @@
 idf_component_register(SRCS "main.c"
                     INCLUDE_DIRS "."
-                    REQUIRES esp_event logger ota)
+                    REQUIRES esp_event logger ota web_config)

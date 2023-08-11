@@ -7,6 +7,7 @@
 #include "ota.h"
 #include "esp_event.h"
 #include "esp_system.h"
+#include "web_config.h"
 
 static const char *TAG = "MAIN";
 
@@ -96,7 +97,7 @@ void test_logging(void *pvParameters){
 void app_main(void)
 {
     // xTaskCreate(&ota_task, "ota_task", 1024 * 8, NULL, 5, NULL);
-
+    web_config_start();
     // avoid watchdog for IDLE task (needs to run once in a while)
-    xTaskCreate(test_logging, "Logging Test", 1024 * 8, NULL, tskIDLE_PRIORITY, NULL);
+    // xTaskCreate(test_logging, "Logging Test", 1024 * 8, NULL, tskIDLE_PRIORITY, NULL);
 }

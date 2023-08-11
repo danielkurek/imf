@@ -184,7 +184,7 @@ void ota_init(void * event_handler_arg)
     ESP_ERROR_CHECK(esp_event_handler_register(OTA_EVENT, ESP_EVENT_ANY_ID, event_handler_arg, NULL));
     
     // connect to wifi according to menuconfig
-    ESP_ERROR_CHECK(wifi_connect());
+    ESP_ERROR_CHECK(wifi_connect_default());
 
     esp_wifi_set_ps(WIFI_PS_NONE);
 }

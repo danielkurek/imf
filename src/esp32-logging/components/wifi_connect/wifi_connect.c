@@ -18,6 +18,7 @@
 #include "esp_netif.h"
 #include "esp_log.h"
 #include "sdkconfig.h"
+#include "esp_mac.h"
 
 static const char *TAG = "WiCON";
 static esp_netif_t *s_sta_netif = NULL;
@@ -179,10 +180,16 @@ void wifi_shutdown(void)
     wifi_stop();
 }
 
-esp_err_t wifi_connect(void)
+esp_err_t wifi_connect(wifi_config_t wifi_config)
 {
     ESP_LOGI(TAG, "Start wifi_connect.");
     wifi_start();
+    return wifi_sta_do_connect(wifi_config, true);
+}
+
+esp_err_t wifi_connect_default(void)
+{
+    ESP_LOGI(TAG, "Start wifi_connect_default.");
     wifi_config_t wifi_config = {
         .sta = {
             .ssid = CONFIG_WIFI_CONNECT_SSID,
@@ -195,5 +202,49 @@ esp_err_t wifi_connect(void)
             }
         },
     };
-    return wifi_sta_do_connect(wifi_config, true);
+    return wifi_connect(wifi_config);
+}
+
+void wifi_init_ap(wifi_config_t wifi_config)
+{
+    wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
+    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+
+    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM) );
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
+    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config));
+    ESP_ERROR_CHECK(esp_wifi_start());
+
+    ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
+             wifi_config.ap.ssid, wifi_config.ap.password, wifi_config.ap.channel);
+}
+
+void wifi_init_ap_simple(const char* ssid, const char* password, uint8_t channel){
+    wifi_config_t wifi_config = {
+        .ap = {
+            .ssid = {},
+            .ssid_len = strlen(ssid),
+            .channel = channel,
+            .password = {},
+            .max_connection = CONFIG_WIFI_CONNECT_AP_DEFAULT_MAX_CONNECTION,
+            .authmode = WIFI_AUTH_WPA_WPA2_PSK,
+            .ftm_responder = true
+        },
+    };
+    strlcpy((char*) wifi_config.ap.ssid, ssid, MAX_SSID_LEN);
+    strlcpy((char*) wifi_config.ap.password, password, MAX_PASSPHRASE_LEN);
+
+    if (strlen(password) == 0) {
+        wifi_config.ap.authmode = WIFI_AUTH_OPEN;
+    }
+    wifi_init_ap(wifi_config);
+}
+
+void wifi_init_ap_default(){
+    int64_t mac_addr = 0LL;
+    esp_read_mac((uint8_t*) (&mac_addr), ESP_MAC_WIFI_SOFTAP);
+    
+    char ssid[MAX_SSID_LEN];
+    snprintf(ssid, MAX_SSID_LEN, "NODE-%llX", mac_addr);
+    wifi_init_ap_simple(ssid, CONFIG_WIFI_CONNECT_AP_DEFAULT_PASSWORD, CONFIG_WIFI_CONNECT_AP_DEFAULT_CHANNEL);
 }
