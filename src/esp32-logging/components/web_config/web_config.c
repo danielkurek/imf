@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "web_config.h"
 #include "wifi_connect.h"
+#include "http_common.h"
 
 #include <esp_wifi.h>
 #include <esp_event.h>
@@ -13,71 +14,199 @@
 
 #define SCRATCH_BUFSIZE (10240)
 
+#define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
+
+#define API_PREFIX "/api/v1"
+#define API_PATH(path) API_PREFIX path
+
 static const char *TAG = "web_config";
+
+const char *config_keys[] = {
+    "SSID", "password"
+};
+
+const nvs_type_t config_types[] = {
+    NVS_TYPE_STR, NVS_TYPE_STR, 
+};
+
+static const size_t config_keys_len = sizeof(config_keys) / sizeof(config_keys[0]);
+
+typedef struct {
+    nvs_handle_t config_handle;
+    char scratch_buf[SCRATCH_BUFSIZE];
+} web_config_data_t;
+
+static esp_err_t get_key_from_uri(char *dest, size_t prefix_len, const char *full_uri, size_t destsize)
+{
+    const char *uri = full_uri + prefix_len;
+    size_t pathlen = strlen(uri);
+
+    const char *quest = strchr(uri, '?');
+    if (quest) {
+        pathlen = MIN(pathlen, quest - uri);
+    }
+    const char *hash = strchr(uri, '#');
+    if (hash) {
+        pathlen = MIN(pathlen, hash - uri);
+    }
+    const char *slash = strchr(uri, '/');
+    if (slash) {
+        // nvs key should not have slash
+        return ESP_FAIL;
+    }
+
+    if (pathlen + 1 > destsize) {
+        return ESP_FAIL;
+    }
+
+    // key cannot be empty
+    if (pathlen == 0){
+        return ESP_FAIL;
+    }
+
+    /* Construct full path (base + path) */
+    strlcpy(dest, uri, pathlen + 1);
+
+    /* Return pointer to path, skipping the base */
+    return ESP_OK;
+}
+
+static int config_find_key(const char* key){
+    for (int i = 0; i < config_keys_len; i++){
+        if(strcmp(key, config_keys[i]) == 0){
+            return i;
+        }
+    }
+    return -1;
+}
 
 static esp_err_t hello_world_handler(httpd_req_t *req){
     httpd_resp_sendstr(req, "Hello world!");
     return ESP_OK;
 }
 
-static void web_config_register_uri(httpd_handle_t server)
+static esp_err_t nvs_read_get_handler(httpd_req_t *req){
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+    static const size_t prefix_len = sizeof(API_PATH("/nvs/")) - 1;
+
+    char nvs_key[NVS_KEY_NAME_MAX_SIZE];
+    esp_err_t ret = get_key_from_uri(nvs_key, prefix_len, req->uri, sizeof(nvs_key));
+    if(ret != ESP_OK){
+        return httpd_resp_sendstr(req, "Invalid key");
+    }
+
+    int pos = config_find_key(nvs_key);
+    if(pos > 0){
+        return httpd_resp_sendstr(req, "Invalid key");
+    }
+
+    char value[32];
+    size_t value_len = sizeof(value);
+    esp_err_t err = nvs_get_str(data->config_handle, nvs_key, value, &value_len);
+    if(err != ESP_OK){
+        return httpd_resp_sendstr(req, "Cannot get key");
+    }
+
+    return httpd_resp_sendstr(req, value);
+}
+
+static esp_err_t nvs_write_post_handler(httpd_req_t *req){
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+    static const size_t prefix_len = sizeof(API_PATH("/nvs/")) - 1;
+
+    char nvs_key[NVS_KEY_NAME_MAX_SIZE];
+    esp_err_t ret = get_key_from_uri(nvs_key, prefix_len, req->uri, sizeof(nvs_key));
+    if(ret != ESP_OK){
+        return httpd_resp_sendstr(req, "Invalid key");
+    }
+
+    int pos = config_find_key(nvs_key);
+    if(pos > 0){
+        return httpd_resp_sendstr(req, "Invalid key");
+    }
+    
+    long int received = http_load_post_req_to_buf(req, data->scratch_buf, sizeof(data->scratch_buf));
+    if(received < 0){
+        return ESP_FAIL;
+    }
+
+    char value[32];
+    strlcpy(value, data->scratch_buf, sizeof(value));
+
+    esp_err_t err = nvs_set_str(data->config_handle, nvs_key, value);
+    if(err != ESP_OK){
+        return httpd_resp_sendstr(req, "Cannot set key");
+    }
+
+    return httpd_resp_sendstr(req, value);
+}
+
+static esp_err_t nvs_save_get_handler(httpd_req_t *req){
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+    esp_err_t err = nvs_commit(data->config_handle);
+    if(err != ESP_OK){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not save cahnges.");
+        return ESP_OK;
+    }
+
+    httpd_resp_sendstr(req, "Ok");
+    return ESP_OK;
+}
+
+
+static void web_config_register_uri(httpd_handle_t server, web_config_data_t *user_ctx)
 {
-    char *scratch_buffer = malloc(SCRATCH_BUFSIZE);
+    // char *scratch_buffer = malloc(SCRATCH_BUFSIZE);
 
     const httpd_uri_t index = {
         .uri = "/",
         .method = HTTP_GET,
         .handler = hello_world_handler,
-        .user_ctx = scratch_buffer};
+        .user_ctx = user_ctx};
     httpd_register_uri_handler(server, &index);
 
-    // const httpd_uri_t ftm_control = {
-    //     .uri = "/ftm",
-    //     .method = HTTP_GET,
-    //     .handler = ftm_control_handler,
-    //     .user_ctx = scratch_buffer};
-    // httpd_register_uri_handler(server, &ftm_control);
+    const httpd_uri_t nvs_read = {
+        .uri = API_PATH("/nvs/*"),
+        .method = HTTP_GET,
+        .handler = nvs_read_get_handler,
+        .user_ctx = user_ctx};
+    httpd_register_uri_handler(server, &nvs_read);
 
-    // const httpd_uri_t ftm_control_ssid_list = {
-    //     .uri = "/api/v1/ftm/ssid-list",
-    //     .method = HTTP_GET,
-    //     .handler = wifi_perform_scan,
-    //     .user_ctx = scratch_buffer};
-    // httpd_register_uri_handler(server, &ftm_control_ssid_list);
+    const httpd_uri_t nvs_write = {
+        .uri = API_PATH("/nvs/*"),
+        .method = HTTP_POST,
+        .handler = nvs_write_post_handler,
+        .user_ctx = user_ctx};
+    httpd_register_uri_handler(server, &nvs_write);
 
-    // const httpd_uri_t ftm_control_start_ap = {
-    //     .uri = "/api/v1/ftm/start_ap",
-    //     .method = HTTP_POST,
-    //     .handler = ftm_start_ap,
-    //     .user_ctx = scratch_buffer};
-    // httpd_register_uri_handler(server, &ftm_control_start_ap);
-
-    // const httpd_uri_t ftm_control_measurement = {
-    //     .uri = "/api/v1/ftm/measure_distance",
-    //     .method = HTTP_GET,
-    //     .handler = ftm_measurement,
-    //     .user_ctx = scratch_buffer};
-    // httpd_register_uri_handler(server, &ftm_control_measurement);
-
-    // const httpd_uri_t ftm_calibrate = {
-    //     .uri = "/api/v1/ftm/calibration",
-    //     .method = HTTP_GET,
-    //     .handler = ftm_calibration,
-    //     .user_ctx = scratch_buffer};
-    // httpd_register_uri_handler(server, &ftm_calibrate);
+    const httpd_uri_t nvs_save = {
+        .uri = API_PATH("/nvs_save"),
+        .method = HTTP_GET,
+        .handler = nvs_save_get_handler,
+        .user_ctx = user_ctx};
+    httpd_register_uri_handler(server, &nvs_save);
 }
 
 static httpd_handle_t start_webserver(void)
 {
+    static web_config_data_t data;
+
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+
+    // allow wildcard matching
+    config.uri_match_fn = httpd_uri_match_wildcard;
 
     // Start the httpd server
     ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
-        // Registering the ws handler
+        if(nvs_open("config", NVS_READWRITE, &data.config_handle) != ESP_OK){
+            ESP_LOGI(TAG, "Error opening NVS!");
+            return NULL;
+        }
+
         ESP_LOGI(TAG, "Registering URI handlers");
-        web_config_register_uri(server);
+        web_config_register_uri(server, &data);
         return server;
     }
 
