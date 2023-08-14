@@ -1,3 +1,10 @@
+/*
+ * TODO list:
+ *  - support for multiple int types NVS (c++ templates?)
+ *  - api get firmware version
+ *  - perform OTA from requested URL (with version check)
+ */
+
 #include <stdio.h>
 #include "web_config.h"
 #include "wifi_connect.h"
@@ -22,11 +29,11 @@
 static const char *TAG = "web_config";
 
 const char *config_keys[] = {
-    "SSID", "password"
+    "SSID", "password", "channel",
 };
 
 const nvs_type_t config_types[] = {
-    NVS_TYPE_STR, NVS_TYPE_STR, 
+    NVS_TYPE_STR, NVS_TYPE_STR, NVS_TYPE_I16,
 };
 
 static const size_t config_keys_len = sizeof(config_keys) / sizeof(config_keys[0]);
@@ -85,6 +92,35 @@ static esp_err_t hello_world_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
+static esp_err_t nvs_read_get_handler_str(httpd_req_t *req, size_t key_index){
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+
+    char value[32];
+    size_t value_len = sizeof(value);
+    esp_err_t err = nvs_get_str(data->config_handle, config_keys[key_index], value, &value_len);
+    if(err != ESP_OK){
+        return httpd_resp_sendstr(req, "Cannot get key");
+    }
+
+    return httpd_resp_sendstr(req, value);
+}
+
+static esp_err_t nvs_read_get_handler_i16(httpd_req_t *req, size_t key_index){
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+    int16_t value;
+
+    esp_err_t err = nvs_get_i16(data->config_handle, config_keys[key_index], &value);
+    if(err != ESP_OK){
+        return httpd_resp_sendstr(req, "Cannot get key");
+    }
+
+    char response[32];
+    sprintf(response, "%d", value);
+
+    return httpd_resp_sendstr(req, response);
+}
+
+
 static esp_err_t nvs_read_get_handler(httpd_req_t *req){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
     static const size_t prefix_len = sizeof(API_PATH("/nvs/")) - 1;
@@ -92,22 +128,54 @@ static esp_err_t nvs_read_get_handler(httpd_req_t *req){
     char nvs_key[NVS_KEY_NAME_MAX_SIZE];
     esp_err_t ret = get_key_from_uri(nvs_key, prefix_len, req->uri, sizeof(nvs_key));
     if(ret != ESP_OK){
-        return httpd_resp_sendstr(req, "Invalid key");
+        return httpd_resp_sendstr(req, "Cannot parse key");
     }
 
     int pos = config_find_key(nvs_key);
-    if(pos > 0){
+    if(pos < 0){
         return httpd_resp_sendstr(req, "Invalid key");
     }
 
+    switch(config_types[pos]){
+        case NVS_TYPE_STR:
+            return nvs_read_get_handler_str(req, pos);
+        case NVS_TYPE_I16:
+            return nvs_read_get_handler_i16(req, pos);
+        default:
+            ESP_LOGE(TAG, "Config type not implemented!!!");
+            return ESP_FAIL;
+    }
+}
+
+static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, size_t key_index, char *received_value){
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+
     char value[32];
-    size_t value_len = sizeof(value);
-    esp_err_t err = nvs_get_str(data->config_handle, nvs_key, value, &value_len);
+    strlcpy(value, received_value, sizeof(value));
+
+    esp_err_t err = nvs_set_str(data->config_handle, config_keys[key_index], value);
     if(err != ESP_OK){
-        return httpd_resp_sendstr(req, "Cannot get key");
+        return httpd_resp_sendstr(req, "Cannot set key");
+    }
+    
+    return httpd_resp_sendstr(req, value);
+}
+
+static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, size_t key_index, char *received_value){
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+
+    int16_t value = 0;
+    sscanf(received_value, "%" SCNd16, &value);
+
+    esp_err_t err = nvs_set_i16(data->config_handle, config_keys[key_index], value);
+    if(err != ESP_OK){
+        return httpd_resp_sendstr(req, "Cannot set key");
     }
 
-    return httpd_resp_sendstr(req, value);
+    char response[32];
+    sprintf(response, "%d", value);
+
+    return httpd_resp_sendstr(req, response);
 }
 
 static esp_err_t nvs_write_post_handler(httpd_req_t *req){
@@ -117,11 +185,11 @@ static esp_err_t nvs_write_post_handler(httpd_req_t *req){
     char nvs_key[NVS_KEY_NAME_MAX_SIZE];
     esp_err_t ret = get_key_from_uri(nvs_key, prefix_len, req->uri, sizeof(nvs_key));
     if(ret != ESP_OK){
-        return httpd_resp_sendstr(req, "Invalid key");
+        return httpd_resp_sendstr(req, "Cannot parse key");
     }
 
     int pos = config_find_key(nvs_key);
-    if(pos > 0){
+    if(pos < 0){
         return httpd_resp_sendstr(req, "Invalid key");
     }
     
@@ -130,15 +198,16 @@ static esp_err_t nvs_write_post_handler(httpd_req_t *req){
         return ESP_FAIL;
     }
 
-    char value[32];
-    strlcpy(value, data->scratch_buf, sizeof(value));
-
-    esp_err_t err = nvs_set_str(data->config_handle, nvs_key, value);
-    if(err != ESP_OK){
-        return httpd_resp_sendstr(req, "Cannot set key");
+    switch(config_types[pos]){
+        case NVS_TYPE_STR:
+            return nvs_write_post_handler_str(req, pos, data->scratch_buf);
+        case NVS_TYPE_I16:
+            return nvs_write_post_handler_i16(req, pos, data->scratch_buf);
+        default:
+            ESP_LOGE(TAG, "Config type not implemented!!!");
+            return ESP_FAIL;
     }
-
-    return httpd_resp_sendstr(req, value);
+    
 }
 
 static esp_err_t nvs_save_get_handler(httpd_req_t *req){
