@@ -31,28 +31,48 @@
 
 static const char *TAG = "web_config";
 
-#define STA_SSID_KEY "SSID"
-#define STA_PASSWORD_KEY "password"
-#define AP_SSID_KEY "SSID"
-#define AP_PASSWORD_KEY "password"
+#define STA_SSID_KEY "sta/SSID"
+#define STA_PASSWORD_KEY "sta/password"
+#define AP_SSID_KEY "ap/SSID"
+#define AP_PASSWORD_KEY "ap/password"
+#define AP_CHANNEL_KEY "ap/channel"
 
-// typedef struct {
-//     char *key;
-//     nvs_type_t type;
-//     bool value_to_log;
-// } config_option_t;
+typedef struct {
+    char *key;
+    nvs_type_t type;
+    bool value_to_log;
+} config_option_t;
 
-// const config_option_t
-
-const char *config_keys[] = {
-    STA_SSID_KEY, STA_PASSWORD_KEY, "channel",
+const config_option_t options[] ={
+    {
+        .key = STA_SSID_KEY,
+        .type = NVS_TYPE_STR,
+        .value_to_log = true,
+    },
+    {
+        .key = STA_PASSWORD_KEY,
+        .type = NVS_TYPE_STR,
+        .value_to_log = false,
+    },
+    {
+        .key = AP_SSID_KEY,
+        .type = NVS_TYPE_STR,
+        .value_to_log = true,
+    },
+    {
+        .key = AP_PASSWORD_KEY,
+        .type = NVS_TYPE_STR,
+        .value_to_log = false,
+    },
+    {
+        .key = AP_CHANNEL_KEY,
+        .type = NVS_TYPE_I16,
+        .value_to_log = true,
+    },
+    
 };
 
-const nvs_type_t config_types[] = {
-    NVS_TYPE_STR, NVS_TYPE_STR, NVS_TYPE_I16,
-};
-
-static const size_t config_keys_len = sizeof(config_keys) / sizeof(config_keys[0]);
+static const size_t options_len = sizeof(options) / sizeof(options[0]);
 
 typedef struct {
     nvs_handle_t config_handle;
@@ -72,11 +92,6 @@ static esp_err_t get_key_from_uri(char *dest, size_t prefix_len, const char *ful
     if (hash) {
         pathlen = MIN(pathlen, hash - uri);
     }
-    const char *slash = strchr(uri, '/');
-    if (slash) {
-        // nvs key should not have slash
-        return ESP_FAIL;
-    }
 
     if (pathlen + 1 > destsize) {
         return ESP_FAIL;
@@ -95,8 +110,8 @@ static esp_err_t get_key_from_uri(char *dest, size_t prefix_len, const char *ful
 }
 
 static int config_find_key(const char* key){
-    for (int i = 0; i < config_keys_len; i++){
-        if(strcmp(key, config_keys[i]) == 0){
+    for (int i = 0; i < options_len; i++){
+        if(strcmp(key, options[i].key) == 0){
             return i;
         }
     }
@@ -108,12 +123,12 @@ static esp_err_t hello_world_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
-static esp_err_t nvs_read_get_handler_str(httpd_req_t *req, size_t key_index){
+static esp_err_t nvs_read_get_handler_str(httpd_req_t *req, size_t option_index){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
 
     char value[32];
     size_t value_len = sizeof(value) / sizeof(value[0]);
-    esp_err_t err = nvs_get_str(data->config_handle, config_keys[key_index], value, &value_len);
+    esp_err_t err = nvs_get_str(data->config_handle, options[option_index].key, value, &value_len);
     if(err != ESP_OK){
         return httpd_resp_sendstr(req, "Cannot get key");
     }
@@ -121,11 +136,11 @@ static esp_err_t nvs_read_get_handler_str(httpd_req_t *req, size_t key_index){
     return httpd_resp_sendstr(req, value);
 }
 
-static esp_err_t nvs_read_get_handler_i16(httpd_req_t *req, size_t key_index){
+static esp_err_t nvs_read_get_handler_i16(httpd_req_t *req, size_t option_index){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
     int16_t value;
 
-    esp_err_t err = nvs_get_i16(data->config_handle, config_keys[key_index], &value);
+    esp_err_t err = nvs_get_i16(data->config_handle, options[option_index].key, &value);
     if(err != ESP_OK){
         return httpd_resp_sendstr(req, "Cannot get key");
     }
@@ -152,7 +167,7 @@ static esp_err_t nvs_read_get_handler(httpd_req_t *req){
         return httpd_resp_sendstr(req, "Invalid key");
     }
 
-    switch(config_types[pos]){
+    switch(options[pos].type){
         case NVS_TYPE_STR:
             return nvs_read_get_handler_str(req, pos);
         case NVS_TYPE_I16:
@@ -163,29 +178,29 @@ static esp_err_t nvs_read_get_handler(httpd_req_t *req){
     }
 }
 
-static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, size_t key_index, char *received_value){
+static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, size_t option_index, char *received_value){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
 
     char value[32];
     strlcpy(value, received_value, sizeof(value));
 
-    esp_err_t err = nvs_set_str(data->config_handle, config_keys[key_index], value);
+    esp_err_t err = nvs_set_str(data->config_handle, options[option_index].key, value);
     if(err != ESP_OK){
         return httpd_resp_sendstr(req, "Cannot set key");
     }
 
-    LOGGER_I(TAG, "changed %s to %s", config_keys[key_index], value);
+    LOGGER_I(TAG, "changed %s to %s", options[option_index].key, value);
     
     return httpd_resp_sendstr(req, value);
 }
 
-static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, size_t key_index, char *received_value){
+static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, size_t option_index, char *received_value){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
 
     int16_t value = 0;
     sscanf(received_value, "%" SCNd16, &value);
 
-    esp_err_t err = nvs_set_i16(data->config_handle, config_keys[key_index], value);
+    esp_err_t err = nvs_set_i16(data->config_handle, options[option_index].key, value);
     if(err != ESP_OK){
         return httpd_resp_sendstr(req, "Cannot set key");
     }
@@ -193,7 +208,7 @@ static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, size_t key_index, 
     char response[32];
     sprintf(response, "%d", value);
 
-    LOGGER_I(TAG, "changed %s to %d", config_keys[key_index], value);
+    LOGGER_I(TAG, "changed %s to %d", options[option_index].key, value);
 
     return httpd_resp_sendstr(req, response);
 }
@@ -218,7 +233,7 @@ static esp_err_t nvs_write_post_handler(httpd_req_t *req){
         return ESP_FAIL;
     }
 
-    switch(config_types[pos]){
+    switch(options[pos].type){
         case NVS_TYPE_STR:
             return nvs_write_post_handler_str(req, pos, data->scratch_buf);
         case NVS_TYPE_I16:
@@ -407,12 +422,44 @@ static esp_err_t wifi_connect_nvs(){
         return ESP_FAIL;
     }
 
-    err = nvs_get_str(handle, STA_SSID_KEY, password, &password_len);
+    err = nvs_get_str(handle, STA_PASSWORD_KEY, password, &password_len);
     if(err != ESP_OK){
         return ESP_FAIL;
     }
 
     return wifi_connect_simple(ssid, password);
+}
+
+static esp_err_t wifi_ap_nvs(){
+    nvs_handle_t handle;
+
+    if(nvs_open("config", NVS_READWRITE, &handle) != ESP_OK){
+        ESP_LOGI(TAG, "Error opening NVS!");
+        return ESP_FAIL;
+    }
+    char ssid[MAX_SSID_LEN];
+    size_t ssid_len = sizeof(ssid) / sizeof(ssid[0]);
+    char password[MAX_PASSPHRASE_LEN];
+    size_t password_len = sizeof(password) / sizeof(password[0]);
+    int16_t channel = 0;
+
+    esp_err_t err = nvs_get_str(handle, AP_SSID_KEY, ssid, &ssid_len);
+    if(err != ESP_OK){
+        return ESP_FAIL;
+    }
+
+    err = nvs_get_str(handle, AP_PASSWORD_KEY, password, &password_len);
+    if(err != ESP_OK){
+        return ESP_FAIL;
+    }
+
+    err = nvs_get_str(handle, AP_CHANNEL_KEY, password, &password_len);
+    if(err != ESP_OK){
+        return ESP_FAIL;
+    }
+
+    wifi_init_ap_simple(ssid, password, channel);
+    return ESP_OK;
 }
 
 static esp_err_t wifi_initialize(){
@@ -430,10 +477,14 @@ static esp_err_t wifi_initialize(){
         return ESP_OK;
     }
     
-    // otherwise create WiFi AP
+    // create AP from NVS values
+    ret = wifi_ap_nvs();
+    if(ret == ESP_OK){
+        return ESP_OK;
+    }
+
+    // otherwise create firmware default AP
     wifi_init_ap_default();
-    // TODO: load from NVS
-    // void wifi_init_ap_simple(ssid, password, channel);
 
     return ESP_OK;
 }
