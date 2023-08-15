@@ -55,6 +55,7 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
 
 bool logger_dump_log_file();
 bool logger_delete_log(const char *filename);
+FILE * logger_get_file();
 
 void logger_storage_close();
 void logger_stop();

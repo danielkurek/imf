@@ -3,12 +3,14 @@
  *  - support for multiple int types NVS (c++ templates?)
  *  - api get firmware version
  *  - perform OTA from requested URL (with version check)
+ *  - log download
  */
 
 #include <stdio.h>
 #include "web_config.h"
 #include "wifi_connect.h"
 #include "http_common.h"
+#include "logger.h"
 
 #include <esp_wifi.h>
 #include <esp_event.h>
@@ -18,6 +20,7 @@
 #include "esp_netif.h"
 #include <esp_http_server.h>
 #include "esp_mac.h"
+#include <errno.h>
 
 #define SCRATCH_BUFSIZE (10240)
 
@@ -32,6 +35,14 @@ static const char *TAG = "web_config";
 #define STA_PASSWORD_KEY "password"
 #define AP_SSID_KEY "SSID"
 #define AP_PASSWORD_KEY "password"
+
+// typedef struct {
+//     char *key;
+//     nvs_type_t type;
+//     bool value_to_log;
+// } config_option_t;
+
+// const config_option_t
 
 const char *config_keys[] = {
     STA_SSID_KEY, STA_PASSWORD_KEY, "channel",
@@ -101,7 +112,7 @@ static esp_err_t nvs_read_get_handler_str(httpd_req_t *req, size_t key_index){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
 
     char value[32];
-    size_t value_len = sizeof(value);
+    size_t value_len = sizeof(value) / sizeof(value[0]);
     esp_err_t err = nvs_get_str(data->config_handle, config_keys[key_index], value, &value_len);
     if(err != ESP_OK){
         return httpd_resp_sendstr(req, "Cannot get key");
@@ -162,6 +173,8 @@ static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, size_t key_index, 
     if(err != ESP_OK){
         return httpd_resp_sendstr(req, "Cannot set key");
     }
+
+    LOGGER_I(TAG, "changed %s to %s", config_keys[key_index], value);
     
     return httpd_resp_sendstr(req, value);
 }
@@ -179,6 +192,8 @@ static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, size_t key_index, 
 
     char response[32];
     sprintf(response, "%d", value);
+
+    LOGGER_I(TAG, "changed %s to %d", config_keys[key_index], value);
 
     return httpd_resp_sendstr(req, response);
 }
@@ -227,6 +242,56 @@ static esp_err_t nvs_save_get_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
+static esp_err_t log_get_handler(httpd_req_t *req){
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+
+    // open log
+    FILE *fd = logger_get_file();
+    if(fd == NULL){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not open log file");
+        return ESP_FAIL;
+    }
+
+    fpos_t orig_pos;
+    ESP_LOGI(TAG, "getting position");
+    if(fgetpos(fd, &orig_pos) != 0){
+        ESP_LOGE(TAG, "cannot get position of log file; %s", strerror(errno));
+        return false;
+    }
+
+    ESP_LOGI(TAG, "rewinding");
+    fseek(fd, 0, SEEK_SET);
+
+    httpd_resp_set_type(req, "text/plain");
+
+    char *chunk = data->scratch_buf;
+    size_t chunksize;
+    do{
+        chunksize = fread(chunk, 1, SCRATCH_BUFSIZE, fd);
+        if(chunksize == 0){
+            break;
+        }
+        esp_err_t err = httpd_resp_send_chunk(req, chunk, chunksize);
+        if(err != ESP_OK){
+            ESP_LOGI(TAG, "setting position");
+            if(fsetpos(fd, &orig_pos) != 0){
+                ESP_LOGE(TAG, "cannot set position of log file; %s", strerror(errno));
+            }
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to read the log");
+            return ESP_FAIL;
+        }
+    } while(chunksize >= SCRATCH_BUFSIZE);
+
+    ESP_LOGI(TAG, "setting position");
+    if(fsetpos(fd, &orig_pos) != 0){
+        ESP_LOGE(TAG, "cannot set position of log file; %s", strerror(errno));
+        return ESP_FAIL;
+    }
+
+    httpd_resp_send_chunk(req, NULL, 0);
+    return ESP_OK;
+}
+
 
 static void web_config_register_uri(httpd_handle_t server, web_config_data_t *user_ctx)
 {
@@ -259,6 +324,13 @@ static void web_config_register_uri(httpd_handle_t server, web_config_data_t *us
         .handler = nvs_save_get_handler,
         .user_ctx = user_ctx};
     httpd_register_uri_handler(server, &nvs_save);
+
+    const httpd_uri_t log_download = {
+        .uri = API_PATH("/logs"),
+        .method = HTTP_GET,
+        .handler = log_get_handler,
+        .user_ctx = user_ctx};
+    httpd_register_uri_handler(server, &log_download);
 }
 
 static httpd_handle_t start_webserver(void)
@@ -366,6 +438,18 @@ static esp_err_t wifi_initialize(){
     return ESP_OK;
 }
 
+static void init_logging(){
+    logger_init(ESP_LOG_INFO);
+    logger_output_to_default();
+    logger_init_storage();
+    const char* filename = "/logs/log.txt";
+    logger_output_to_file(filename);
+}
+
+static void deinit_logging(){
+    logger_stop();
+}
+
 void web_config_start()
 {
     static httpd_handle_t server = NULL;
@@ -387,7 +471,8 @@ void web_config_start()
     ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
     ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
 
+    init_logging();
+    LOGGER_I(TAG, "Booted to Web config");
+
     server = start_webserver();
 }
-
-

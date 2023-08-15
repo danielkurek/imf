@@ -156,6 +156,7 @@ void logger_set_log_level(esp_log_level_t level){
 }
 
 void logger_write(esp_log_level_t level, const char * tag, const char * format, ...){
+    static int writes_to_file = 0;
     if(level > conf.level){
         return;
     }
@@ -174,6 +175,11 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
         }
         int written = vfprintf(conf.log_file, format, args);
         conf.storage_size_used += written;
+        writes_to_file += 1;
+        if(writes_to_file > 10){
+            logger_sync_file();
+            writes_to_file = 0;
+        }
     }
 
     if(conf.to_uart){
@@ -220,6 +226,10 @@ bool logger_dump_log_file(){
         return false;
     }
     return true;
+}
+
+FILE * logger_get_file(){
+    return conf.log_file;
 }
 
 bool logger_delete_log(const char *filename){
