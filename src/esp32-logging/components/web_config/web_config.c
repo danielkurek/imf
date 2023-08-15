@@ -77,6 +77,7 @@ static const size_t options_len = sizeof(options) / sizeof(options[0]);
 typedef struct {
     nvs_handle_t config_handle;
     char scratch_buf[SCRATCH_BUFSIZE];
+    httpd_handle_t server;
 } web_config_data_t;
 
 static esp_err_t get_key_from_uri(char *dest, size_t prefix_len, const char *full_uri, size_t destsize)
@@ -307,6 +308,16 @@ static esp_err_t log_get_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
+static esp_err_t reboot_get_handler(httpd_req_t *req){
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+
+    httpd_resp_sendstr(req, "Done");
+    web_config_stop(data->server);
+    ESP_LOGI(TAG, "restarting");
+    esp_restart();
+
+    return ESP_OK;
+}
 
 static void web_config_register_uri(httpd_handle_t server, web_config_data_t *user_ctx)
 {
@@ -346,6 +357,13 @@ static void web_config_register_uri(httpd_handle_t server, web_config_data_t *us
         .handler = log_get_handler,
         .user_ctx = user_ctx};
     httpd_register_uri_handler(server, &log_download);
+
+    const httpd_uri_t reboot = {
+        .uri = API_PATH("/reboot"),
+        .method = HTTP_GET,
+        .handler = reboot_get_handler,
+        .user_ctx = user_ctx};
+    httpd_register_uri_handler(server, &reboot);
 }
 
 static httpd_handle_t start_webserver(void)
@@ -361,6 +379,7 @@ static httpd_handle_t start_webserver(void)
     // Start the httpd server
     ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
+        data.server = server;
         if(nvs_open("config", NVS_READWRITE, &data.config_handle) != ESP_OK){
             ESP_LOGI(TAG, "Error opening NVS!");
             return NULL;
@@ -498,7 +517,14 @@ static void init_logging(){
 }
 
 static void deinit_logging(){
+    logger_sync_file();
     logger_stop();
+}
+
+void web_config_stop(httpd_handle_t server){
+    ESP_LOGI(TAG, "Stopping server");
+    // stop_webserver(server);
+    deinit_logging();
 }
 
 void web_config_start()
