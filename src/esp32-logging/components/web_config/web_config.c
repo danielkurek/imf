@@ -28,8 +28,13 @@
 
 static const char *TAG = "web_config";
 
+#define STA_SSID_KEY "SSID"
+#define STA_PASSWORD_KEY "password"
+#define AP_SSID_KEY "SSID"
+#define AP_PASSWORD_KEY "password"
+
 const char *config_keys[] = {
-    "SSID", "password", "channel",
+    STA_SSID_KEY, STA_PASSWORD_KEY, "channel",
 };
 
 const nvs_type_t config_types[] = {
@@ -313,32 +318,51 @@ static void connect_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
+static esp_err_t wifi_connect_nvs(){
+    nvs_handle_t handle;
+
+    if(nvs_open("config", NVS_READWRITE, &handle) != ESP_OK){
+        ESP_LOGI(TAG, "Error opening NVS!");
+        return ESP_FAIL;
+    }
+    char ssid[MAX_SSID_LEN];
+    size_t ssid_len = sizeof(ssid) / sizeof(ssid[0]);
+    char password[MAX_PASSPHRASE_LEN];
+    size_t password_len = sizeof(password) / sizeof(password[0]);
+
+    esp_err_t err = nvs_get_str(handle, STA_SSID_KEY, ssid, &ssid_len);
+    if(err != ESP_OK){
+        return ESP_FAIL;
+    }
+
+    err = nvs_get_str(handle, STA_SSID_KEY, password, &password_len);
+    if(err != ESP_OK){
+        return ESP_FAIL;
+    }
+
+    return wifi_connect_simple(ssid, password);
+}
+
 static esp_err_t wifi_initialize(){
+    wifi_start();
+
     // connect to preconfigured wifi if available
-    // TODO: load from NVS
-    // wifi_config_t wifi_config = {
-    //     .sta = {
-    //         .ssid = CONFIG_WIFI_CONNECT_SSID,
-    //         .password = CONFIG_WIFI_CONNECT_PASSWORD,
-    //         .scan_method = WIFI_CONNECT_SCAN_METHOD,
-    //         .sort_method = WIFI_CONNECT_AP_SORT_METHOD,
-    //         .threshold = {
-    //             .rssi = CONFIG_WIFI_CONNECT_SCAN_RSSI_THRESHOLD,
-    //             .authmode = WIFI_CONNECT_SCAN_AUTH_MODE_THRESHOLD
-    //         }
-    //     },
-    // };
+    esp_err_t ret = wifi_connect_nvs();
+    if(ret == ESP_OK){
+        return ESP_OK;
+    }
     
-    // esp_err_t ret = wifi_connect(wifi_config);
-    esp_err_t ret = wifi_connect_default();
+    // otherwise try to connect to firmware default
+    ret = wifi_connect_default();
+    if(ret == ESP_OK){
+        return ESP_OK;
+    }
     
     // otherwise create WiFi AP
-    if(ret != ESP_OK){
-        // create WIFI AP
-        wifi_init_ap_default();
-        // TODO: load from NVS
-        // void wifi_init_ap_simple(ssid, password, channel);
-    }
+    wifi_init_ap_default();
+    // TODO: load from NVS
+    // void wifi_init_ap_simple(ssid, password, channel);
+
     return ESP_OK;
 }
 

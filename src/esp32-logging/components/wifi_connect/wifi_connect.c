@@ -60,6 +60,22 @@ static SemaphoreHandle_t s_semph_get_ip_addrs = NULL;
 
 static int s_retry_num = 0;
 
+wifi_config_t wifi_sta_config_default() {
+    wifi_config_t wifi_config = {
+        .sta = {
+            .ssid = {},
+            .password = {},
+            .scan_method = WIFI_CONNECT_SCAN_METHOD,
+            .sort_method = WIFI_CONNECT_AP_SORT_METHOD,
+            .threshold = {
+                .rssi = CONFIG_WIFI_CONNECT_SCAN_RSSI_THRESHOLD,
+                .authmode = WIFI_CONNECT_SCAN_AUTH_MODE_THRESHOLD
+            }
+        },
+    };
+    return wifi_config;
+}
+
 static bool is_our_netif(const char *prefix, esp_netif_t *netif)
 {
     return strncmp(prefix, esp_netif_get_desc(netif), strlen(prefix) - 1) == 0;
@@ -183,7 +199,6 @@ void wifi_shutdown(void)
 esp_err_t wifi_connect(wifi_config_t wifi_config)
 {
     ESP_LOGI(TAG, "Start wifi_connect.");
-    wifi_start();
     return wifi_sta_do_connect(wifi_config, true);
 }
 
@@ -202,6 +217,15 @@ esp_err_t wifi_connect_default(void)
             }
         },
     };
+    return wifi_connect(wifi_config);
+}
+
+esp_err_t wifi_connect_simple(const char* ssid, const char* password){
+    wifi_config_t wifi_config = wifi_sta_config_default();
+
+    strlcpy((char*) wifi_config.sta.ssid, ssid, MAX_SSID_LEN);
+    strlcpy((char*) wifi_config.sta.password, password, MAX_PASSPHRASE_LEN);
+
     return wifi_connect(wifi_config);
 }
 
