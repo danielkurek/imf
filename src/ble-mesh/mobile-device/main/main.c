@@ -79,10 +79,18 @@ static esp_ble_mesh_health_srv_t health_server = {
     .health_test.test_ids = test_ids,
 };
 
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_pub, 2 + 11, ROLE_NODE);
+static esp_ble_mesh_light_hsl_srv_t light_hsl_srv = {
+    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.status_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+};
+
 static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_CFG_SRV(&config_server),
     ESP_BLE_MESH_MODEL_GEN_ONOFF_CLI(&onoff_cli_pub, &onoff_client),
     ESP_BLE_MESH_MODEL_HEALTH_SRV(&health_server, &health_pub),
+    ESP_BLE_MESH_MODEL_LIGHT_HSL_SRV(&light_hsl_pub, &light_hsl_srv),
 };
 
 static esp_ble_mesh_elem_t elements[] = {
@@ -276,6 +284,33 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
     }
 }
 
+static void example_ble_mesh_lightning_server_cb(esp_ble_mesh_lighting_server_cb_event_t event,
+                                                 esp_ble_mesh_lighting_server_cb_param_t *param)
+{
+    esp_ble_mesh_gen_onoff_srv_t *srv;
+    ESP_LOGI(TAG, "event 0x%02x, opcode 0x%04" PRIx32 ", src 0x%04x, dst 0x%04x",
+        event, param->ctx.recv_op, param->ctx.addr, param->ctx.recv_dst);
+
+    switch (event) {
+    case ESP_BLE_MESH_LIGHTING_SERVER_STATE_CHANGE_EVT:
+        ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHTING_SERVER_STATE_CHANGE_EVT");
+        // update RGB value from model
+        break;
+    // should not happen since get_auto_rsp is set to ESP_BLE_MESH_SERVER_AUTO_RSP
+    case ESP_BLE_MESH_LIGHTING_SERVER_RECV_GET_MSG_EVT:
+        break;
+    // should not happen since get_auto_rsp is set to ESP_BLE_MESH_SERVER_AUTO_RSP
+    case ESP_BLE_MESH_LIGHTING_SERVER_RECV_SET_MSG_EVT:
+        break;
+    // should not happen since get_auto_rsp is set to ESP_BLE_MESH_SERVER_AUTO_RSP
+    case ESP_BLE_MESH_LIGHTING_SERVER_RECV_STATUS_MSG_EVT:
+        break;
+    default:
+        ESP_LOGE(TAG, "Unknown Generic Server event 0x%02x", event);
+        break;
+    }
+}
+
 static void example_ble_mesh_health_server_cb(esp_ble_mesh_health_server_cb_event_t event,
                                                  esp_ble_mesh_health_server_cb_param_t *param)
 {
@@ -296,7 +331,7 @@ static esp_err_t ble_mesh_init(void)
     esp_ble_mesh_register_generic_client_callback(example_ble_mesh_generic_client_cb);
     esp_ble_mesh_register_config_server_callback(example_ble_mesh_config_server_cb);
     esp_ble_mesh_register_health_server_callback(example_ble_mesh_health_server_cb);
-    esp_ble_mesh_register_generic_server_callback(example_ble_mesh_generic_server_cb);
+    esp_ble_mesh_register_lighting_server_callback(example_ble_mesh_lightning_server_cb);
 
 
     err = esp_ble_mesh_init(&provision, &composition);
