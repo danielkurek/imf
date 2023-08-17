@@ -29,8 +29,6 @@
 
 #define CID_ESP 0x02E5
 
-#define LOC_LOCAL_SIZE 9
-
 static uint8_t dev_uuid[16] = { 0xdd, 0xdd };
 
 static struct example_info_store {
@@ -81,28 +79,10 @@ static esp_ble_mesh_health_srv_t health_server = {
     .health_test.test_ids = test_ids,
 };
 
-static esp_ble_mesh_gen_location_state_t location_state = {};
-
-ESP_BLE_MESH_MODEL_PUB_DEFINE(location_pub, 2 + LOC_LOCAL_SIZE, ROLE_NODE);
-static esp_ble_mesh_gen_location_srv_t location_server = {
-    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_RSP_BY_APP,
-    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_RSP_BY_APP,
-    .state = &location_state
-};
-
-ESP_BLE_MESH_MODEL_PUB_DEFINE(location_setup_pub, 2 + LOC_LOCAL_SIZE, ROLE_NODE);
-static esp_ble_mesh_gen_location_setup_srv_t location_setup_server = {
-    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_RSP_BY_APP,
-    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_RSP_BY_APP,
-    .state = &location_state
-};
-
 static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_CFG_SRV(&config_server),
     ESP_BLE_MESH_MODEL_GEN_ONOFF_CLI(&onoff_cli_pub, &onoff_client),
     ESP_BLE_MESH_MODEL_HEALTH_SRV(&health_server, &health_pub),
-    ESP_BLE_MESH_MODEL_GEN_LOCATION_SRV(&location_pub, &location_server),
-    ESP_BLE_MESH_MODEL_GEN_LOCATION_SETUP_SRV(&location_setup_pub, &location_setup_server),
 };
 
 static esp_ble_mesh_elem_t elements[] = {
@@ -307,103 +287,6 @@ static void example_ble_mesh_health_server_cb(esp_ble_mesh_health_server_cb_even
     }
 }
 
-static void example_handle_gen_loc_local_msg(esp_ble_mesh_model_t *model,
-                                             esp_ble_mesh_msg_ctx_t *ctx,
-                                             esp_ble_mesh_server_recv_gen_loc_local_set_t *set)
-{
-    NET_BUF_SIMPLE_DEFINE(buf, 9);
-    esp_ble_mesh_gen_location_srv_t *srv = model->user_data;
-
-    switch (ctx->recv_op) {
-    case ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET:
-        net_buf_simple_add_le16(&buf, srv->state->local_north);
-        net_buf_simple_add_le16(&buf, srv->state->local_east);
-        net_buf_simple_add_le16(&buf, srv->state->local_altitude);
-        net_buf_simple_add_u8  (&buf, srv->state->floor_number);
-        net_buf_simple_add_le16(&buf, srv->state->uncertainty);
-
-        esp_ble_mesh_server_model_send_msg(model, ctx,
-            ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_STATUS, buf.size, buf.data);
-        break;
-    case ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET:
-    case ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET_UNACK:
-        srv->state->local_north = set->local_north;
-        srv->state->local_east = set->local_east;
-        srv->state->local_altitude = set->local_altitude;
-        srv->state->floor_number = set->floor_number;
-        srv->state->uncertainty = set->uncertainty;
-
-        net_buf_simple_add_le16(&buf, srv->state->local_north);
-        net_buf_simple_add_le16(&buf, srv->state->local_east);
-        net_buf_simple_add_le16(&buf, srv->state->local_altitude);
-        net_buf_simple_add_u8  (&buf, srv->state->floor_number);
-        net_buf_simple_add_le16(&buf, srv->state->uncertainty);
-
-        if (ctx->recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET) {
-            esp_ble_mesh_server_model_send_msg(model, ctx,
-                ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_STATUS, buf.size, buf.data);
-        }
-        esp_ble_mesh_model_publish(model, ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_STATUS,
-            buf.size, buf.data, ROLE_NODE);
-        // example_change_led_state(model, ctx, srv->state.onoff);
-        break;
-    default:
-        break;
-    }
-}
-
-static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_event_t event,
-                                               esp_ble_mesh_generic_server_cb_param_t *param)
-{
-    esp_ble_mesh_gen_location_srv_t *srv;
-    ESP_LOGI(TAG, "event 0x%02x, opcode 0x%04" PRIx32 ", src 0x%04x, dst 0x%04x",
-        event, param->ctx.recv_op, param->ctx.addr, param->ctx.recv_dst);
-
-    switch (event) {
-    case ESP_BLE_MESH_GENERIC_SERVER_STATE_CHANGE_EVT:
-        ESP_LOGI(TAG, "ESP_BLE_MESH_GENERIC_SERVER_STATE_CHANGE_EVT");
-        if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET ||
-            param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET_UNACK) {
-            
-            ESP_LOGI(TAG, "loc set:\nlocal_north: %d \nlocal_east: %d \nlocal_altitude: %d \nfloor_number: %d \nuncertainty:%d", 
-                param->value.state_change.loc_local_set.north,
-                param->value.state_change.loc_local_set.east,
-                param->value.state_change.loc_local_set.altitude,
-                param->value.state_change.loc_local_set.floor_number,
-                param->value.state_change.loc_local_set.uncertainty);
-        }
-        break;
-    case ESP_BLE_MESH_GENERIC_SERVER_RECV_GET_MSG_EVT:
-        ESP_LOGI(TAG, "ESP_BLE_MESH_GENERIC_SERVER_RECV_GET_MSG_EVT");
-        if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET) {
-            srv = param->model->user_data;
-            ESP_LOGI(TAG, "loc set:\nlocal_north: %d \nlocal_east: %d \nlocal_altitude: %d \nfloor_number: %d \nuncertainty:%d", 
-                srv->state->local_north,
-                srv->state->local_east,
-                srv->state->local_altitude,
-                srv->state->floor_number,
-                srv->state->uncertainty);
-            example_handle_gen_loc_local_msg(param->model, &param->ctx, NULL);
-        }
-        break;
-    case ESP_BLE_MESH_GENERIC_SERVER_RECV_SET_MSG_EVT:
-        ESP_LOGI(TAG, "ESP_BLE_MESH_GENERIC_SERVER_RECV_SET_MSG_EVT");
-        if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET ||
-            param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET_UNACK) {
-                ESP_LOGI(TAG, "loc set:\nlocal_north: %d \nlocal_east: %d \nlocal_altitude: %d \nfloor_number: %d \nuncertainty:%d", 
-                param->value.set.location_local.local_north,
-                param->value.set.location_local.local_east,
-                param->value.set.location_local.local_altitude,
-                param->value.set.location_local.floor_number,
-                param->value.set.location_local.uncertainty);
-            example_handle_gen_loc_local_msg(param->model, &param->ctx, &param->value.set.location_local);
-        }
-        break;
-    default:
-        ESP_LOGE(TAG, "Unknown Generic Server event 0x%02x", event);
-        break;
-    }
-}
 
 static esp_err_t ble_mesh_init(void)
 {
