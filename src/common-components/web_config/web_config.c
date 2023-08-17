@@ -11,7 +11,9 @@
 #include "wifi_connect.h"
 #include "http_common.h"
 #include "logger.h"
+#include "ota.h"
 
+#include <regex.h>
 #include <esp_wifi.h>
 #include <esp_event.h>
 #include <esp_log.h>
@@ -78,6 +80,7 @@ typedef struct {
     nvs_handle_t config_handle;
     char scratch_buf[SCRATCH_BUFSIZE];
     httpd_handle_t server;
+    regex_t url_regex;
 } web_config_data_t;
 
 static esp_err_t get_key_from_uri(char *dest, size_t prefix_len, const char *full_uri, size_t destsize)
@@ -319,10 +322,39 @@ static esp_err_t reboot_get_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
+static esp_err_t ota_post_handler(httpd_req_t *req){
+    static char url[128];
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+    
+    // load url from POST body
+    long int received = http_load_post_req_to_buf(req, data->scratch_buf, sizeof(data->scratch_buf));
+    if(received < 0){
+        return ESP_FAIL;
+    }
+
+    strlcpy(url, data->scratch_buf, sizeof(url));
+
+    // validate URL
+    int reg_err = regexec(&data->url_regex, url, 0, NULL, 0);
+    if (reg_err != 0) {
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed validate URL");
+        return ESP_FAIL;
+    }
+
+    esp_https_ota_config_t ota_config = ota_config_default(url);
+
+    esp_err_t err = ota_start(&ota_config);
+    if(err != ESP_OK){
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed OTA update");
+        return ESP_FAIL;
+    }
+
+    httpd_resp_sendstr(req, "Done");
+    return ESP_OK;
+}
+
 static void web_config_register_uri(httpd_handle_t server, web_config_data_t *user_ctx)
 {
-    // char *scratch_buffer = malloc(SCRATCH_BUFSIZE);
-
     const httpd_uri_t index = {
         .uri = "/",
         .method = HTTP_GET,
@@ -364,11 +396,28 @@ static void web_config_register_uri(httpd_handle_t server, web_config_data_t *us
         .handler = reboot_get_handler,
         .user_ctx = user_ctx};
     httpd_register_uri_handler(server, &reboot);
+
+    const httpd_uri_t ota = {
+        .uri = API_PATH("/ota"),
+        .method = HTTP_POST,
+        .handler = ota_post_handler,
+        .user_ctx = user_ctx};
+    httpd_register_uri_handler(server, &ota);
+}
+
+static esp_err_t prepare_url_regex(web_config_data_t *data){
+    int err = regcomp(&data->url_regex, "https?:\\/\\/(www\\.)?[-a-zA-Z0-9@:%._\\+~#=]{1,256}\\.[a-zA-Z0-9()]{1,6}\\b([-a-zA-Z0-9()@:%_\\+.~#?&//=]*)", REG_EXTENDED);
+    if(err != 0){
+        return ESP_FAIL;
+    }
+    return ESP_OK;
 }
 
 static httpd_handle_t start_webserver(void)
 {
     static web_config_data_t data;
+
+    prepare_url_regex(&data);
 
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();

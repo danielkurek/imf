@@ -54,30 +54,11 @@ static esp_err_t _http_client_init_cb(esp_http_client_handle_t http_client)
     return err;
 }
 
-esp_err_t ota_task()
+esp_err_t ota_start(esp_https_ota_config_t *ota_config)
 {
     ESP_LOGI(TAG, "Starting Advanced OTA example");
 
     esp_err_t ota_finish_err = ESP_OK;
-    esp_http_client_config_t config = {
-        .url = CONFIG_OTA_FIRMWARE_UPGRADE_URL,
-        .cert_pem = (char *)server_cert_pem_start,
-        .timeout_ms = CONFIG_OTA_OTA_RECV_TIMEOUT,
-        .keep_alive_enable = true,
-    };
-    ESP_LOGI(TAG, "Certificate:\n%s\n\n", server_cert_pem_start);
-#ifdef CONFIG_OTA_SKIP_COMMON_NAME_CHECK
-    config.skip_cert_common_name_check = true;
-#endif
-
-    esp_https_ota_config_t ota_config = {
-        .http_config = &config,
-        .http_client_init_cb = _http_client_init_cb, // Register a callback to be invoked after esp_http_client is initialized
-#ifdef CONFIG_OTA_ENABLE_PARTIAL_HTTP_DOWNLOAD
-        .partial_http_download = true,
-        .max_http_request_size = CONFIG_OTA_HTTP_REQUEST_SIZE,
-#endif
-    };
     // esp_err_t ret = esp_https_ota(&ota_config);
     // if (ret == ESP_OK) {
     //     esp_restart();
@@ -91,7 +72,7 @@ esp_err_t ota_task()
     // return ESP_OK;
 
     esp_https_ota_handle_t https_ota_handle = NULL;
-    esp_err_t err = esp_https_ota_begin(&ota_config, &https_ota_handle);
+    esp_err_t err = esp_https_ota_begin(ota_config, &https_ota_handle);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "ESP HTTPS OTA Begin failed");
         return ESP_FAIL;
@@ -152,6 +133,34 @@ ota_end:
     return ESP_FAIL;
 }
 
+esp_https_ota_config_t ota_config_default(const char* url){
+    esp_http_client_config_t config = {
+        .url = url,
+        .cert_pem = (char *)server_cert_pem_start,
+        .timeout_ms = CONFIG_OTA_OTA_RECV_TIMEOUT,
+        .keep_alive_enable = true,
+    };
+    ESP_LOGI(TAG, "Certificate:\n%s\n\n", server_cert_pem_start);
+#ifdef CONFIG_OTA_SKIP_COMMON_NAME_CHECK
+    config.skip_cert_common_name_check = true;
+#endif
+
+    esp_https_ota_config_t ota_config = {
+        .http_config = &config,
+        .http_client_init_cb = _http_client_init_cb, // Register a callback to be invoked after esp_http_client is initialized
+#ifdef CONFIG_OTA_ENABLE_PARTIAL_HTTP_DOWNLOAD
+        .partial_http_download = true,
+        .max_http_request_size = CONFIG_OTA_HTTP_REQUEST_SIZE,
+#endif
+    };
+    return ota_config;
+}
+
+esp_err_t ota_task(){
+    esp_https_ota_config_t ota_config = ota_config_default(CONFIG_OTA_FIRMWARE_UPGRADE_URL);
+    return ota_start(&ota_config);
+}
+
 void ota_rollback_checkpoint(){
     const esp_partition_t *running = esp_ota_get_running_partition();
     esp_ota_img_states_t ota_state;
@@ -164,6 +173,11 @@ void ota_rollback_checkpoint(){
             }
         }
     }
+}
+
+void ota_register_events(void * event_handler_arg){
+    ESP_ERROR_CHECK(esp_event_handler_register(ESP_HTTPS_OTA_EVENT, ESP_EVENT_ANY_ID, event_handler_arg, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(OTA_EVENT, ESP_EVENT_ANY_ID, event_handler_arg, NULL));
 }
 
 void ota_init(void * event_handler_arg)
@@ -180,8 +194,7 @@ void ota_init(void * event_handler_arg)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    ESP_ERROR_CHECK(esp_event_handler_register(ESP_HTTPS_OTA_EVENT, ESP_EVENT_ANY_ID, event_handler_arg, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(OTA_EVENT, ESP_EVENT_ANY_ID, event_handler_arg, NULL));
+    ota_register_events(event_handler_arg);
     
     // connect to wifi according to menuconfig
     ESP_ERROR_CHECK(wifi_connect_default());
