@@ -64,7 +64,7 @@ void test_logging(void *pvParameters){
     
     logger_output_to_uart(UART_NUM_1, 17, 18, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     const char* filename = "/logs/log.txt";
-    logger_output_to_file(filename);
+    logger_output_to_file(filename, 2000);
     
     ota_rollback_checkpoint();
     ota_deinit();

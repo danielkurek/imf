@@ -55,7 +55,7 @@ bool logger_init_storage(){
     size_t total = 0, used = 0;
     ret = esp_littlefs_info(storage_conf.partition_label, &total, &used);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get SPIFFS partition information (%s). Formatting...", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Failed to get LittleFS partition information (%s). Formatting...", esp_err_to_name(ret));
         esp_littlefs_format(storage_conf.partition_label);
         return false;
     } else {
@@ -75,7 +75,7 @@ void logger_output_to_default(){
     conf.to_default = true;
 }
 
-bool logger_output_to_file(const char* filename){
+bool logger_output_to_file(const char* filename, long int protect_start_bytes){
     struct stat st;
     if (stat(filename, &st) == 0) {
         // File exists
@@ -94,6 +94,17 @@ bool logger_output_to_file(const char* filename){
 
     conf.to_file = true;
     conf.log_file_name = filename;
+
+    conf.storage_protect_log_start = protect_start_bytes != 0;
+    conf.storage_overwriting = false;
+    if(conf.storage_protect_log_start){
+        conf.storage_protect_start = ftell(conf.log_file);
+        if(conf.storage_protect_start < 0L){
+            ESP_LOGE(TAG, "cannot get position of log file; %s", strerror(errno));
+            return false;
+        }
+        conf.storage_protect_end = conf.storage_protect_start + protect_start_bytes;
+    }
 
     LOGGER_E("", "\n####[START OF LOG]####\n\n");
     return true;
@@ -116,6 +127,7 @@ void logger_set_file_overwrite(){
 
     ESP_LOGI(TAG, "file %s size %"PRId32", used %d", conf.log_file_name, file_size, conf.storage_size_used);
     conf.storage_size_used -= file_size;
+    conf.storage_overwriting = true;
 }
 
 bool logger_output_to_uart(const uart_port_t port, int tx_io_num, int rx_io_num, int rts_io_num, int cts_io_num){
@@ -168,27 +180,33 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
         esp_log_writev(level, tag, format, args);
     }
 
-    if(conf.to_file){
-        if(conf.storage_size_used >= conf.storage_size_threshold){
-            ESP_LOGI(TAG, "file estimation reached %d; starting overwrite", conf.storage_size_used);
-            logger_set_file_overwrite();
-        }
-        int written = vfprintf(conf.log_file, format, args);
-        conf.storage_size_used += written;
-        writes_to_file += 1;
-        if(writes_to_file > 10){
-            logger_sync_file();
-            writes_to_file = 0;
-        }
-    }
-
-    if(conf.to_uart){
-        char out[128];
+    if(conf.to_file || conf.to_uart){
+        char out[256];
         int ret = vsnprintf(out, sizeof(out), format, args);
         if (ret >= 0){
-            uart_write_bytes(conf.uart_num, out, strlen(out));
+            if(conf.to_file){
+                if(conf.storage_size_used >= conf.storage_size_threshold){
+                    ESP_LOGI(TAG, "file estimation reached %d; starting overwrite", conf.storage_size_used);
+                    logger_set_file_overwrite();
+                }
+                if(conf.storage_protect_log_start && conf.storage_overwriting){
+                    if(ftell(conf.log_file) + ret >= conf.storage_protect_start - 1){
+                        fseek(conf.storage_protect_end);
+                    }
+                }
+                int written = vfprintf(conf.log_file, format, args);
+                conf.storage_size_used += written;
+                writes_to_file += 1;
+                if(writes_to_file > 10){
+                    logger_sync_file();
+                    writes_to_file = 0;
+                }
+            }
+            if(conf.to_uart){
+                uart_write_bytes(conf.uart_num, out, strlen(out));
+            }
         } else{
-            ESP_LOGE(TAG, "cannot print to UART");
+            ESP_LOGE(TAG, "cannot print create msg");
         }
     }
 

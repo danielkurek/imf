@@ -28,6 +28,10 @@ typedef struct {
   size_t storage_size_total;
   size_t storage_size_used;
   size_t storage_size_threshold;
+  long int storage_protect_start;
+  long int storage_protect_end;
+  bool storage_protect_log_start;
+  bool storage_overwriting;
 } logger_conf_t;
 
 void logger_init(esp_log_level_t level);
@@ -36,7 +40,7 @@ bool logger_init_storage();
 char logger_get_current_rnd_letter();
 
 void logger_output_to_default();
-bool logger_output_to_file(const char* filename);
+bool logger_output_to_file(const char* filename, long int protect_start_bytes);
 bool logger_output_to_uart(const uart_port_t port, int tx_io_num, int rx_io_num, int rts_io_num, int cts_io_num);
 
 void logger_sync_file();
