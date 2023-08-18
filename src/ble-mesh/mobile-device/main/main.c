@@ -20,6 +20,7 @@
 #include "esp_ble_mesh_config_model_api.h"
 #include "esp_ble_mesh_generic_model_api.h"
 #include "esp_ble_mesh_health_model_api.h"
+#include "esp_ble_mesh_lighting_model_api.h"
 
 #include "board.h"
 #include "ble_mesh_example_init.h"
@@ -30,6 +31,12 @@
 #define CID_ESP 0x02E5
 
 static uint8_t dev_uuid[16] = { 0xdd, 0xdd };
+
+typedef struct {
+    uint16_t lightness;
+    uint16_t hue;
+    uint16_t saturation;
+} hsl_t;
 
 static struct example_info_store {
     uint16_t net_idx;   /* NetKey Index */
@@ -79,11 +86,46 @@ static esp_ble_mesh_health_srv_t health_server = {
     .health_test.test_ids = test_ids,
 };
 
+static esp_ble_mesh_light_hsl_state_t hsl_state = {
+    .lightness_default = UINT16_MAX/2,
+    .hue_default = UINT16_MAX/2,
+    .saturation_default = UINT16_MAX/2,
+    .hue_range_min = 0,
+    .hue_range_max = UINT16_MAX,
+    .saturation_range_min = 0,
+    .saturation_range_max = UINT16_MAX,
+};
+
 ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_pub, 2 + 11, ROLE_NODE);
 static esp_ble_mesh_light_hsl_srv_t light_hsl_srv = {
     .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
     .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
     .rsp_ctrl.status_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .state = &hsl_state,
+};
+
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_server_pub, 2 + 11, ROLE_NODE);
+esp_ble_mesh_light_hsl_setup_srv_t light_hsl_setup_srv = {
+    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.status_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .state = &hsl_state,
+};
+
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_hue_pub, 2 + 11, ROLE_NODE);
+esp_ble_mesh_light_hsl_hue_srv_t light_hsl_hue_srv = {
+    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.status_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .state = &hsl_state,
+};
+
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_sat_pub, 2 + 11, ROLE_NODE);
+esp_ble_mesh_light_hsl_sat_srv_t light_hsl_sat_srv = {
+    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.status_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .state = &hsl_state,
 };
 
 static esp_ble_mesh_model_t root_models[] = {
@@ -91,10 +133,21 @@ static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_GEN_ONOFF_CLI(&onoff_cli_pub, &onoff_client),
     ESP_BLE_MESH_MODEL_HEALTH_SRV(&health_server, &health_pub),
     ESP_BLE_MESH_MODEL_LIGHT_HSL_SRV(&light_hsl_pub, &light_hsl_srv),
+    ESP_BLE_MESH_MODEL_LIGHT_HSL_SETUP_SRV(&light_hsl_server_pub, &light_hsl_setup_srv),
+};
+
+static esp_ble_mesh_model_t hue_models[] = {
+    ESP_BLE_MESH_MODEL_LIGHT_HSL_HUE_SRV(&light_hsl_hue_pub, &light_hsl_hue_srv),
+};
+
+static esp_ble_mesh_model_t saturation_models[] = {
+    ESP_BLE_MESH_MODEL_LIGHT_HSL_SAT_SRV(&light_hsl_sat_pub, &light_hsl_sat_srv),
 };
 
 static esp_ble_mesh_elem_t elements[] = {
     ESP_BLE_MESH_ELEMENT(0, root_models, ESP_BLE_MESH_MODEL_NONE),
+    ESP_BLE_MESH_ELEMENT(0, hue_models, ESP_BLE_MESH_MODEL_NONE),
+    ESP_BLE_MESH_ELEMENT(0, saturation_models, ESP_BLE_MESH_MODEL_NONE),
 };
 
 static esp_ble_mesh_comp_t composition = {
@@ -284,17 +337,32 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
     }
 }
 
+static void update_light(hsl_t hsl){
+    ESP_LOGI(TAG, "set light to H:%d S:%d L:%d", hsl.hue, hsl.saturation, hsl.lightness);
+}
+
 static void example_ble_mesh_lightning_server_cb(esp_ble_mesh_lighting_server_cb_event_t event,
                                                  esp_ble_mesh_lighting_server_cb_param_t *param)
 {
-    esp_ble_mesh_gen_onoff_srv_t *srv;
     ESP_LOGI(TAG, "event 0x%02x, opcode 0x%04" PRIx32 ", src 0x%04x, dst 0x%04x",
         event, param->ctx.recv_op, param->ctx.addr, param->ctx.recv_dst);
+
+    hsl_t hsl;
 
     switch (event) {
     case ESP_BLE_MESH_LIGHTING_SERVER_STATE_CHANGE_EVT:
         ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHTING_SERVER_STATE_CHANGE_EVT");
         // update RGB value from model
+        switch(param->ctx.recv_op){
+            case ESP_BLE_MESH_MODEL_OP_LIGHT_HSL_SET:
+            case ESP_BLE_MESH_MODEL_OP_LIGHT_HSL_SET_UNACK:
+                hsl.hue = param->value.state_change.hsl_set.hue;
+                hsl.saturation = param->value.state_change.hsl_set.saturation;
+                hsl.lightness = param->value.state_change.hsl_set.lightness;
+                update_light(hsl);
+                break;
+        }
+        
         break;
     // should not happen since get_auto_rsp is set to ESP_BLE_MESH_SERVER_AUTO_RSP
     case ESP_BLE_MESH_LIGHTING_SERVER_RECV_GET_MSG_EVT:

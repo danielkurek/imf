@@ -21,11 +21,12 @@
 #include "esp_ble_mesh_config_model_api.h"
 #include "esp_ble_mesh_generic_model_api.h"
 #include "esp_ble_mesh_health_model_api.h"
-#include "esp_ble_mesh_"
+#include "esp_ble_mesh_lighting_model_api.h"
 #include "esp_ble_mesh_local_data_operation_api.h"
 
 #include "board.h"
 #include "ble_mesh_example_init.h"
+#include "ble_mesh_example_nvs.h"
 
 #define TAG "EXAMPLE"
 
@@ -34,6 +35,21 @@
 extern struct _led_state led_state[3];
 
 static uint8_t dev_uuid[16] = { 0xdd, 0xdd };
+
+static struct example_info_store {
+    uint16_t net_idx;   /* NetKey Index */
+    uint16_t app_idx;   /* AppKey Index */
+    uint8_t  onoff;     /* Remote OnOff */
+    uint8_t  tid;       /* Message TID */
+} __attribute__((packed)) store = {
+    .net_idx = ESP_BLE_MESH_KEY_UNUSED,
+    .app_idx = ESP_BLE_MESH_KEY_UNUSED,
+    .onoff = LED_OFF,
+    .tid = 0x0,
+};
+
+static nvs_handle_t NVS_HANDLE;
+static const char * NVS_KEY = "onoff_client";
 
 static esp_ble_mesh_cfg_srv_t config_server = {
     .relay = ESP_BLE_MESH_RELAY_ENABLED,
@@ -81,26 +97,68 @@ static esp_ble_mesh_health_srv_t health_server = {
     .health_test.test_ids = test_ids,
 };
 
+static esp_ble_mesh_light_hsl_state_t hsl_state = {
+    .lightness_default = UINT16_MAX/2,
+    .hue_default = UINT16_MAX/2,
+    .saturation_default = UINT16_MAX/2,
+    .hue_range_min = 0,
+    .hue_range_max = UINT16_MAX,
+    .saturation_range_min = 0,
+    .saturation_range_max = UINT16_MAX,
+};
+
 ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_pub, 2 + 11, ROLE_NODE);
 static esp_ble_mesh_light_hsl_srv_t light_hsl_srv = {
     .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
     .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
     .rsp_ctrl.status_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .state = &hsl_state,
 };
+
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_server_pub, 2 + 11, ROLE_NODE);
+esp_ble_mesh_light_hsl_setup_srv_t light_hsl_setup_srv = {
+    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.status_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .state = &hsl_state,
+};
+
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_hue_pub, 2 + 11, ROLE_NODE);
+esp_ble_mesh_light_hsl_hue_srv_t light_hsl_hue_srv = {
+    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.status_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .state = &hsl_state,
+};
+
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_sat_pub, 2 + 11, ROLE_NODE);
+esp_ble_mesh_light_hsl_sat_srv_t light_hsl_sat_srv = {
+    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.status_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .state = &hsl_state,
+};
+
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_cli_pub, 2 + 11, ROLE_NODE);
+static esp_ble_mesh_client_t light_hsl_client;
 
 static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_CFG_SRV(&config_server),
     ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub_0, &onoff_server_0),
     ESP_BLE_MESH_MODEL_HEALTH_SRV(&health_server, &health_pub),
     ESP_BLE_MESH_MODEL_LIGHT_HSL_SRV(&light_hsl_pub, &light_hsl_srv),
+    ESP_BLE_MESH_MODEL_LIGHT_HSL_SETUP_SRV(&light_hsl_server_pub, &light_hsl_setup_srv),
+    ESP_BLE_MESH_MODEL_LIGHT_HSL_CLI(&light_hsl_cli_pub, &light_hsl_client),
 };
 
 static esp_ble_mesh_model_t extend_model_0[] = {
     ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub_1, &onoff_server_1),
+    ESP_BLE_MESH_MODEL_LIGHT_HSL_HUE_SRV(&light_hsl_hue_pub, &light_hsl_hue_srv),
 };
 
 static esp_ble_mesh_model_t extend_model_1[] = {
     ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub_2, &onoff_server_2),
+    ESP_BLE_MESH_MODEL_LIGHT_HSL_SAT_SRV(&light_hsl_sat_pub, &light_hsl_sat_srv),
 };
 
 static esp_ble_mesh_elem_t elements[] = {
@@ -129,11 +187,42 @@ static esp_ble_mesh_prov_t provision = {
 #endif
 };
 
+static void mesh_example_info_store(void)
+{
+    ble_mesh_nvs_store(NVS_HANDLE, NVS_KEY, &store, sizeof(store));
+}
+
+static void mesh_example_info_restore(void)
+{
+    esp_err_t err = ESP_OK;
+    bool exist = false;
+
+    err = ble_mesh_nvs_restore(NVS_HANDLE, NVS_KEY, &store, sizeof(store), &exist);
+    if (err != ESP_OK) {
+        return;
+    }
+
+    if (exist) {
+        ESP_LOGI(TAG, "Restore, net_idx 0x%04x, app_idx 0x%04x, onoff %u, tid 0x%02x",
+            store.net_idx, store.app_idx, store.onoff, store.tid);
+    }
+}
+
 static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32_t iv_index)
 {
     ESP_LOGI(TAG, "net_idx: 0x%04x, addr: 0x%04x", net_idx, addr);
     ESP_LOGI(TAG, "flags: 0x%02x, iv_index: 0x%08" PRIx32, flags, iv_index);
     board_led_operation(LED_GREEN, LED_OFF);
+    store.net_idx = net_idx;
+    /* mesh_example_info_store() shall not be invoked here, because if the device
+     * is restarted and goes into a provisioned state, then the following events
+     * will come:
+     * 1st: ESP_BLE_MESH_NODE_PROV_COMPLETE_EVT
+     * 2nd: ESP_BLE_MESH_PROV_REGISTER_COMP_EVT
+     * So the store.net_idx will be updated here, and if we store the mesh example
+     * info here, the wrong app_idx (initialized with 0xFFFF) will be stored in nvs
+     * just before restoring it.
+     */
 }
 
 static void example_change_led_state(esp_ble_mesh_model_t *model,
@@ -287,6 +376,8 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
                 param->value.state_change.mod_app_bind.app_idx,
                 param->value.state_change.mod_app_bind.company_id,
                 param->value.state_change.mod_app_bind.model_id);
+            store.app_idx = param->value.state_change.mod_app_bind.app_idx;
+            mesh_example_info_store(); /* Store proper mesh example info */
             break;
         case ESP_BLE_MESH_MODEL_OP_MODEL_SUB_ADD:
             ESP_LOGI(TAG, "ESP_BLE_MESH_MODEL_OP_MODEL_SUB_ADD");
@@ -368,9 +459,38 @@ static void example_ble_mesh_lightning_server_cb(esp_ble_mesh_lighting_server_cb
     }
 }
 
+static void example_hsl_send(){
+    esp_ble_mesh_client_common_param_t common = {0};
+    esp_ble_mesh_light_client_set_state_t set = {0};
+
+    common.opcode = ESP_BLE_MESH_MODEL_OP_LIGHT_HSL_SET_UNACK;
+    common.model = light_hsl_client.model;
+    common.ctx.net_idx = store.net_idx;
+    common.ctx.app_idx = store.app_idx;
+    common.ctx.addr = 0xFFFF;   /* to all nodes */
+    common.ctx.send_ttl = 3;
+    common.ctx.send_rel = false;
+    common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
+    common.msg_role = ROLE_NODE;
+
+    set.hsl_set.op_en = false;
+    set.hsl_set.hsl_lightness = 888;
+    set.hsl_set.hsl_hue = 256;
+    set.hsl_set.hsl_saturation = 123;
+    set.hsl_set.tid = store.tid++;
+
+    esp_err_t err = esp_ble_mesh_light_client_set_state(&common, &set);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Send Light HSL Set Unack failed");
+        return;
+    }
+
+    mesh_example_info_store();
+}
+
 
 void example_button_cb(void){
-    
+    example_hsl_send();
 }
 
 static esp_err_t ble_mesh_init(void)
@@ -380,7 +500,7 @@ static esp_err_t ble_mesh_init(void)
     esp_ble_mesh_register_prov_callback(example_ble_mesh_provisioning_cb);
     esp_ble_mesh_register_config_server_callback(example_ble_mesh_config_server_cb);
     esp_ble_mesh_register_generic_server_callback(example_ble_mesh_generic_server_cb);
-    esp_ble_mesh_register_generic_client_callback(example_ble_mesh_generic_client_cb);
+    // esp_ble_mesh_register_generic_client_callback(example_ble_mesh_generic_client_cb);
     esp_ble_mesh_register_health_server_callback(example_ble_mesh_health_server_cb);
     esp_ble_mesh_register_lighting_server_callback(example_ble_mesh_lightning_server_cb);
 
