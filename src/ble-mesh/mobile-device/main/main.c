@@ -25,18 +25,14 @@
 #include "board.h"
 #include "ble_mesh_example_init.h"
 #include "ble_mesh_example_nvs.h"
+#include "color.h"
+#include "hsl.h"
 
 #define TAG "EXAMPLE"
 
 #define CID_ESP 0x02E5
 
 static uint8_t dev_uuid[16] = { 0xdd, 0xdd };
-
-typedef struct {
-    uint16_t lightness;
-    uint16_t hue;
-    uint16_t saturation;
-} hsl_t;
 
 static struct example_info_store {
     uint16_t net_idx;   /* NetKey Index */
@@ -339,6 +335,9 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
 
 static void update_light(hsl_t hsl){
     ESP_LOGI(TAG, "set light to H:%d S:%d L:%d", hsl.hue, hsl.saturation, hsl.lightness);
+    rgb_t rgb = hsl_to_rgb(hsl);
+    ESP_LOGI(TAG, "set light to R:%d G:%d B:%d", rgb.red, rgb.green, rgb.blue);
+    board_led_set_rgb(rgb);
 }
 
 static void example_ble_mesh_lightning_server_cb(esp_ble_mesh_lighting_server_cb_event_t event,

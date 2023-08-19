@@ -64,6 +64,14 @@ void board_led_operation(color_t color, uint8_t onoff)
     // ESP_LOGE(TAG, "LED is not found!");
 }
 
+void board_led_set_rgb(rgb_t value){
+    led_state.red = value.red;
+    led_state.green = value.green;
+    led_state.blue = value.blue;
+
+    update_led();
+}
+
 void blink_cb(){
     if(led_state.blink_state == LED_ON){
         led_state.blink_state = LED_OFF;

@@ -474,9 +474,9 @@ static void example_hsl_send(){
     common.msg_role = ROLE_NODE;
 
     set.hsl_set.op_en = false;
-    set.hsl_set.hsl_lightness = 888;
-    set.hsl_set.hsl_hue = 256;
-    set.hsl_set.hsl_saturation = 123;
+    set.hsl_set.hsl_lightness = UINT16_MAX / 2;
+    set.hsl_set.hsl_hue = 0;
+    set.hsl_set.hsl_saturation = UINT16_MAX;
     set.hsl_set.tid = store.tid++;
 
     esp_err_t err = esp_ble_mesh_light_client_set_state(&common, &set);
