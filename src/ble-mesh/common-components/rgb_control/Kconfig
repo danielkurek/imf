@@ -1,0 +1,12 @@
+menu "BLE Mesh RGB control"
+    config BLE_MESH_RGB_CONTROL_SERVER
+        bool "Enable RGB control server"
+        default y
+        help
+            This allows other devices to control RGB on this device.
+    config BLE_MESH_RGB_CONTROL_CLIENT
+        bool "Enable RGB control client"
+        default y
+        help
+            This allows to control RGB on other devices.
+endmenu
