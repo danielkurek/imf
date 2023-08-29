@@ -5,7 +5,7 @@
 #include "rgb_control_server.h"
 #endif
 
-#ifdef BLE_MESH_RGB_CONTROL_CLIENT
+#ifdef CONFIG_BLE_MESH_RGB_CONTROL_CLIENT
 #include "rgb_control_client.h"
 #endif
 

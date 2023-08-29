@@ -90,7 +90,7 @@ static esp_ble_mesh_model_t root_models[] = {
 };
 
 static esp_ble_mesh_model_t hue_models[] = {
-    BLE_MESH_MODEL_RGB_HUE_SRV
+    BLE_MESH_MODEL_RGB_HUE_SRV,
 };
 
 static esp_ble_mesh_model_t saturation_models[] = {

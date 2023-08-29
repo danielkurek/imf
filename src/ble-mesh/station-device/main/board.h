@@ -12,6 +12,7 @@
 
 #include "driver/gpio.h"
 #include "led_strip.h"
+#include "color.h"
 
 #if defined(CONFIG_BLE_MESH_ESP32C3_DEV)
 #define LED_PIN GPIO_NUM_8
@@ -38,6 +39,8 @@ struct _led_state {
 };
 
 void board_led_operation(color_t color, uint8_t onoff);
+
+void board_led_set_rgb(rgb_t value);
 
 void board_start_blinking();
 
