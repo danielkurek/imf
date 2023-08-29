@@ -191,7 +191,7 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
                 }
                 if(conf.storage_protect_log_start && conf.storage_overwriting){
                     if(ftell(conf.log_file) + ret >= conf.storage_protect_start - 1){
-                        fseek(conf.storage_protect_end);
+                        fseek(conf.log_file, conf.storage_protect_end, SEEK_SET);
                     }
                 }
                 int written = vfprintf(conf.log_file, format, args);
