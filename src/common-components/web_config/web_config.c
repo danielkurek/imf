@@ -127,13 +127,20 @@ static esp_err_t hello_world_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
+static esp_err_t response_custom_header(httpd_req_t *req){
+    return httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+}
+
 static esp_err_t nvs_read_get_handler_str(httpd_req_t *req, size_t option_index){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+    
+    // response_custom_header(req);
 
     char value[32];
     size_t value_len = sizeof(value) / sizeof(value[0]);
     esp_err_t err = nvs_get_str(data->config_handle, options[option_index].key, value, &value_len);
     if(err != ESP_OK){
+        httpd_resp_set_status(req, HTTPD_404);
         return httpd_resp_sendstr(req, "Cannot get key");
     }
 
@@ -144,8 +151,11 @@ static esp_err_t nvs_read_get_handler_i16(httpd_req_t *req, size_t option_index)
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
     int16_t value;
 
+    // response_custom_header(req);
+
     esp_err_t err = nvs_get_i16(data->config_handle, options[option_index].key, &value);
     if(err != ESP_OK){
+        httpd_resp_set_status(req, HTTPD_404);
         return httpd_resp_sendstr(req, "Cannot get key");
     }
 
@@ -160,14 +170,18 @@ static esp_err_t nvs_read_get_handler(httpd_req_t *req){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
     static const size_t prefix_len = sizeof(API_PATH("/nvs/")) - 1;
 
+    response_custom_header(req);
+
     char nvs_key[NVS_KEY_NAME_MAX_SIZE];
     esp_err_t ret = get_key_from_uri(nvs_key, prefix_len, req->uri, sizeof(nvs_key));
     if(ret != ESP_OK){
+        httpd_resp_set_status(req, HTTPD_500);
         return httpd_resp_sendstr(req, "Cannot parse key");
     }
 
     int pos = config_find_key(nvs_key);
     if(pos < 0){
+        httpd_resp_set_status(req, HTTPD_404);
         return httpd_resp_sendstr(req, "Invalid key");
     }
 
@@ -185,11 +199,14 @@ static esp_err_t nvs_read_get_handler(httpd_req_t *req){
 static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, size_t option_index, char *received_value){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
 
+    // response_custom_header(req);
+
     char value[32];
     strlcpy(value, received_value, sizeof(value));
 
     esp_err_t err = nvs_set_str(data->config_handle, options[option_index].key, value);
     if(err != ESP_OK){
+        httpd_resp_set_status(req, HTTPD_500);
         return httpd_resp_sendstr(req, "Cannot set key");
     }
 
@@ -201,11 +218,14 @@ static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, size_t option_inde
 static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, size_t option_index, char *received_value){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
 
+    // response_custom_header(req);
+
     int16_t value = 0;
     sscanf(received_value, "%" SCNd16, &value);
 
     esp_err_t err = nvs_set_i16(data->config_handle, options[option_index].key, value);
     if(err != ESP_OK){
+        httpd_resp_set_status(req, HTTPD_500);
         return httpd_resp_sendstr(req, "Cannot set key");
     }
 
@@ -221,14 +241,18 @@ static esp_err_t nvs_write_post_handler(httpd_req_t *req){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
     static const size_t prefix_len = sizeof(API_PATH("/nvs/")) - 1;
 
+    response_custom_header(req);
+
     char nvs_key[NVS_KEY_NAME_MAX_SIZE];
     esp_err_t ret = get_key_from_uri(nvs_key, prefix_len, req->uri, sizeof(nvs_key));
     if(ret != ESP_OK){
+        httpd_resp_set_status(req, HTTPD_500);
         return httpd_resp_sendstr(req, "Cannot parse key");
     }
 
     int pos = config_find_key(nvs_key);
     if(pos < 0){
+        httpd_resp_set_status(req, HTTPD_404);
         return httpd_resp_sendstr(req, "Invalid key");
     }
     
@@ -251,6 +275,9 @@ static esp_err_t nvs_write_post_handler(httpd_req_t *req){
 
 static esp_err_t nvs_save_get_handler(httpd_req_t *req){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+
+    response_custom_header(req);
+
     esp_err_t err = nvs_commit(data->config_handle);
     if(err != ESP_OK){
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Could not save cahnges.");
@@ -263,6 +290,8 @@ static esp_err_t nvs_save_get_handler(httpd_req_t *req){
 
 static esp_err_t log_get_handler(httpd_req_t *req){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+
+    response_custom_header(req);
 
     // open log
     FILE *fd = logger_get_file();
@@ -313,6 +342,8 @@ static esp_err_t log_get_handler(httpd_req_t *req){
 
 static esp_err_t reboot_get_handler(httpd_req_t *req){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+
+    response_custom_header(req);
 
     httpd_resp_sendstr(req, "Done");
     web_config_stop(data->server);

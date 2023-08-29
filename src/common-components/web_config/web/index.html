@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Web config</title>
+    <style>
+        #settings{
+            background-color: lightgrey;
+        }
+        #settings ul{
+            padding: 0;
+        }
+        #settings ul li{
+            list-style: none;
+            margin: 0;
+        }
+        
+    </style>
+</head>
+<body>
+    <div id="settings">
+        <ul>
+            <li>
+                <div class="item" data-url="http://192.168.221.190/api/v1/nvs/ap/SSID" data-type="string">
+                    <span class="title">Test</span>
+                    <input class="input" type="text">
+                    <span class="error-msg"></div>
+                </div>
+            </li>
+        </ul>
+        <button>Save</button>
+        <button>Refresh</button>
+    </div>
+    <script>
+        function parseSettingsItems(items){
+            let data = [];
+            for(const item of items){
+                let parsedItem = {
+                    url: item.dataset.url,
+                    type: item.dataset.type,
+                    itemElement: item,
+                    titleElement: item.getElementsByClassName("title")[0],
+                    inputElement: item.getElementsByClassName("input")[0],
+                    errorElement: item.getElementsByClassName("error-msg")[0],
+                }
+                data.push(parsedItem);
+            }
+            return data;
+        }
+
+        async function fetchItemValue(item){
+            console.log(item);
+            try{
+                const response = await fetch(item.url);
+                if (!response.ok) {
+                    item.itemElement.style.backgroundColor = "#ffaaaa";
+                    item.errorElement.innerText = await response.text();
+                    throw new Error("Fetch response contains error");
+                }
+                item.inputElement.value = await response.text();
+            } catch(error){
+                console.error("There has been a problem with fetching item value:", error, item);
+            }
+        }
+
+        let settingsDOM = document.getElementById("settings");
+        let settingsItems = settingsDOM.getElementsByClassName("item");
+        settingsItems = parseSettingsItems(settingsItems);
+        settingsItems.forEach(fetchItemValue);
+    </script>
+</body>
+</html>
