@@ -11,6 +11,21 @@
 
 static const char *TAG = "MAIN";
 
+config_option_t options[] ={
+    {
+        .key = "device/name",
+        .type = NVS_TYPE_STR,
+        .value_to_log = true,
+    },
+    {
+        .key = "device/id",
+        .type = NVS_TYPE_I16,
+        .value_to_log = true,
+    },
+};
+
+static const size_t options_len = sizeof(options) / sizeof(options[0]);
+
 /* Event handler for catching system events */
 static void event_handler(void* arg, esp_event_base_t event_base,
                           int32_t event_id, void* event_data)
@@ -97,6 +112,7 @@ void test_logging(void *pvParameters){
 void app_main(void)
 {
     // xTaskCreate(&ota_task, "ota_task", 1024 * 8, NULL, 5, NULL);
+    web_config_set_custom_options(options_len, options);
     web_config_start();
     // avoid watchdog for IDLE task (needs to run once in a while)
     // xTaskCreate(test_logging, "Logging Test", 1024 * 8, NULL, tskIDLE_PRIORITY, NULL);

@@ -23,6 +23,7 @@
 #include <esp_http_server.h>
 #include "esp_mac.h"
 #include <errno.h>
+#include "cJSON.h"
 
 #define SCRATCH_BUFSIZE (10240)
 
@@ -39,13 +40,7 @@ static const char *TAG = "web_config";
 #define AP_PASSWORD_KEY "ap/password"
 #define AP_CHANNEL_KEY "ap/channel"
 
-typedef struct {
-    char *key;
-    nvs_type_t type;
-    bool value_to_log;
-} config_option_t;
-
-const config_option_t options[] ={
+static const config_option_t options[] ={
     {
         .key = STA_SSID_KEY,
         .type = NVS_TYPE_STR,
@@ -76,6 +71,9 @@ const config_option_t options[] ={
 
 static const size_t options_len = sizeof(options) / sizeof(options[0]);
 
+static config_option_t *custom_options;
+
+static size_t custom_options_len;
 typedef struct {
     nvs_handle_t config_handle;
     char scratch_buf[SCRATCH_BUFSIZE];
@@ -113,13 +111,21 @@ static esp_err_t get_key_from_uri(char *dest, size_t prefix_len, const char *ful
     return ESP_OK;
 }
 
-static int config_find_key(const char* key){
+static const config_option_t* config_find_key(const char* key){
     for (int i = 0; i < options_len; i++){
         if(strcmp(key, options[i].key) == 0){
-            return i;
+            return (&options[i]);
         }
     }
-    return -1;
+    
+    if(custom_options == NULL) return NULL;
+
+    for (int i = 0; i < custom_options_len; i++){
+        if(strcmp(key, custom_options[i].key) == 0){
+            return (&custom_options[i]);
+        }
+    }
+    return NULL;
 }
 
 static esp_err_t hello_world_handler(httpd_req_t *req){
@@ -131,14 +137,109 @@ static esp_err_t response_custom_header(httpd_req_t *req){
     return httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
 }
 
-static esp_err_t nvs_read_get_handler_str(httpd_req_t *req, size_t option_index){
+static esp_err_t json_populate_options(httpd_req_t *req, cJSON *nvs_list, size_t size, const config_option_t *options_arr){
+    if(options_arr == NULL){
+        return ESP_OK;
+    }
+
+    cJSON *nvs_entry = NULL;
+    cJSON *nvs_key = NULL;
+    cJSON *nvs_type = NULL;
+
+    for(size_t i = 0; i < size; i++){
+        nvs_entry = cJSON_CreateObject();
+        if(nvs_entry == NULL){
+            ESP_LOGE(TAG, "Failed to create JSON nvs_entry");
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+            return ESP_FAIL;
+        }
+        cJSON_AddItemToArray(nvs_list, nvs_entry);
+
+        nvs_key = cJSON_CreateString(options_arr[i].key);
+        if(nvs_key == NULL){
+            ESP_LOGE(TAG, "Failed to create JSON nvs_key");
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+            return ESP_FAIL;
+        }
+        cJSON_AddItemToObject(nvs_entry, "key", nvs_key);
+
+        switch(options_arr[i].type){
+            case NVS_TYPE_STR:
+                nvs_type = cJSON_CreateString("str");
+                break;
+            case NVS_TYPE_I16:
+                nvs_type = cJSON_CreateString("i16");
+                break;
+            default:
+                ESP_LOGE(TAG, "nvs_list unknown key type");
+                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+                return ESP_FAIL;
+        }
+        if(nvs_type == NULL){
+            ESP_LOGE(TAG, "Failed to create JSON nvs_key");
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+            return ESP_FAIL;
+        }
+        cJSON_AddItemToObject(nvs_entry, "type", nvs_type);
+    }
+    return ESP_OK;
+}
+
+static esp_err_t nvs_list_get_handler(httpd_req_t *req){
+    // web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+
+    response_custom_header(req);
+
+    cJSON *root = cJSON_CreateObject();
+    if(root == NULL){
+        ESP_LOGE(TAG, "Failed to create JSON root");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+        return ESP_FAIL;
+    }
+
+    cJSON *base_url = cJSON_CreateString(API_PATH("/nvs/"));
+    cJSON_AddItemToObject(root, "baseURL", base_url);
+
+    cJSON *nvs_list = cJSON_CreateArray();
+    if(nvs_list == NULL){
+        ESP_LOGE(TAG, "Failed to create JSON nvs_list");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
+        return ESP_FAIL;
+    }
+    cJSON_AddItemToObject(root, "nvs_list", nvs_list);
+
+    esp_err_t err;
+    err = json_populate_options(req, nvs_list, options_len, options);
+    if(err != ESP_OK){
+        return err;
+    }
+    err = json_populate_options(req, nvs_list, custom_options_len, custom_options);
+    if(err != ESP_OK){
+        return err;
+    }
+
+    httpd_resp_set_type(req, "application/json");
+    char *json_string = cJSON_PrintUnformatted(root);
+    if(json_string == NULL){
+        ESP_LOGE(TAG, "Failed creating JSON string");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed creating JSON");
+        return ESP_FAIL;
+    }
+    httpd_resp_send(req, json_string, strlen(json_string));
+    
+    cJSON_Delete(root);
+    free(json_string);
+    return ESP_OK;
+}
+
+static esp_err_t nvs_read_get_handler_str(httpd_req_t *req, const config_option_t *option){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
     
     // response_custom_header(req);
 
     char value[32];
     size_t value_len = sizeof(value) / sizeof(value[0]);
-    esp_err_t err = nvs_get_str(data->config_handle, options[option_index].key, value, &value_len);
+    esp_err_t err = nvs_get_str(data->config_handle, option->key, value, &value_len);
     if(err != ESP_OK){
         httpd_resp_set_status(req, HTTPD_404);
         return httpd_resp_sendstr(req, "Cannot get key");
@@ -147,13 +248,13 @@ static esp_err_t nvs_read_get_handler_str(httpd_req_t *req, size_t option_index)
     return httpd_resp_sendstr(req, value);
 }
 
-static esp_err_t nvs_read_get_handler_i16(httpd_req_t *req, size_t option_index){
+static esp_err_t nvs_read_get_handler_i16(httpd_req_t *req, const config_option_t *option){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
     int16_t value;
 
     // response_custom_header(req);
 
-    esp_err_t err = nvs_get_i16(data->config_handle, options[option_index].key, &value);
+    esp_err_t err = nvs_get_i16(data->config_handle, option->key, &value);
     if(err != ESP_OK){
         httpd_resp_set_status(req, HTTPD_404);
         return httpd_resp_sendstr(req, "Cannot get key");
@@ -167,7 +268,7 @@ static esp_err_t nvs_read_get_handler_i16(httpd_req_t *req, size_t option_index)
 
 
 static esp_err_t nvs_read_get_handler(httpd_req_t *req){
-    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+    // web_config_data_t *data = (web_config_data_t *) req->user_ctx;
     static const size_t prefix_len = sizeof(API_PATH("/nvs/")) - 1;
 
     response_custom_header(req);
@@ -179,24 +280,24 @@ static esp_err_t nvs_read_get_handler(httpd_req_t *req){
         return httpd_resp_sendstr(req, "Cannot parse key");
     }
 
-    int pos = config_find_key(nvs_key);
-    if(pos < 0){
+    const config_option_t *option = config_find_key(nvs_key);
+    if(option == NULL){
         httpd_resp_set_status(req, HTTPD_404);
         return httpd_resp_sendstr(req, "Invalid key");
     }
 
-    switch(options[pos].type){
+    switch(option->type){
         case NVS_TYPE_STR:
-            return nvs_read_get_handler_str(req, pos);
+            return nvs_read_get_handler_str(req, option);
         case NVS_TYPE_I16:
-            return nvs_read_get_handler_i16(req, pos);
+            return nvs_read_get_handler_i16(req, option);
         default:
             ESP_LOGE(TAG, "Config type not implemented!!!");
             return ESP_FAIL;
     }
 }
 
-static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, size_t option_index, char *received_value){
+static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, const config_option_t *option, char *received_value){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
 
     // response_custom_header(req);
@@ -204,18 +305,18 @@ static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, size_t option_inde
     char value[32];
     strlcpy(value, received_value, sizeof(value));
 
-    esp_err_t err = nvs_set_str(data->config_handle, options[option_index].key, value);
+    esp_err_t err = nvs_set_str(data->config_handle, option->key, value);
     if(err != ESP_OK){
         httpd_resp_set_status(req, HTTPD_500);
         return httpd_resp_sendstr(req, "Cannot set key");
     }
 
-    LOGGER_I(TAG, "changed %s to %s", options[option_index].key, value);
+    LOGGER_I(TAG, "changed %s to %s", option->key, value);
     
     return httpd_resp_sendstr(req, value);
 }
 
-static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, size_t option_index, char *received_value){
+static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, const config_option_t *option, char *received_value){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
 
     // response_custom_header(req);
@@ -223,7 +324,7 @@ static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, size_t option_inde
     int16_t value = 0;
     sscanf(received_value, "%" SCNd16, &value);
 
-    esp_err_t err = nvs_set_i16(data->config_handle, options[option_index].key, value);
+    esp_err_t err = nvs_set_i16(data->config_handle, option->key, value);
     if(err != ESP_OK){
         httpd_resp_set_status(req, HTTPD_500);
         return httpd_resp_sendstr(req, "Cannot set key");
@@ -232,7 +333,7 @@ static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, size_t option_inde
     char response[32];
     sprintf(response, "%d", value);
 
-    LOGGER_I(TAG, "changed %s to %d", options[option_index].key, value);
+    LOGGER_I(TAG, "changed %s to %d", option->key, value);
 
     return httpd_resp_sendstr(req, response);
 }
@@ -250,8 +351,8 @@ static esp_err_t nvs_write_post_handler(httpd_req_t *req){
         return httpd_resp_sendstr(req, "Cannot parse key");
     }
 
-    int pos = config_find_key(nvs_key);
-    if(pos < 0){
+    const config_option_t *option = config_find_key(nvs_key);
+    if(option == NULL){
         httpd_resp_set_status(req, HTTPD_404);
         return httpd_resp_sendstr(req, "Invalid key");
     }
@@ -261,11 +362,11 @@ static esp_err_t nvs_write_post_handler(httpd_req_t *req){
         return ESP_FAIL;
     }
 
-    switch(options[pos].type){
+    switch(option->type){
         case NVS_TYPE_STR:
-            return nvs_write_post_handler_str(req, pos, data->scratch_buf);
+            return nvs_write_post_handler_str(req, option, data->scratch_buf);
         case NVS_TYPE_I16:
-            return nvs_write_post_handler_i16(req, pos, data->scratch_buf);
+            return nvs_write_post_handler_i16(req, option, data->scratch_buf);
         default:
             ESP_LOGE(TAG, "Config type not implemented!!!");
             return ESP_FAIL;
@@ -392,6 +493,13 @@ static void web_config_register_uri(httpd_handle_t server, web_config_data_t *us
         .handler = hello_world_handler,
         .user_ctx = user_ctx};
     httpd_register_uri_handler(server, &index);
+
+    const httpd_uri_t nvs_list = {
+        .uri = API_PATH("/nvs_list"),
+        .method = HTTP_GET,
+        .handler = nvs_list_get_handler,
+        .user_ctx = user_ctx};
+    httpd_register_uri_handler(server, &nvs_list);
 
     const httpd_uri_t nvs_read = {
         .uri = API_PATH("/nvs/*"),
@@ -605,6 +713,16 @@ void web_config_stop(httpd_handle_t server){
     ESP_LOGI(TAG, "Stopping server");
     // stop_webserver(server);
     deinit_logging();
+}
+
+esp_err_t web_config_set_custom_options(size_t size, config_option_t options_arr[size]){
+    if(options_arr == NULL){
+        return ESP_FAIL;
+    }
+
+    custom_options = options_arr;
+    custom_options_len = size;
+    return ESP_OK;
 }
 
 void web_config_start()
