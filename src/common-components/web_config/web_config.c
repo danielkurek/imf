@@ -241,6 +241,10 @@ static esp_err_t nvs_read_get_handler_str(httpd_req_t *req, const config_option_
     size_t value_len = sizeof(value) / sizeof(value[0]);
     esp_err_t err = nvs_get_str(data->config_handle, option->key, value, &value_len);
     if(err != ESP_OK){
+        if(err == ESP_ERR_NVS_NOT_FOUND){
+            httpd_resp_set_status(req, HTTPD_204);
+            return httpd_resp_send(req, NULL, 0);
+        }
         httpd_resp_set_status(req, HTTPD_404);
         return httpd_resp_sendstr(req, "Cannot get key");
     }
@@ -256,6 +260,10 @@ static esp_err_t nvs_read_get_handler_i16(httpd_req_t *req, const config_option_
 
     esp_err_t err = nvs_get_i16(data->config_handle, option->key, &value);
     if(err != ESP_OK){
+        if(err == ESP_ERR_NVS_NOT_FOUND){
+            httpd_resp_set_status(req, HTTPD_204);
+            return httpd_resp_send(req, NULL, 0);
+        }
         httpd_resp_set_status(req, HTTPD_404);
         return httpd_resp_sendstr(req, "Cannot get key");
     }

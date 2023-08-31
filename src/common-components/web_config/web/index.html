@@ -17,33 +17,83 @@
     </style>
 </head>
 <body>
+    <div id="error-banner" class="error-msg"></div>
     <div id="settings">
-        <ul>
-            <li>
-                <div class="item" data-url="http://192.168.221.190/api/v1/nvs/ap/SSID" data-type="string">
-                    <span class="title">Test</span>
-                    <input class="input" type="text">
-                    <span class="error-msg"></div>
-                </div>
-            </li>
-        </ul>
+        <div id="settings-content"></div>
         <button>Save</button>
         <button>Refresh</button>
     </div>
     <script>
-        function parseSettingsItems(items){
+        function showError(msg){
+            error_banner.innerText = msg;
+        }
+
+        function showItemError(item, msg){
+            item.statusElement.classList.add("error-msg");
+            item.statusElement.innerText = msg;
+        }
+
+        function showItemStatus(item, msg){
+            item.statusElement.classList.remove("error-msg");
+            item.statusElement.innerText = msg;
+        }
+
+        async function fetchConfigItems(url){
             let data = [];
-            for(const item of items){
-                let parsedItem = {
-                    url: item.dataset.url,
-                    type: item.dataset.type,
-                    itemElement: item,
-                    titleElement: item.getElementsByClassName("title")[0],
-                    inputElement: item.getElementsByClassName("input")[0],
-                    errorElement: item.getElementsByClassName("error-msg")[0],
-                }
-                data.push(parsedItem);
+
+            const response = await fetch(url);
+            if (!response.ok){
+                showError("Cannot fetch config items");
             }
+            const configJson = await response.json();
+
+            console.log(configJson);
+
+            let settings = document.getElementById("settings-content");
+            for(let i = 0; i < configJson["nvs_list"].length; i++){
+                let nvs_option = configJson["nvs_list"][i];
+                console.log(nvs_option);
+
+                let url = `${configJson["baseURL"]}${nvs_option["key"]}`;
+                let itemElement = document.createElement("div");
+                itemElement.classList.add("item");
+                itemElement.setAttribute("data-url", url);
+                itemElement.setAttribute("data-type", nvs_option["type"]);
+
+                let titleElement = document.createElement("h3");
+                titleElement.innerText = nvs_option["key"];
+                itemElement.appendChild(titleElement);
+
+                let inputElement = document.createElement("input");
+                if(nvs_option["type"] == "str"){
+                    inputElement.type = "text";
+                    inputElement.maxLength = "1024";
+                } else if(nvs_option["type"] == "i16"){
+                    inputElement.type = "number"
+                    inputElement.min = "-32768";
+                    inputElement.max = "-32767";
+                } else{
+                    console.error("Invalid item type");
+                }
+                itemElement.appendChild(inputElement);
+
+                let statusElement = document.createElement("span");
+                statusElement.classList.add("status-msg");
+                itemElement.appendChild(statusElement);
+                statusElement.innerText = "Loading value...";
+
+                settings.appendChild(itemElement);
+                let configItem = {
+                    url: url,
+                    type: nvs_option["type"],
+                    itemElement: itemElement,
+                    titleElement: titleElement,
+                    inputElement: inputElement,
+                    statusElement: statusElement,
+                };
+                data.push(configItem);
+            }
+            console.log(data);
             return data;
         }
 
@@ -51,21 +101,24 @@
             console.log(item);
             try{
                 const response = await fetch(item.url);
-                if (!response.ok) {
-                    item.itemElement.style.backgroundColor = "#ffaaaa";
-                    item.errorElement.innerText = await response.text();
+                if (!response.ok && response.status != 204) {
+                    showItemError(item, await response.text());
                     throw new Error("Fetch response contains error");
                 }
                 item.inputElement.value = await response.text();
+                showItemStatus(item, "Loaded");
             } catch(error){
                 console.error("There has been a problem with fetching item value:", error, item);
             }
         }
-
+        let error_banner = document.getElementById("error-banner");
         let settingsDOM = document.getElementById("settings");
-        let settingsItems = settingsDOM.getElementsByClassName("item");
-        settingsItems = parseSettingsItems(settingsItems);
-        settingsItems.forEach(fetchItemValue);
+        // let settingsItems = settingsDOM.getElementsByClassName("item");
+        // settingsItems = parseSettingsItems(settingsItems);
+        let settingsItems = fetchConfigItems("/api/v1/nvs_list").then(
+            (data) => data.forEach(fetchItemValue)
+        );
+        // settingsItems.forEach(fetchItemValue);
     </script>
 </body>
 </html>
