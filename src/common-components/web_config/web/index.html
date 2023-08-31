@@ -20,17 +20,21 @@
     <div id="error-banner" class="error-msg"></div>
     <div id="settings">
         <div id="settings-content"></div>
-        <button>Save</button>
-        <button>Refresh</button>
+        <button onclick="saveItemValues();">Save</button>
+        <button onclick="fetchItemValues();">Load saved values</button>
     </div>
     <script>
-        function showError(msg){
+        function showStatus(msg){
             error_banner.innerText = msg;
+        }
+
+        function showError(msg){
+            error_banner.innerText = "Error: " + msg;
         }
 
         function showItemError(item, msg){
             item.statusElement.classList.add("error-msg");
-            item.statusElement.innerText = msg;
+            item.statusElement.innerText = "Error: " + msg;
         }
 
         function showItemStatus(item, msg){
@@ -54,7 +58,7 @@
                 let nvs_option = configJson["nvs_list"][i];
                 console.log(nvs_option);
 
-                let url = `${configJson["baseURL"]}${nvs_option["key"]}`;
+                let url = `${urlPrefix}${configJson["baseURL"]}${nvs_option["key"]}`;
                 let itemElement = document.createElement("div");
                 itemElement.classList.add("item");
                 itemElement.setAttribute("data-url", url);
@@ -71,7 +75,7 @@
                 } else if(nvs_option["type"] == "i16"){
                     inputElement.type = "number"
                     inputElement.min = "-32768";
-                    inputElement.max = "-32767";
+                    inputElement.max = "32767";
                 } else{
                     console.error("Invalid item type");
                 }
@@ -111,14 +115,77 @@
                 console.error("There has been a problem with fetching item value:", error, item);
             }
         }
+
+        function fetchItemValues(){
+            settingsItems.forEach((item) => showItemStatus(item, "Loading value..."));
+            settingsItems.forEach(fetchItemValue);
+        }
+
+        async function saveItemValue(item){
+            showItemStatus(item, "Saving...");
+            try{
+                const response = await fetch(`${item.url}`, {
+                    method: "POST",
+                    mode: "cors",
+                    cache: "no-cache",
+                    body: item.inputElement.value,
+                });
+                if(!response.ok){
+                    showItemError(item, await response.text());
+                    throw new Error("Fetch response contains error");
+                }
+                showItemStatus(item, "Saved");
+                return true;
+            } catch(error){
+                console.error("There has been a problem with saving item value:", error, item);
+                return false;
+            }
+            return false;
+        }
+
+        function saveItemValues(){
+            let promises = [];
+            for(item of settingsItems){
+                promises.push(saveItemValue(item));
+            }
+            Promise.all(promises).then((values) => {
+                let allSuccessful = true;
+                for(const value of values){
+                    if(value != true){
+                        allSuccessful = false;
+                        break;
+                    }
+                }
+                fetch(`${urlPrefix}/api/v1/nvs_save`).then(
+                    async function(response) {
+                        if(!response.ok){
+                            showError(await response.text());
+                        } else{
+                            if(allSuccessful){
+                                showStatus("All saved successfully");
+                            } else{
+                                showError("Some settings were not saved");
+                            }
+                        }
+                    }
+                );
+            });
+        }
+
         let error_banner = document.getElementById("error-banner");
         let settingsDOM = document.getElementById("settings");
         // let settingsItems = settingsDOM.getElementsByClassName("item");
         // settingsItems = parseSettingsItems(settingsItems);
-        let settingsItems = fetchConfigItems("/api/v1/nvs_list").then(
-            (data) => data.forEach(fetchItemValue)
-        );
-        // settingsItems.forEach(fetchItemValue);
+        let urlPrefix = "";
+        let settingsItems = [];
+        window.addEventListener("load", (event) => {
+            fetchConfigItems(`${urlPrefix}/api/v1/nvs_list`).then(
+                (data) => {
+                    settingsItems = data;
+                    fetchItemValues();
+                }
+            );
+        });
     </script>
 </body>
 </html>
