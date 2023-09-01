@@ -40,6 +40,9 @@ static const char *TAG = "web_config";
 #define AP_PASSWORD_KEY "ap/password"
 #define AP_CHANNEL_KEY "ap/channel"
 
+extern const uint8_t index_html_start[] asm("_binary_index_html_start");
+extern const uint8_t index_html_end[] asm("_binary_index_html_end");
+
 static const config_option_t options[] ={
     {
         .key = STA_SSID_KEY,
@@ -128,8 +131,8 @@ static const config_option_t* config_find_key(const char* key){
     return NULL;
 }
 
-static esp_err_t hello_world_handler(httpd_req_t *req){
-    httpd_resp_sendstr(req, "Hello world!");
+static esp_err_t index_get_handler(httpd_req_t *req){
+    httpd_resp_sendstr(req, (char *) index_html_start);
     return ESP_OK;
 }
 
@@ -498,7 +501,7 @@ static void web_config_register_uri(httpd_handle_t server, web_config_data_t *us
     const httpd_uri_t index = {
         .uri = "/",
         .method = HTTP_GET,
-        .handler = hello_world_handler,
+        .handler = index_get_handler,
         .user_ctx = user_ctx};
     httpd_register_uri_handler(server, &index);
 
