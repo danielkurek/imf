@@ -27,7 +27,12 @@
 
 #include "rgb_control.h"
 
+#include "driver/gpio.h"
+#include "web_config.h"
+
 static const char* TAG = "EXAMPLE";
+
+#define CONFIG_BUTTON GPIO_NUM_1
 
 #define CID_ESP 0x02E5
 
@@ -337,9 +342,34 @@ static esp_err_t ble_mesh_init(void)
     return err;
 }
 
+bool web_config(){
+    gpio_config_t config = {
+        .pin_bit_mask = 1ull << CONFIG_BUTTON,
+        .mode = GPIO_MODE_INPUT,
+        .pull_up_en = 1,
+    };
+
+    gpio_config(&config);
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    if(gpio_get_level(CONFIG_BUTTON) == 0){
+        ESP_LOGI(TAG, "Booting to web config");
+        web_config_start();
+        return true;
+    }
+    return false;
+}
+
 void app_main(void)
 {
     esp_err_t err;
+
+    ESP_LOGI(TAG, "Start up");
+
+    if(web_config()){
+        return;
+    }
 
     ESP_LOGI(TAG, "Initializing...");
 

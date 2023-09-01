@@ -3,4 +3,4 @@ set(srcs "main.c"
 
 idf_component_register(SRCS "${srcs}"
                     INCLUDE_DIRS  "."
-                    PRIV_REQUIRES "rgb_control" button nvs_flash bt driver color example_init example_nvs)
+                    PRIV_REQUIRES "rgb_control" web_config logger button nvs_flash bt driver color example_init example_nvs)
