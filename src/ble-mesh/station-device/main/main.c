@@ -33,6 +33,9 @@
 #include "driver/gpio.h"
 #include "web_config.h"
 
+#include "color.h"
+#include "hsl.h"
+
 #define TAG "EXAMPLE"
 
 #define CID_ESP 0x02E5
@@ -401,6 +404,10 @@ static void update_light(rgb_t rgb){
 }
 
 static void example_hsl_send(){
+    static rgb_t sequence[] = {{UINT16_MAX,0,0}, {UINT16_MAX,UINT16_MAX/2,0}, {0,UINT16_MAX,0}, {0,UINT16_MAX/2,UINT16_MAX/2}, {0,0,UINT16_MAX}, {UINT16_MAX,UINT16_MAX,UINT16_MAX}};
+    static size_t sequence_len = sizeof(sequence) / sizeof(sequence[0]);
+    static int index = 0;
+
     esp_ble_mesh_client_common_param_t common = {0};
     esp_ble_mesh_light_client_set_state_t set = {0};
 
@@ -415,10 +422,18 @@ static void example_hsl_send(){
     common.msg_role = ROLE_NODE;
 
     set.hsl_set.op_en = false;
-    set.hsl_set.hsl_lightness = UINT16_MAX / 2;
-    set.hsl_set.hsl_hue = 0;
-    set.hsl_set.hsl_saturation = UINT16_MAX;
     set.hsl_set.tid = store.tid++;
+
+    hsl_t hsl = rgb_to_hsl(sequence[index]);
+
+    set.hsl_set.hsl_lightness = hsl.lightness;
+    set.hsl_set.hsl_hue = hsl.hue;
+    set.hsl_set.hsl_saturation = hsl.saturation;
+
+    index++;
+    if(index >= sequence_len){
+        index = 0;
+    }
 
     esp_err_t err = esp_ble_mesh_light_client_set_state(&common, &set);
     if(err != ESP_OK){
