@@ -245,6 +245,7 @@ static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
     case ESP_BLE_MESH_PROV_REGISTER_COMP_EVT:
         ESP_LOGI(TAG, "ESP_BLE_MESH_PROV_REGISTER_COMP_EVT, err_code %d", param->prov_register_comp.err_code);
         mesh_example_info_restore(); /* Restore proper mesh example info */
+        board_led_operation(LED_GREEN, LED_OFF);
         break;
     case ESP_BLE_MESH_NODE_PROV_ENABLE_COMP_EVT:
         ESP_LOGI(TAG, "ESP_BLE_MESH_NODE_PROV_ENABLE_COMP_EVT, err_code %d", param->node_prov_enable_comp.err_code);
@@ -448,7 +449,6 @@ static esp_err_t ble_mesh_init(void)
     esp_ble_mesh_register_prov_callback(example_ble_mesh_provisioning_cb);
     esp_ble_mesh_register_config_server_callback(example_ble_mesh_config_server_cb);
     esp_ble_mesh_register_generic_server_callback(example_ble_mesh_generic_server_cb);
-    // esp_ble_mesh_register_generic_client_callback(example_ble_mesh_generic_client_cb);
     esp_ble_mesh_register_health_server_callback(example_ble_mesh_health_server_cb);
     ble_mesh_rgb_control_server_register_change_callback(update_light);
 
