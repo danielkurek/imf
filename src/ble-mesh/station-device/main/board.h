@@ -42,6 +42,9 @@ void board_led_operation(color_t color, uint8_t onoff);
 
 void board_led_set_rgb(rgb_t value);
 
+void board_led_off();
+void board_led_on();
+
 void board_start_blinking();
 
 void board_stop_blinking();

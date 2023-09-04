@@ -86,18 +86,6 @@ static esp_ble_mesh_gen_onoff_srv_t onoff_server_0 = {
     .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
 };
 
-ESP_BLE_MESH_MODEL_PUB_DEFINE(onoff_pub_1, 2 + 3, ROLE_NODE);
-static esp_ble_mesh_gen_onoff_srv_t onoff_server_1 = {
-    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_RSP_BY_APP,
-    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_RSP_BY_APP,
-};
-
-ESP_BLE_MESH_MODEL_PUB_DEFINE(onoff_pub_2, 2 + 3, ROLE_NODE);
-static esp_ble_mesh_gen_onoff_srv_t onoff_server_2 = {
-    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
-    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_RSP_BY_APP,
-};
-
 uint8_t test_ids[1] = {0x00};
 
 /** ESP BLE Mesh Health Server Model Context */
@@ -117,12 +105,10 @@ static esp_ble_mesh_model_t root_models[] = {
 };
 
 static esp_ble_mesh_model_t extend_model_0[] = {
-    ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub_1, &onoff_server_1),
     BLE_MESH_MODEL_RGB_HUE_SRV,
 };
 
 static esp_ble_mesh_model_t extend_model_1[] = {
-    ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub_2, &onoff_server_2),
     BLE_MESH_MODEL_RGB_SAT_SRV,
 };
 
@@ -198,19 +184,25 @@ static void example_change_led_state(esp_ble_mesh_model_t *model,
     uint8_t i;
 
     if (ESP_BLE_MESH_ADDR_IS_UNICAST(ctx->recv_dst)) {
-        for (i = 0; i < elem_count; i++) {
-            if (ctx->recv_dst == (primary_addr + i)) {
-                board_led_operation(i, onoff);
-            }
+        if(onoff == 0){
+            board_led_off();
+        } else{
+            board_led_on();
         }
     } else if (ESP_BLE_MESH_ADDR_IS_GROUP(ctx->recv_dst)) {
         if (esp_ble_mesh_is_model_subscribed_to_group(model, ctx->recv_dst)) {
-            color_t color = model->element->element_addr - primary_addr;
-            board_led_operation(color, onoff);
+            if(onoff == 0){
+                board_led_off();
+            } else{
+                board_led_on();
+            }
         }
     } else if (ctx->recv_dst == 0xFFFF) {
-        color_t color = model->element->element_addr - primary_addr;
-        board_led_operation(color, onoff);
+        if(onoff == 0){
+            board_led_off();
+        } else{
+            board_led_on();
+        }
     }
 }
 

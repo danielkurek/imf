@@ -72,6 +72,16 @@ void board_led_set_rgb(rgb_t value){
     update_led();
 }
 
+void board_led_off(){
+    led_state.state = LED_OFF;
+    update_led();
+}
+
+void board_led_on(){
+    led_state.state = LED_ON;
+    update_led();
+}
+
 void blink_cb(){
     if(led_state.blink_state == LED_ON){
         led_state.blink_state = LED_OFF;
