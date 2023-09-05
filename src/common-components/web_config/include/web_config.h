@@ -14,6 +14,8 @@ typedef struct {
 void web_config_start();
 void web_config_stop();
 
+// caller is responsible for ensuring that `options_arr`
+// will be valid for the whole duration of web config 
 esp_err_t web_config_set_custom_options(size_t size, config_option_t options_arr[size]);
 
 #endif

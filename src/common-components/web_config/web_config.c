@@ -626,6 +626,8 @@ static void connect_handler(void* arg, esp_event_base_t event_base,
 static esp_err_t wifi_connect_nvs(){
     nvs_handle_t handle;
 
+    ESP_LOGI(TAG, "Connecting to WIFI from NVS");
+
     if(nvs_open("config", NVS_READWRITE, &handle) != ESP_OK){
         ESP_LOGI(TAG, "Error opening NVS!");
         return ESP_FAIL;
@@ -637,19 +639,28 @@ static esp_err_t wifi_connect_nvs(){
 
     esp_err_t err = nvs_get_str(handle, STA_SSID_KEY, ssid, &ssid_len);
     if(err != ESP_OK){
+        ESP_LOGI(TAG, "Failed to get WIFI SSID from NVS");
         return ESP_FAIL;
     }
 
     err = nvs_get_str(handle, STA_PASSWORD_KEY, password, &password_len);
     if(err != ESP_OK){
+        ESP_LOGI(TAG, "Failed to get WIFI password from NVS");
         return ESP_FAIL;
     }
 
-    return wifi_connect_simple(ssid, password);
+    err = wifi_connect_simple(ssid, password);
+    if(err != ESP_OK){
+        ESP_LOGI(TAG, "Failed to connect to WIFI: %s", esp_err_to_name(err));
+    }
+
+    return err;
 }
 
 static esp_err_t wifi_ap_nvs(){
     nvs_handle_t handle;
+
+    ESP_LOGI(TAG, "Creating WIFI AP from NVS");
 
     if(nvs_open("config", NVS_READWRITE, &handle) != ESP_OK){
         ESP_LOGI(TAG, "Error opening NVS!");
@@ -663,21 +674,27 @@ static esp_err_t wifi_ap_nvs(){
 
     esp_err_t err = nvs_get_str(handle, AP_SSID_KEY, ssid, &ssid_len);
     if(err != ESP_OK){
+        ESP_LOGI(TAG, "Failed to get WIFI AP SSID from NVS");
         return ESP_FAIL;
     }
 
     err = nvs_get_str(handle, AP_PASSWORD_KEY, password, &password_len);
     if(err != ESP_OK){
+        ESP_LOGI(TAG, "Failed to get WIFI AP password from NVS");
         return ESP_FAIL;
     }
 
-    err = nvs_get_str(handle, AP_CHANNEL_KEY, password, &password_len);
+    err = nvs_get_i16(handle, AP_CHANNEL_KEY, &channel);
     if(err != ESP_OK){
+        ESP_LOGI(TAG, "Failed to get WIFI AP channel from NVS");
         return ESP_FAIL;
     }
 
-    wifi_init_ap_simple(ssid, password, channel);
-    return ESP_OK;
+    err = wifi_init_ap_simple(ssid, password, channel);
+    if(err != ESP_OK){
+        ESP_LOGI(TAG, "Failed to create NVS AP: %s", esp_err_to_name(err));
+    }
+    return err;
 }
 
 static esp_err_t wifi_initialize(){
@@ -686,25 +703,29 @@ static esp_err_t wifi_initialize(){
     // connect to preconfigured wifi if available
     esp_err_t ret = wifi_connect_nvs();
     if(ret == ESP_OK){
+        ESP_LOGI(TAG, "Connected to NVS WIFI");
         return ESP_OK;
     }
     
     // otherwise try to connect to firmware default
     ret = wifi_connect_default();
     if(ret == ESP_OK){
+        ESP_LOGI(TAG, "Connected to default WIFI");
         return ESP_OK;
     }
     
     // create AP from NVS values
     ret = wifi_ap_nvs();
     if(ret == ESP_OK){
+        ESP_LOGI(TAG, "Created NVS WIFI AP");
         return ESP_OK;
     }
 
     // otherwise create firmware default AP
-    wifi_init_ap_default();
+    ret = wifi_init_ap_default();
+    ESP_LOGI(TAG, "Created default WIFI AP");
 
-    return ESP_OK;
+    return ret;
 }
 
 static void init_logging(){

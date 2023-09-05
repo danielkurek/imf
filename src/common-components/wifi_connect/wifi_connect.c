@@ -217,21 +217,38 @@ esp_err_t wifi_connect_simple(const char* ssid, const char* password){
     return wifi_connect(wifi_config);
 }
 
-void wifi_init_ap(wifi_config_t wifi_config)
+esp_err_t wifi_init_ap(wifi_config_t wifi_config)
 {
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
-    ESP_ERROR_CHECK(esp_wifi_init(&cfg));
+    esp_err_t err;
+    err = esp_wifi_init(&cfg);
+    if(err != ESP_OK){
+        return err;
+    }
 
-    ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM) );
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_AP));
-    ESP_ERROR_CHECK(esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config));
-    ESP_ERROR_CHECK(esp_wifi_start());
+    err = esp_wifi_set_storage(WIFI_STORAGE_RAM);
+    if(err != ESP_OK){
+        return err;
+    }
+    err = esp_wifi_set_mode(WIFI_MODE_AP);
+    if(err != ESP_OK){
+        return err;
+    }
+    err = esp_wifi_set_config(ESP_IF_WIFI_AP, &wifi_config);
+    if(err != ESP_OK){
+        return err;
+    }
+    err = esp_wifi_start();
+    if(err != ESP_OK){
+        return err;
+    }
 
     ESP_LOGI(TAG, "wifi_init_softap finished. SSID:%s password:%s channel:%d",
              wifi_config.ap.ssid, wifi_config.ap.password, wifi_config.ap.channel);
+    return err;
 }
 
-void wifi_init_ap_simple(const char* ssid, const char* password, uint8_t channel){
+esp_err_t wifi_init_ap_simple(const char* ssid, const char* password, uint8_t channel){
     wifi_config_t wifi_config = {
         .ap = {
             .ssid = {},
@@ -249,14 +266,14 @@ void wifi_init_ap_simple(const char* ssid, const char* password, uint8_t channel
     if (strlen(password) == 0) {
         wifi_config.ap.authmode = WIFI_AUTH_OPEN;
     }
-    wifi_init_ap(wifi_config);
+    return wifi_init_ap(wifi_config);
 }
 
-void wifi_init_ap_default(){
+esp_err_t wifi_init_ap_default(){
     int64_t mac_addr = 0LL;
     esp_read_mac((uint8_t*) (&mac_addr), ESP_MAC_WIFI_SOFTAP);
     
     char ssid[MAX_SSID_LEN];
     snprintf(ssid, MAX_SSID_LEN, "NODE-%llX", mac_addr);
-    wifi_init_ap_simple(ssid, CONFIG_WIFI_CONNECT_AP_DEFAULT_PASSWORD, CONFIG_WIFI_CONNECT_AP_DEFAULT_CHANNEL);
+    return wifi_init_ap_simple(ssid, CONFIG_WIFI_CONNECT_AP_DEFAULT_PASSWORD, CONFIG_WIFI_CONNECT_AP_DEFAULT_CHANNEL);
 }
