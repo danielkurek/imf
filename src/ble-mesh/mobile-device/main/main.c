@@ -326,6 +326,7 @@ static esp_err_t ble_mesh_init(void)
     esp_ble_mesh_register_health_server_callback(example_ble_mesh_health_server_cb);
     ble_mesh_rgb_control_server_register_change_callback(update_light);
 
+    board_led_operation(LED_GREEN, LED_ON);
 
     err = esp_ble_mesh_init(&provision, &composition);
     if (err != ESP_OK) {
@@ -341,7 +342,6 @@ static esp_err_t ble_mesh_init(void)
 
     LOGGER_I(TAG, "BLE Mesh Node initialized");
 
-    board_led_operation(LED_GREEN, LED_ON);
 
     return err;
 }
