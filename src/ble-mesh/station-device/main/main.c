@@ -440,9 +440,9 @@ static void example_hsl_send(){
     static int index = 0;
 
     esp_ble_mesh_client_common_param_t common = {0};
-    esp_ble_mesh_light_client_set_state_t set = {0};
+    esp_ble_mesh_rgb_set_t rgb_set = {0};
 
-    common.opcode = ESP_BLE_MESH_MODEL_OP_LIGHT_HSL_SET_UNACK;
+    common.opcode = BLE_MESH_MODEL_OP_RGB_SET_UNACK;
     common.model = light_hsl_client.model;
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
@@ -454,28 +454,23 @@ static void example_hsl_send(){
     common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
     common.msg_role = ROLE_NODE;
 
-    set.hsl_set.op_en = false;
+    rgb_set.op_en = false;
     // TID needs to be unique to this message
     // if it is not unique the message does not
     // have to propagate properly throughout the
     // network
-    set.hsl_set.tid = store.tid++;
+    rgb_set.tid = store.tid++;
 
-    // convert RGB to HSL for the underlying model
-    hsl_t hsl = rgb_to_hsl(sequence[index]);
-
-    set.hsl_set.hsl_lightness = hsl.lightness;
-    set.hsl_set.hsl_hue = hsl.hue;
-    set.hsl_set.hsl_saturation = hsl.saturation;
+    rgb_set.rgb = sequence[index];
 
     index++;
     if(index >= sequence_len){
         index = 0;
     }
 
-    esp_err_t err = esp_ble_mesh_light_client_set_state(&common, &set);
+    esp_err_t err = ble_mesh_rgb_client_set_state(&common, &rgb_set);
     if(err != ESP_OK){
-        LOGGER_E(TAG, "Send Light HSL Set Unack failed");
+        LOGGER_E(TAG, "Send RGB Set Unack failed");
         return;
     }
 
