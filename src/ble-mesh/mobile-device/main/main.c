@@ -91,8 +91,8 @@ static esp_ble_mesh_health_srv_t health_server = {
 
 static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_CFG_SRV(&config_server),
-    ESP_BLE_MESH_MODEL_GEN_ONOFF_CLI(&onoff_cli_pub, &onoff_client),
     ESP_BLE_MESH_MODEL_HEALTH_SRV(&health_server, &health_pub),
+    ESP_BLE_MESH_MODEL_GEN_ONOFF_CLI(&onoff_cli_pub, &onoff_client),
     BLE_MESH_MODEL_RGB_SRV,
     BLE_MESH_MODEL_RGB_SETUP_SRV,
 };
@@ -410,7 +410,7 @@ void app_main(void)
     LOGGER_V(TAG, "nvs open");
     err = ble_mesh_nvs_open(&NVS_HANDLE);
     if (err) {
-        LOGGER_E(TAG, "Could not open NVS");
+        LOGGER_E(TAG, "CoulFor d not open NVS");
         return;
     }
 

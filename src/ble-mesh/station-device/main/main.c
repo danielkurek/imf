@@ -258,37 +258,37 @@ static void example_change_led_state(esp_ble_mesh_model_t *model,
     }
 }
 
-// static void example_handle_gen_onoff_msg(esp_ble_mesh_model_t *model,
-//                                          esp_ble_mesh_msg_ctx_t *ctx,
-//                                          esp_ble_mesh_server_recv_gen_onoff_set_t *set)
-// {
-//     esp_ble_mesh_gen_onoff_srv_t *srv = model->user_data;
+static void example_handle_gen_onoff_msg(esp_ble_mesh_model_t *model,
+                                         esp_ble_mesh_msg_ctx_t *ctx,
+                                         esp_ble_mesh_server_recv_gen_onoff_set_t *set)
+{
+    esp_ble_mesh_gen_onoff_srv_t *srv = model->user_data;
 
-//     switch (ctx->recv_op) {
-//     case ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_GET:
-//         esp_ble_mesh_server_model_send_msg(model, ctx,
-//             ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS, sizeof(srv->state.onoff), &srv->state.onoff);
-//         break;
-//     case ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET:
-//     case ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK:
-//         if (set->op_en == false) {
-//             srv->state.onoff = set->onoff;
-//         } else {
-//             /* TODO: Delay and state transition */
-//             srv->state.onoff = set->onoff;
-//         }
-//         if (ctx->recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET) {
-//             esp_ble_mesh_server_model_send_msg(model, ctx,
-//                 ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS, sizeof(srv->state.onoff), &srv->state.onoff);
-//         }
-//         esp_ble_mesh_model_publish(model, ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS,
-//             sizeof(srv->state.onoff), &srv->state.onoff, ROLE_NODE);
-//         example_change_led_state(model, ctx, srv->state.onoff);
-//         break;
-//     default:
-//         break;
-//     }
-// }
+    switch (ctx->recv_op) {
+    case ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_GET:
+        esp_ble_mesh_server_model_send_msg(model, ctx,
+            ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS, sizeof(srv->state.onoff), &srv->state.onoff);
+        break;
+    case ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET:
+    case ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK:
+        if (set->op_en == false) {
+            srv->state.onoff = set->onoff;
+        } else {
+            /* TODO: Delay and state transition */
+            srv->state.onoff = set->onoff;
+        }
+        if (ctx->recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET) {
+            esp_ble_mesh_server_model_send_msg(model, ctx,
+                ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS, sizeof(srv->state.onoff), &srv->state.onoff);
+        }
+        esp_ble_mesh_model_publish(model, ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS,
+            sizeof(srv->state.onoff), &srv->state.onoff, ROLE_NODE);
+        example_change_led_state(model, ctx, srv->state.onoff);
+        break;
+    default:
+        break;
+    }
+}
 
 
 // provisioning callback
@@ -330,7 +330,9 @@ static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
     }
 }
 
-// TODO
+// Callback for Generic server
+// this is needed for OnOff Server
+// because it does not have its own callback
 static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_event_t event,
                                                esp_ble_mesh_generic_server_cb_param_t *param)
 {
