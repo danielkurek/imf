@@ -18,7 +18,7 @@ static esp_ble_mesh_light_hsl_state_t hsl_state = {
     .saturation_range_max = UINT16_MAX,
 };
 
-ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_pub, 2 + 11, ROLE_NODE);
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_pub, 2 + 30, ROLE_NODE);
 static esp_ble_mesh_light_hsl_srv_t light_hsl_srv = {
     .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
     .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
@@ -26,7 +26,7 @@ static esp_ble_mesh_light_hsl_srv_t light_hsl_srv = {
     .state = &hsl_state,
 };
 
-ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_setup_pub, 2 + 11, ROLE_NODE);
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_setup_pub, 2 + 30, ROLE_NODE);
 static esp_ble_mesh_light_hsl_setup_srv_t light_hsl_setup_srv = {
     .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
     .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
@@ -34,7 +34,7 @@ static esp_ble_mesh_light_hsl_setup_srv_t light_hsl_setup_srv = {
     .state = &hsl_state,
 };
 
-ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_hue_pub, 2 + 11, ROLE_NODE);
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_hue_pub, 2 + 30, ROLE_NODE);
 static esp_ble_mesh_light_hsl_hue_srv_t light_hsl_hue_srv = {
     .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
     .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
@@ -42,7 +42,7 @@ static esp_ble_mesh_light_hsl_hue_srv_t light_hsl_hue_srv = {
     .state = &hsl_state,
 };
 
-ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_sat_pub, 2 + 11, ROLE_NODE);
+ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_sat_pub, 2 + 30, ROLE_NODE);
 static esp_ble_mesh_light_hsl_sat_srv_t light_hsl_sat_srv = {
     .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
     .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
