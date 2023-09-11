@@ -22,6 +22,8 @@
         <div id="settings-content"></div>
         <button onclick="saveItemValues();">Save</button>
         <button onclick="fetchItemValues();">Load saved values</button>
+        <br />
+        <button onclick="rebootDevice();">Reboot</button>
     </div>
     <script>
         function showStatus(msg){
@@ -174,6 +176,17 @@
                     }
                 );
             });
+        }
+
+        async function rebootDevice(){
+            const response = await fetch(`${urlPrefix}/api/v1/reboot`);
+            
+            if(!response.ok){
+                showError(await response.text());
+                return;
+            }
+
+            showStatus("Rebooting...");
         }
 
         let error_banner = document.getElementById("error-banner");
