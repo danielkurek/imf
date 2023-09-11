@@ -434,9 +434,7 @@ static void update_light(rgb_t rgb){
 }
 
 // function for setting RGB value on other devices
-// the underlying model is in HSL color space
-// so we need to convert it
-static void example_hsl_send(){
+static void example_rgb_send(){
     static rgb_t sequence[] = {{UINT16_MAX,0,0}, {UINT16_MAX,UINT16_MAX/2,0}, {0,UINT16_MAX,0}, {0,UINT16_MAX/2,UINT16_MAX/2}, {0,0,UINT16_MAX}, {UINT16_MAX,UINT16_MAX,UINT16_MAX}};
     static size_t sequence_len = sizeof(sequence) / sizeof(sequence[0]);
     static int index = 0;
@@ -445,7 +443,7 @@ static void example_hsl_send(){
     esp_ble_mesh_rgb_set_t rgb_set = {0};
 
     common.opcode = BLE_MESH_MODEL_OP_RGB_SET_UNACK;
-    common.model = light_hsl_client.model;
+    common.model = light_hsl_client.model; // hsl because of the underlying model
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
     // replace the address with some group so that the provisioner 
@@ -482,7 +480,7 @@ static void example_hsl_send(){
 
 // callback for board.h that handles button press
 void example_button_cb(void){
-    example_hsl_send();
+    example_rgb_send();
 }
 
 
