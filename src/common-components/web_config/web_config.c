@@ -173,6 +173,9 @@ static esp_err_t json_populate_options(httpd_req_t *req, cJSON *nvs_list, size_t
             case NVS_TYPE_I16:
                 nvs_type = cJSON_CreateString("i16");
                 break;
+            case NVS_TYPE_U16:
+                nvs_type = cJSON_CreateString("u16");
+                break;
             default:
                 ESP_LOGE(TAG, "nvs_list unknown key type");
                 httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create JSON");
@@ -277,6 +280,28 @@ static esp_err_t nvs_read_get_handler_i16(httpd_req_t *req, const config_option_
     return httpd_resp_sendstr(req, response);
 }
 
+static esp_err_t nvs_read_get_handler_u16(httpd_req_t *req, const config_option_t *option){
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+    uint16_t value;
+
+    // response_custom_header(req);
+
+    esp_err_t err = nvs_get_u16(data->config_handle, option->key, &value);
+    if(err != ESP_OK){
+        if(err == ESP_ERR_NVS_NOT_FOUND){
+            httpd_resp_set_status(req, HTTPD_204);
+            return httpd_resp_send(req, NULL, 0);
+        }
+        httpd_resp_set_status(req, HTTPD_404);
+        return httpd_resp_sendstr(req, "Cannot get key");
+    }
+
+    char response[32];
+    sprintf(response, "%d", value);
+
+    return httpd_resp_sendstr(req, response);
+}
+
 
 static esp_err_t nvs_read_get_handler(httpd_req_t *req){
     // web_config_data_t *data = (web_config_data_t *) req->user_ctx;
@@ -302,6 +327,8 @@ static esp_err_t nvs_read_get_handler(httpd_req_t *req){
             return nvs_read_get_handler_str(req, option);
         case NVS_TYPE_I16:
             return nvs_read_get_handler_i16(req, option);
+        case NVS_TYPE_U16:
+            return nvs_read_get_handler_u16(req, option);
         default:
             ESP_LOGE(TAG, "Config type not implemented!!!");
             return ESP_FAIL;
@@ -349,6 +376,28 @@ static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, const config_optio
     return httpd_resp_sendstr(req, response);
 }
 
+static esp_err_t nvs_write_post_handler_u16(httpd_req_t *req, const config_option_t *option, char *received_value){
+    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
+
+    // response_custom_header(req);
+
+    uint16_t value = 0;
+    sscanf(received_value, "%" SCNu16, &value);
+
+    esp_err_t err = nvs_set_u16(data->config_handle, option->key, value);
+    if(err != ESP_OK){
+        httpd_resp_set_status(req, HTTPD_500);
+        return httpd_resp_sendstr(req, "Cannot set key");
+    }
+
+    char response[32];
+    sprintf(response, "%d", value);
+
+    LOGGER_I(TAG, "changed %s to %d", option->key, value);
+
+    return httpd_resp_sendstr(req, response);
+}
+
 static esp_err_t nvs_write_post_handler(httpd_req_t *req){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
     static const size_t prefix_len = sizeof(API_PATH("/nvs/")) - 1;
@@ -378,6 +427,8 @@ static esp_err_t nvs_write_post_handler(httpd_req_t *req){
             return nvs_write_post_handler_str(req, option, data->scratch_buf);
         case NVS_TYPE_I16:
             return nvs_write_post_handler_i16(req, option, data->scratch_buf);
+        case NVS_TYPE_U16:
+            return nvs_write_post_handler_u16(req, option, data->scratch_buf);
         default:
             ESP_LOGE(TAG, "Config type not implemented!!!");
             return ESP_FAIL;

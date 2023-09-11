@@ -76,6 +76,10 @@
                     inputElement.type = "number"
                     inputElement.min = "-32768";
                     inputElement.max = "32767";
+                } else if(nvs_option["type"] == "u16"){
+                    inputElement.type = "number"
+                    inputElement.min = "0";
+                    inputElement.max = "65535";
                 } else{
                     console.error("Invalid item type");
                 }
