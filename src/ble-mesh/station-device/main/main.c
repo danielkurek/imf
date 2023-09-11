@@ -55,7 +55,19 @@
 // GPIO pin that the button is connected to
 #define CONFIG_BUTTON GPIO_NUM_1
 
-// extern struct _led_state led_state[3];
+// custom web_config options
+static config_option_t options[] = {
+    {
+        .key = "rgb/client/addr",
+        .type = NVS_TYPE_U16,
+        .value_to_log = true,
+    }
+};
+
+static const size_t options_len = sizeof(options) / sizeof(options[0]);
+
+// NVS handle for reading the web_config options
+static nvs_handle_t config_nvs;
 
 // uuid of the device (that runs this code)
 // later is initialized by `ble_mesh_get_dev_uuid`
@@ -446,9 +458,16 @@ static void example_rgb_send(){
     common.model = light_hsl_client.model; // hsl because of the underlying model
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
-    // replace the address with some group so that the provisioner 
-    // can change which devices are controlled by this
-    common.ctx.addr = 0xFFFF;   /* to all nodes */
+    
+    uint16_t addr = 0;
+    esp_err_t err = nvs_get_u16(config_nvs, options[0].key, &addr);
+    if (err != ESP_OK){
+        addr = 0xFFFF;   // to all nodes
+    }
+
+    LOGGER_I(TAG, "Sending RGB set to %d", addr);
+
+    common.ctx.addr = addr;   /* to all nodes */
     common.ctx.send_ttl = 3;
     common.ctx.send_rel = false;
     common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
@@ -468,7 +487,7 @@ static void example_rgb_send(){
         index = 0;
     }
 
-    esp_err_t err = ble_mesh_rgb_client_set_state(&common, &rgb_set);
+    err = ble_mesh_rgb_client_set_state(&common, &rgb_set);
     if(err != ESP_OK){
         LOGGER_E(TAG, "Send RGB Set Unack failed");
         return;
@@ -532,6 +551,7 @@ bool web_config(){
 
     if(gpio_get_level(CONFIG_BUTTON) == 0){
         LOGGER_I(TAG, "Booting to web config");
+        web_config_set_custom_options(options_len, options);
         web_config_start();
         return true;
     }
@@ -586,8 +606,14 @@ void app_main(void)
     LOGGER_V(TAG, "nvs open");
     err = ble_mesh_nvs_open(&NVS_HANDLE);
     if (err) {
-        LOGGER_E(TAG, "Could not open NVS");
+        LOGGER_E(TAG, "Could not open NVS for BLE-mesh");
         return;
+    }
+
+    // open nvs namespace that stores web config values
+    err = nvs_open("config", NVS_READONLY, &config_nvs);
+    if (err) {
+        ESP_LOGI(TAG, "Could not open NVS for config");
     }
 
     ble_mesh_get_dev_uuid(dev_uuid);
