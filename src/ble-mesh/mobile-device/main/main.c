@@ -7,6 +7,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// General imports
+
 #include <stdio.h>
 #include <string.h>
 #include <inttypes.h>
@@ -14,12 +16,16 @@
 #include "esp_log.h"
 #include "nvs_flash.h"
 
+// BLE-mesh includes
+
 #include "esp_ble_mesh_common_api.h"
 #include "esp_ble_mesh_provisioning_api.h"
 #include "esp_ble_mesh_networking_api.h"
 #include "esp_ble_mesh_config_model_api.h"
 #include "esp_ble_mesh_generic_model_api.h"
 #include "esp_ble_mesh_health_model_api.h"
+
+// Additional functions for this project
 
 #include "board.h"
 #include "ble_mesh_example_init.h"
@@ -33,14 +39,26 @@
 #include "color.h"
 #include "logger.h"
 
-static const char* TAG = "EXAMPLE";
+// tag for logging
+static const char* TAG = "EXAMPLE-MOB";
 
-#define CONFIG_BUTTON GPIO_NUM_1
-
+// company ID who implemented BLE-mesh
+// needs to be member of Bluetooth group
+// we can use Espressif ID
 #define CID_ESP 0x02E5
 
+// GPIO pin that the button is connected to
+#define CONFIG_BUTTON GPIO_NUM_1
+
+// uuid of the device (that runs this code)
+// later is initialized by `ble_mesh_get_dev_uuid`
 static uint8_t dev_uuid[16] = { 0xdd, 0xdd };
 
+// struct that is stored in NVS
+// holds the current information about BLE-mesh
+// that is restored when device is rebooted
+// net_idx, app_idx and tid are required
+// for proper functioning of the network
 static struct example_info_store {
     uint16_t net_idx;   /* NetKey Index */
     uint16_t app_idx;   /* AppKey Index */
@@ -53,11 +71,15 @@ static struct example_info_store {
     .tid = 0x0,
 };
 
-static nvs_handle_t NVS_HANDLE;
-static const char * NVS_KEY = "onoff_client";
+// variables for working with NVS
+static nvs_handle_t NVS_HANDLE; // stores opened stream to NVS
+static const char * NVS_KEY = "mobile_device"; // key that will store the struct state
 
-static esp_ble_mesh_client_t onoff_client;
+/*
+ * Definitions of models
+ */
 
+// configuration of BLE-mesh
 static esp_ble_mesh_cfg_srv_t config_server = {
     .relay = ESP_BLE_MESH_RELAY_ENABLED,
     .beacon = ESP_BLE_MESH_BEACON_ENABLED,
@@ -77,10 +99,14 @@ static esp_ble_mesh_cfg_srv_t config_server = {
     .relay_retransmit = ESP_BLE_MESH_TRANSMIT(2, 20),
 };
 
-
+// definition for OnOff client
 ESP_BLE_MESH_MODEL_PUB_DEFINE(onoff_cli_pub, 2 + 1, ROLE_NODE);
+static esp_ble_mesh_client_t onoff_client;
 
-uint8_t test_ids[1] = {0x00};
+// definition of Health model
+// it is used for device identification during provisioning
+// (led starts blinking when we click `Identify`)
+uint8_t test_ids[] = {0x00};
 
 /** ESP BLE Mesh Health Server Model Context */
 ESP_BLE_MESH_MODEL_PUB_DEFINE(health_pub, 2 + 11, ROLE_NODE);
@@ -89,6 +115,12 @@ static esp_ble_mesh_health_srv_t health_server = {
     .health_test.test_ids = test_ids,
 };
 
+/*
+ * Definitions of BLE-mesh Elements
+ */
+
+// definition of the main element
+// it is the main one because it contains config server
 static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_CFG_SRV(&config_server),
     ESP_BLE_MESH_MODEL_HEALTH_SRV(&health_server, &health_pub),
@@ -97,20 +129,24 @@ static esp_ble_mesh_model_t root_models[] = {
     BLE_MESH_MODEL_RGB_SETUP_SRV,
 };
 
+// additional elements that are needed for RGB server
 static esp_ble_mesh_model_t hue_models[] = {
     BLE_MESH_MODEL_RGB_HUE_SRV,
 };
-
 static esp_ble_mesh_model_t saturation_models[] = {
     BLE_MESH_MODEL_RGB_SAT_SRV,
 };
 
+// array of elements used in this node
 static esp_ble_mesh_elem_t elements[] = {
     ESP_BLE_MESH_ELEMENT(0, root_models, ESP_BLE_MESH_MODEL_NONE),
     ESP_BLE_MESH_ELEMENT(0, hue_models, ESP_BLE_MESH_MODEL_NONE),
     ESP_BLE_MESH_ELEMENT(0, saturation_models, ESP_BLE_MESH_MODEL_NONE),
 };
 
+// defines the composition of the node
+// which includes which elements are used
+// and IDs of the product and manufacturer
 static esp_ble_mesh_comp_t composition = {
     .cid = CID_ESP,
     .elements = elements,
@@ -131,11 +167,18 @@ static esp_ble_mesh_prov_t provision = {
 #endif
 };
 
+
+// helper function for storing information struct
+// we need to be careful when call it because
+// if we store invalid data, the device will
+// need to be provisioned again
 static void mesh_example_info_store(void)
 {
     ble_mesh_nvs_store(NVS_HANDLE, NVS_KEY, &store, sizeof(store));
 }
 
+// helper function for restoring information struct
+// needs to be restored at the right place
 static void mesh_example_info_restore(void)
 {
     esp_err_t err = ESP_OK;
@@ -152,6 +195,7 @@ static void mesh_example_info_restore(void)
     }
 }
 
+// callback for completion of provisioning of this device
 static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32_t iv_index)
 {
     LOGGER_I(TAG, "net_idx: 0x%04x, addr: 0x%04x", net_idx, addr);
@@ -169,6 +213,9 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
      */
 }
 
+// provisioning callback
+// this is the right place where to restore the BLE-mesh information
+// this is also the place where we know when the provisioning is completed
 static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
                                              esp_ble_mesh_prov_cb_param_t *param)
 {
@@ -202,36 +249,6 @@ static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
     default:
         break;
     }
-}
-
-void example_ble_mesh_send_gen_onoff_set(void)
-{
-    esp_ble_mesh_generic_client_set_state_t set = {0};
-    esp_ble_mesh_client_common_param_t common = {0};
-    esp_err_t err = ESP_OK;
-
-    common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK;
-    common.model = onoff_client.model;
-    common.ctx.net_idx = store.net_idx;
-    common.ctx.app_idx = store.app_idx;
-    common.ctx.addr = 0xFFFF;   /* to all nodes */
-    common.ctx.send_ttl = 3;
-    common.ctx.send_rel = false;
-    common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
-    common.msg_role = ROLE_NODE;
-
-    set.onoff_set.op_en = false;
-    set.onoff_set.onoff = store.onoff;
-    set.onoff_set.tid = store.tid++;
-
-    err = esp_ble_mesh_generic_client_set_state(&common, &set);
-    if (err) {
-        LOGGER_E(TAG, "Send Generic OnOff Set Unack failed");
-        return;
-    }
-
-    store.onoff = !store.onoff;
-    mesh_example_info_store(); /* Store proper mesh example info */
 }
 
 static void example_ble_mesh_generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
@@ -268,6 +285,7 @@ static void example_ble_mesh_generic_client_cb(esp_ble_mesh_generic_client_cb_ev
     }
 }
 
+// callback for configuration server
 static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t event,
                                               esp_ble_mesh_cfg_server_cb_param_t *param)
 {
@@ -299,11 +317,8 @@ static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t
     }
 }
 
-static void update_light(rgb_t rgb){
-    LOGGER_I(TAG, "set light to R:%d G:%d B:%d", rgb.red, rgb.green, rgb.blue);
-    board_led_set_rgb(rgb);
-}
-
+// health server callback
+// handles blinking of the LED when identifying device during provisioning
 static void example_ble_mesh_health_server_cb(esp_ble_mesh_health_server_cb_event_t event,
                                                  esp_ble_mesh_health_server_cb_param_t *param)
 {
@@ -315,7 +330,58 @@ static void example_ble_mesh_health_server_cb(esp_ble_mesh_health_server_cb_even
     }
 }
 
+// callback for RGB server
+// state has changed
+static void update_light(rgb_t rgb){
+    LOGGER_I(TAG, "set light to R:%d G:%d B:%d", rgb.red, rgb.green, rgb.blue);
+    board_led_set_rgb(rgb);
+}
 
+// function for setting sending OnOff set message
+void example_ble_mesh_send_gen_onoff_set(void)
+{
+    esp_ble_mesh_generic_client_set_state_t set = {0};
+    esp_ble_mesh_client_common_param_t common = {0};
+    esp_err_t err = ESP_OK;
+
+    common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK;
+    common.model = onoff_client.model;
+    common.ctx.net_idx = store.net_idx;
+    common.ctx.app_idx = store.app_idx;
+    common.ctx.addr = 0xFFFF;   /* to all nodes */
+    common.ctx.send_ttl = 3;
+    common.ctx.send_rel = false;
+    common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
+    common.msg_role = ROLE_NODE;
+
+    set.onoff_set.op_en = false;
+    set.onoff_set.onoff = store.onoff;
+
+    // TID needs to be unique to this message
+    // if it is not unique the message does not
+    // have to propagate properly throughout the
+    // network
+    set.onoff_set.tid = store.tid++;
+
+    err = esp_ble_mesh_generic_client_set_state(&common, &set);
+    if (err) {
+        LOGGER_E(TAG, "Send Generic OnOff Set Unack failed");
+        return;
+    }
+
+    store.onoff = !store.onoff;
+
+    // store the info because TID and state has changed
+    mesh_example_info_store();
+}
+
+// callback for board.h that handles button press
+void example_button_cb(void){
+    example_ble_mesh_send_gen_onoff_set();
+}
+
+// initialization of BLE-mesh
+// ideally it is called from app_main function
 static esp_err_t ble_mesh_init(void)
 {
     esp_err_t err = ESP_OK;
@@ -326,6 +392,8 @@ static esp_err_t ble_mesh_init(void)
     esp_ble_mesh_register_health_server_callback(example_ble_mesh_health_server_cb);
     ble_mesh_rgb_control_server_register_change_callback(update_light);
 
+    // indicate that it the device is on
+    // if it stays lit it means that the device needs to be provisioned
     board_led_operation(LED_GREEN, LED_ON);
 
     err = esp_ble_mesh_init(&provision, &composition);
@@ -346,6 +414,7 @@ static esp_err_t ble_mesh_init(void)
     return err;
 }
 
+// start configuration mode if conditions are met
 bool web_config(){
     gpio_config_t config = {
         .pin_bit_mask = 1ull << CONFIG_BUTTON,
@@ -365,6 +434,7 @@ bool web_config(){
     return false;
 }
 
+// initialize custom logging library for persistent logs
 void log_init(){
     logger_init(ESP_LOG_INFO);
     logger_output_to_default();
@@ -374,7 +444,8 @@ void log_init(){
     logger_output_to_file("/logs/log.txt", 2000);
 }
 
-
+// entry point of program
+// first initialize everything then start BLE-mesh
 void app_main(void)
 {
     esp_err_t err;
@@ -414,6 +485,7 @@ void app_main(void)
         return;
     }
 
+    // populate uuid
     ble_mesh_get_dev_uuid(dev_uuid);
 
     /* Initialize the Bluetooth Mesh Subsystem */

@@ -23,7 +23,7 @@
 #define BUTTON_IO_NUM           1
 #define BUTTON_ACTIVE_LEVEL     0
 
-extern void example_ble_mesh_send_gen_onoff_set(void);
+extern void example_button_cb(void);
 
 led_strip_handle_t led_strip;
 

@@ -7,6 +7,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+
 // General imports
 
 #include <stdio.h>
@@ -45,7 +46,7 @@
 #include "logger.h"
 
 // tag for logging
-#define TAG "EXAMPLE"
+static const char* TAG = "EXAMPLE-STA";
 
 // company ID who implemented BLE-mesh
 // needs to be member of Bluetooth group
@@ -92,7 +93,11 @@ static struct example_info_store {
 
 // variables for working with NVS
 static nvs_handle_t NVS_HANDLE; // stores opened stream to NVS
-static const char * NVS_KEY = "onoff_client"; // key that will store the struct state
+static const char * NVS_KEY = "station_device"; // key that will store the struct state
+
+/*
+ * Definitions of models
+ */
 
 // configuration of BLE-mesh
 static esp_ble_mesh_cfg_srv_t config_server = {
@@ -114,10 +119,6 @@ static esp_ble_mesh_cfg_srv_t config_server = {
     .relay_retransmit = ESP_BLE_MESH_TRANSMIT(2, 20),
 };
 
-/*
- * Definitions of models
- */
-
 // definition of OnOff model
 ESP_BLE_MESH_MODEL_PUB_DEFINE(onoff_pub_0, 2 + 3, ROLE_NODE);
 static esp_ble_mesh_gen_onoff_srv_t onoff_server_0 = {
@@ -132,7 +133,7 @@ static esp_ble_mesh_gen_onoff_srv_t onoff_server_0 = {
 // definition of Health model
 // it is used for device identification during provisioning
 // (led starts blinking when we click `Identify`)
-uint8_t test_ids[1] = {0x00};
+uint8_t test_ids[] = {0x00};
 
 /** ESP BLE Mesh Health Server Model Context */
 ESP_BLE_MESH_MODEL_PUB_DEFINE(health_pub, 2 + 11, ROLE_NODE);
@@ -239,7 +240,7 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
      */
 }
 
-// callback function of changing value of OnOff server
+// helper function that is called when the OnOff state is changed
 static void example_change_led_state(esp_ble_mesh_model_t *model,
                                      esp_ble_mesh_msg_ctx_t *ctx, uint8_t onoff)
 {
@@ -270,6 +271,7 @@ static void example_change_led_state(esp_ble_mesh_model_t *model,
     }
 }
 
+// callback for OnOff model (called from generic server callback)
 static void example_handle_gen_onoff_msg(esp_ble_mesh_model_t *model,
                                          esp_ble_mesh_msg_ctx_t *ctx,
                                          esp_ble_mesh_server_recv_gen_onoff_set_t *set)
@@ -296,46 +298,6 @@ static void example_handle_gen_onoff_msg(esp_ble_mesh_model_t *model,
         esp_ble_mesh_model_publish(model, ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS,
             sizeof(srv->state.onoff), &srv->state.onoff, ROLE_NODE);
         example_change_led_state(model, ctx, srv->state.onoff);
-        break;
-    default:
-        break;
-    }
-}
-
-
-// provisioning callback
-// this is the right place where to restore the BLE-mesh information
-// this is also the place where we know when the provisioning is completed
-static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
-                                             esp_ble_mesh_prov_cb_param_t *param)
-{
-    switch (event) {
-    case ESP_BLE_MESH_PROV_REGISTER_COMP_EVT:
-        LOGGER_I(TAG, "ESP_BLE_MESH_PROV_REGISTER_COMP_EVT, err_code %d", param->prov_register_comp.err_code);
-        mesh_example_info_restore(); /* Restore proper mesh example info */
-        board_led_operation(LED_GREEN, LED_OFF);
-        break;
-    case ESP_BLE_MESH_NODE_PROV_ENABLE_COMP_EVT:
-        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_PROV_ENABLE_COMP_EVT, err_code %d", param->node_prov_enable_comp.err_code);
-        break;
-    case ESP_BLE_MESH_NODE_PROV_LINK_OPEN_EVT:
-        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_PROV_LINK_OPEN_EVT, bearer %s",
-            param->node_prov_link_open.bearer == ESP_BLE_MESH_PROV_ADV ? "PB-ADV" : "PB-GATT");
-        break;
-    case ESP_BLE_MESH_NODE_PROV_LINK_CLOSE_EVT:
-        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_PROV_LINK_CLOSE_EVT, bearer %s",
-            param->node_prov_link_close.bearer == ESP_BLE_MESH_PROV_ADV ? "PB-ADV" : "PB-GATT");
-        break;
-    case ESP_BLE_MESH_NODE_PROV_COMPLETE_EVT:
-        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_PROV_COMPLETE_EVT");
-        prov_complete(param->node_prov_complete.net_idx, param->node_prov_complete.addr,
-            param->node_prov_complete.flags, param->node_prov_complete.iv_index);
-        break;
-    case ESP_BLE_MESH_NODE_PROV_RESET_EVT:
-        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_PROV_RESET_EVT");
-        break;
-    case ESP_BLE_MESH_NODE_SET_UNPROV_DEV_NAME_COMP_EVT:
-        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_SET_UNPROV_DEV_NAME_COMP_EVT, err_code %d", param->node_set_unprov_dev_name_comp.err_code);
         break;
     default:
         break;
@@ -386,6 +348,46 @@ static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_ev
         break;
     }
 }
+
+// provisioning callback
+// this is the right place where to restore the BLE-mesh information
+// this is also the place where we know when the provisioning is completed
+static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
+                                             esp_ble_mesh_prov_cb_param_t *param)
+{
+    switch (event) {
+    case ESP_BLE_MESH_PROV_REGISTER_COMP_EVT:
+        LOGGER_I(TAG, "ESP_BLE_MESH_PROV_REGISTER_COMP_EVT, err_code %d", param->prov_register_comp.err_code);
+        mesh_example_info_restore(); /* Restore proper mesh example info */
+        board_led_operation(LED_GREEN, LED_OFF);
+        break;
+    case ESP_BLE_MESH_NODE_PROV_ENABLE_COMP_EVT:
+        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_PROV_ENABLE_COMP_EVT, err_code %d", param->node_prov_enable_comp.err_code);
+        break;
+    case ESP_BLE_MESH_NODE_PROV_LINK_OPEN_EVT:
+        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_PROV_LINK_OPEN_EVT, bearer %s",
+            param->node_prov_link_open.bearer == ESP_BLE_MESH_PROV_ADV ? "PB-ADV" : "PB-GATT");
+        break;
+    case ESP_BLE_MESH_NODE_PROV_LINK_CLOSE_EVT:
+        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_PROV_LINK_CLOSE_EVT, bearer %s",
+            param->node_prov_link_close.bearer == ESP_BLE_MESH_PROV_ADV ? "PB-ADV" : "PB-GATT");
+        break;
+    case ESP_BLE_MESH_NODE_PROV_COMPLETE_EVT:
+        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_PROV_COMPLETE_EVT");
+        prov_complete(param->node_prov_complete.net_idx, param->node_prov_complete.addr,
+            param->node_prov_complete.flags, param->node_prov_complete.iv_index);
+        break;
+    case ESP_BLE_MESH_NODE_PROV_RESET_EVT:
+        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_PROV_RESET_EVT");
+        break;
+    case ESP_BLE_MESH_NODE_SET_UNPROV_DEV_NAME_COMP_EVT:
+        LOGGER_I(TAG, "ESP_BLE_MESH_NODE_SET_UNPROV_DEV_NAME_COMP_EVT, err_code %d", param->node_set_unprov_dev_name_comp.err_code);
+        break;
+    default:
+        break;
+    }
+}
+
 
 // callback for configuration server
 static void example_ble_mesh_config_server_cb(esp_ble_mesh_cfg_server_cb_event_t event,
@@ -569,8 +571,7 @@ void log_init(){
 }
 
 // entry point of program
-// first initialize everything
-// then start BLE-mesh
+// first initialize everything then start BLE-mesh
 void app_main(void)
 {
     esp_err_t err;
@@ -616,6 +617,7 @@ void app_main(void)
         ESP_LOGI(TAG, "Could not open NVS for config");
     }
 
+    // populate uuid
     ble_mesh_get_dev_uuid(dev_uuid);
 
     /* Initialize the Bluetooth Mesh Subsystem */
