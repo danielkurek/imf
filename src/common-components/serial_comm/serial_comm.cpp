@@ -36,6 +36,35 @@ SerialComm::SerialComm(const uart_port_t port, int tx_io_num, int rx_io_num){
 }
 
 std::string SerialComm::SendCmd(CmdType type, std::string field, std::string body){
-    ESP_LOGE("test", "test");
+    std::string cmdString = GetCmdName(type);
+    // maybe sanitize the parameters similar to CSV sanitization
+    if(field.length() > 0){
+        cmdString += " " + field;
+    } else if(body.length() > 0){
+        // error: field is not specified
+    }
+    if(body.length() > 0){
+        cmdString += " " + body;
+    }
+
+    // length() + 1 because of \0 at the end
+    uart_write_bytes(uart_port, cmdString.c_str(), cmdString.length()+1);
+
     return "test ret";
+}
+
+std::string GetField(std::string field){
+    return SendCmd(CmdType::GET, field, "");
+}
+
+std::string PutField(std::string field, std::string value){
+    SendCmd(CmdType::PUT, field, value);
+}
+CommStatus GetStatus(){
+    std::string result = SendCmd(CmdType::STATUS, "", "");
+    return ParseStatus(result);
+}
+
+std::string SendStatus(CommStatus status){
+    return SendCmd(CmdType::STATUS, GetStatusName(status), "");
 }
