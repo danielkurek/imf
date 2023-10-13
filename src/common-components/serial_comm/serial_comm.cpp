@@ -3,16 +3,8 @@
 
 static const char *TAG = "SCOM";
 
-// typedef char[8] serial_field_t;
-
-// typedef struct{
-//     cmd_type_t cmd;
-//     serial_field_t field;
-//     size_t payload_size;
-//     char[payload_size] payload;
-// } serial_msg_t;
-
 SerialComm::SerialComm(const uart_port_t port, int tx_io_num, int rx_io_num){
+    // TODO: handle errors
     uart_port = port;
 
     uart_config_t uart_config = {};
@@ -45,35 +37,5 @@ SerialComm::SerialComm(const uart_port_t port, int tx_io_num, int rx_io_num){
 
 std::string SerialComm::SendCmd(CmdType type, std::string field, std::string body){
     ESP_LOGE("test", "test");
-    return "dajoi";
+    return "test ret";
 }
-
-
-// bool serialize_msg(serial_msg_t* msg, char[buf_size] buffer, const size_t buf_size){
-//     sprintf(buffer, "%i:")
-// }
-
-// implement async using events
-// when message is received dispatch an event to user so that they can read it
-// create multiple events
-//  - MSG_RECEIVE
-//  - MSG_SENT
-//  - MSG_STATUS
-// int comm_send_cmd(cmd_type_t type, const serial_field_t field, const size_t body_len, char[body_len] body, char* output, const size_t output_len){
-//     serial_msg_t msg;
-
-//     msg.cmd = type;
-//     msg.field = field;
-//     msg.payload_size = body_len;
-//     msg.payload = body;
-
-//     uart_write_bytes(conf.port, (const char*) msg, sizeof(msg));
-// }
-
-// int comm_get_field(const serial_field_t field);
-
-// int comm_put_field(const serial_field_t field, const char[] value);
-
-// int comm_get_status();
-
-// int comm_send_status(int status);
