@@ -798,7 +798,7 @@ void web_config_stop(httpd_handle_t server){
     deinit_logging();
 }
 
-esp_err_t web_config_set_custom_options(size_t size, config_option_t options_arr[size]){
+esp_err_t web_config_set_custom_options(size_t size, config_option_t* options_arr){
     if(options_arr == NULL){
         return ESP_FAIL;
     }

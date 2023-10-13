@@ -175,12 +175,12 @@ void ota_rollback_checkpoint(){
     }
 }
 
-void ota_register_events(void * event_handler_arg){
-    ESP_ERROR_CHECK(esp_event_handler_register(ESP_HTTPS_OTA_EVENT, ESP_EVENT_ANY_ID, event_handler_arg, NULL));
-    ESP_ERROR_CHECK(esp_event_handler_register(OTA_EVENT, ESP_EVENT_ANY_ID, event_handler_arg, NULL));
+void ota_register_events(esp_event_handler_t event_handler){
+    ESP_ERROR_CHECK(esp_event_handler_register(ESP_HTTPS_OTA_EVENT, ESP_EVENT_ANY_ID, event_handler, NULL));
+    ESP_ERROR_CHECK(esp_event_handler_register(OTA_EVENT, ESP_EVENT_ANY_ID, event_handler, NULL));
 }
 
-void ota_init(void * event_handler_arg)
+void ota_init(esp_event_handler_t event_handler)
 {
     ESP_LOGI(TAG, "OTA example app_main start");
     // Initialize NVS.
@@ -194,7 +194,7 @@ void ota_init(void * event_handler_arg)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    ota_register_events(event_handler_arg);
+    ota_register_events(event_handler);
     
     // connect to wifi according to menuconfig
     ESP_ERROR_CHECK(wifi_connect_default());

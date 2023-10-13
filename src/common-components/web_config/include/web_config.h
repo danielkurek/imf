@@ -5,6 +5,9 @@
 #include "nvs_flash.h"
 #include <stdbool.h>
 
+#ifdef __cplusplus
+extern "C"{
+#endif
 typedef struct {
     char *key;
     nvs_type_t type;
@@ -16,6 +19,10 @@ void web_config_stop();
 
 // caller is responsible for ensuring that `options_arr`
 // will be valid for the whole duration of web config 
-esp_err_t web_config_set_custom_options(size_t size, config_option_t options_arr[size]);
+esp_err_t web_config_set_custom_options(size_t size, config_option_t* options_arr);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

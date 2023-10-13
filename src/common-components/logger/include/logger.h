@@ -68,4 +68,4 @@ void logger_stop();
 }
 #endif
 
-#endif
+#endif // LOGGER_H_
