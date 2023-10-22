@@ -1,11 +1,13 @@
-#include "serial_comm.hpp"
+#include "serial_comm_primary.hpp"
 #include <esp_log.h>
+
+#ifdef CONFIG_SERIAL_COMM_CLIENT
 
 static const char *TAG = "SCOM";
 
-SerialComm::SerialComm(const uart_port_t port, int tx_io_num, int rx_io_num){
+SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_num){
     // TODO: handle errors
-    uart_port = port;
+    _uart_port = port;
 
     uart_config_t uart_config = {};
     uart_config.baud_rate = 115200;
@@ -27,7 +29,7 @@ SerialComm::SerialComm(const uart_port_t port, int tx_io_num, int rx_io_num){
     }
 
     const int uart_buffer_size = (1024 * 2);
-    if(uart_driver_install(port, uart_buffer_size, uart_buffer_size, 10, &uart_queue, 0) != ESP_OK){
+    if(uart_driver_install(port, uart_buffer_size, uart_buffer_size, 10, &_uart_queue, 0) != ESP_OK){
         ESP_LOGE(TAG, "cannot install UART driver");
         // return false;
     }
@@ -35,7 +37,7 @@ SerialComm::SerialComm(const uart_port_t port, int tx_io_num, int rx_io_num){
     // return true;
 }
 
-std::string SerialComm::SendCmd(CmdType type, std::string field, std::string body){
+std::string SerialCommCli::SendCmd(CmdType type, std::string field, std::string body){
     std::string cmdString = GetCmdName(type);
     // maybe sanitize the parameters similar to CSV sanitization
     if(field.length() > 0){
@@ -48,7 +50,7 @@ std::string SerialComm::SendCmd(CmdType type, std::string field, std::string bod
     }
 
     // length() + 1 because of \0 at the end
-    uart_write_bytes(uart_port, cmdString.c_str(), cmdString.length()+1);
+    uart_write_bytes(_uart_port, cmdString.c_str(), cmdString.length()+1);
 
     return "test ret";
 }
@@ -68,3 +70,5 @@ CommStatus GetStatus(){
 std::string SendStatus(CommStatus status){
     return SendCmd(CmdType::STATUS, GetStatusName(status), "");
 }
+
+#endif //CONFIG_SERIAL_COMM_CLIENT
