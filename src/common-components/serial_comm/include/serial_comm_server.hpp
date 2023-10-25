@@ -18,7 +18,7 @@ class SerialCommSrv {
                 vTaskDelete(_xHandle);
             }
             // STACK_SIZE=1024*2???
-            xTaskCreate(TaskWrapper, "SerialCommSrv", STACK_SIZE, this, configMAX_PRIORITIES, &_xHandle)
+            xTaskCreate(TaskWrapper, "SerialCommSrv", STACK_SIZE, this, configMAX_PRIORITIES, &_xHandle);
         }
         std::string GetField(const std::string& field);
         std::string SetField(const std::string& field, const std::string& value);

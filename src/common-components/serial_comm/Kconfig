@@ -1,4 +1,4 @@
-menu "OTA"
+menu "Serial communication"
 
     config SERIAL_COMM_CLIENT
         bool "Enable client Serial communication"

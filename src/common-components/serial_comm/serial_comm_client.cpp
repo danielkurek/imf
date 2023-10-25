@@ -1,7 +1,8 @@
-#include "serial_comm_primary.hpp"
-#include <esp_log.h>
-
 #ifdef CONFIG_SERIAL_COMM_CLIENT
+
+#include "serial_comm_client.hpp"
+#include "esp_log.h"
+#include <string>
 
 static const char *TAG = "SCOM";
 
