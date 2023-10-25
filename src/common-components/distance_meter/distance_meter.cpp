@@ -1,7 +1,12 @@
 #include "distance_meter.hpp"
+#include "esp_log.h"
+#include "esp_wifi.h"
+#include "esp_mac.h"
 
-static esp_err_t DistancePoint::initDistanceMeasurement(){
-    s_ftm_event_group = xEventGroupCreate();
+static const char *TAG = "DM";
+
+esp_err_t DistancePoint::initDistanceMeasurement(){
+    _s_ftm_event_group = xEventGroupCreate();
 
     return esp_event_handler_instance_register(WIFI_EVENT,
                                                WIFI_EVENT_FTM_REPORT,
@@ -10,7 +15,7 @@ static esp_err_t DistancePoint::initDistanceMeasurement(){
                                                NULL);
 }
 
-static void DistancePoint::event_handler(void* arg, esp_event_base_t event_base, 
+void DistancePoint::event_handler(void* arg, esp_event_base_t event_base, 
             int32_t event_id, void* event_data){
     if (event_id == WIFI_EVENT_FTM_REPORT) {
         wifi_event_ftm_report_t *event = (wifi_event_ftm_report_t *) event_data;
@@ -28,7 +33,7 @@ static void DistancePoint::event_handler(void* arg, esp_event_base_t event_base,
             _s_ftm_report.ftm_report_num_entries = event->ftm_report_num_entries;
             xEventGroupSetBits(_s_ftm_event_group, FTM_REPORT_BIT);
         } else {
-            ESP_LOGI(TAG_STA, "FTM procedure with Peer("MACSTR") failed! (Status - %d)",
+            ESP_LOGI(TAG, "FTM procedure with Peer(" MACSTR ") failed! (Status - %d)",
                      MAC2STR(event->peer_mac), event->status);
             xEventGroupSetBits(_s_ftm_event_group, FTM_FAILURE_BIT);
         }
@@ -36,9 +41,9 @@ static void DistancePoint::event_handler(void* arg, esp_event_base_t event_base,
 }
 
 uint32_t DistancePoint::measureDistance(){
-    wifi_ftm_initiator_cfg_t ftmi_cfg {0};
-    ftmi_cfg.resp_mac = _mac;
-    ftmi_cfg.channel = channel;
+    wifi_ftm_initiator_cfg_t ftmi_cfg {};
+    memcpy(ftmi_cfg.resp_mac, _mac, 6);
+    ftmi_cfg.channel = _channel;
     ftmi_cfg.frm_count = 16;
     ftmi_cfg.burst_period = 1;
 
@@ -48,20 +53,20 @@ uint32_t DistancePoint::measureDistance(){
     return ftm_report.dist_est;
 }
 
-static ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cfg){
+ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cfg){
     EventBits_t bits;
 
-    esp_err_t err = esp_wifi_ftm_initiate_session(&ftmi_cfg);
+    esp_err_t err = esp_wifi_ftm_initiate_session(ftmi_cfg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start FTM session");
-        return -1;
+        return {};
     }
 
     bits = xEventGroupWaitBits(_s_ftm_event_group, FTM_REPORT_BIT | FTM_FAILURE_BIT,
                                            pdTRUE, pdFALSE, portMAX_DELAY);
     if (bits & FTM_REPORT_BIT) {
         ftm_result_t ftm_result {};
-        ftm_result.peer_mac = _s_ftm_report.peer_mac;
+        memcpy(ftm_result.peer_mac, _s_ftm_report.peer_mac, 6);
         ftm_result.status = _s_ftm_report.status;
         ftm_result.rtt_raw = _s_ftm_report.rtt_raw;
         ftm_result.rtt_est = _s_ftm_report.rtt_est;
@@ -72,18 +77,20 @@ static ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* 
         }
         _s_ftm_report.ftm_report_data = NULL;
         _s_ftm_report.ftm_report_num_entries = 0;
-        return ftm_report;
+        return ftm_result;
     } else{
         // FTM failed
     }
+    return {};
 }
 
 DistanceMeter::DistanceMeter(bool wifi_initialized) : _points() {
-    if(!wifi_initialized)
-        wifiInit();
+    
 }
-uint8_t DistanceMeter::addPoint(uint8_t[6] mac, uint8_t channel){
+
+uint8_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel){
     _points.emplace_back(std::make_shared<DistancePoint>(mac, channel));
+    return 0;
 }
 // esp_err_t DistanceMeter::removePoint(uint8_t[6] mac){
 //     for(auto it = _points.begin(); it != _points.end(); it++){
@@ -103,14 +110,21 @@ uint8_t DistanceMeter::addPoint(uint8_t[6] mac, uint8_t channel){
 //     }
 //     return ESP_FAIL;
 // }
+
 void DistanceMeter::startTask(){
     if(_xHandle != NULL){
         // delete and start the task again or do nothing
         vTaskDelete(_xHandle);
     }
     // STACK_SIZE=1024*2???
-    xTaskCreate(TaskWrapper, "DistanceMeter", STACK_SIZE, this, configMAX_PRIORITIES, &_xHandle);
+    xTaskCreate(taskWrapper, "DistanceMeter", 1024*8, this, configMAX_PRIORITIES, &_xHandle);
 }
-std::shared_ptr<DistancePoint> DistanceMeter::nearestDevice();
-std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints();
-void DistanceMeter::task();
+std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
+    return {};
+}
+std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
+    return {};
+}
+void DistanceMeter::task(){
+
+}
