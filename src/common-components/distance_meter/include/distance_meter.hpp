@@ -56,6 +56,7 @@ class DistanceMeter{
         uint8_t addPoint(uint8_t mac[6], uint8_t channel);
         // esp_err_t removePoint(uint8_t mac[6]);
         void startTask();
+        // nearest point in x amount of seconds
         std::shared_ptr<DistancePoint> nearestPoint();
     private:
         std::vector<std::shared_ptr<DistancePoint>> reachablePoints();
@@ -65,6 +66,7 @@ class DistanceMeter{
         void task();
         std::unordered_map<std::string, std::shared_ptr<DistancePoint>> _points;
         std::unordered_map<std::string, distance_measurement_t> _measurements;
+        uint32_t time_threshold = 10_000 * (1000 / configTICK_RATE_HZ);
         TaskHandle_t _xHandle = NULL;
 
 };

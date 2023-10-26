@@ -123,7 +123,26 @@ void DistanceMeter::startTask(){
     xTaskCreate(taskWrapper, "DistanceMeter", 1024*8, this, configMAX_PRIORITIES, &_xHandle);
 }
 std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
-    return {};
+    TickType_t now = xTaskGetTickCount();
+
+    std::string best_mac;
+    // TickType_t best_time;
+    uint32_t best_dist;
+    bool first = true;
+    for(auto&& const [key,val] : _measurements){
+        if(val.timestamp - now < time_threshold){
+            if(first || val->distance < best_dist){
+                first = false;
+                best_dist = val->distance;
+                best_mac = key;
+            }
+        }
+    }
+    if(first){
+        // no nearest point was found
+        return nullptr;
+    }
+    return _points[best_mac];
 }
 std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
     static uint16_t g_scan_ap_num;
