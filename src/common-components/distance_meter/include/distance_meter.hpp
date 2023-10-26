@@ -20,10 +20,15 @@ typedef struct{
     std::vector<wifi_ftm_report_entry_t> ftm_report_data;
 } ftm_result_t;
 
+typedef struct{
+    uint32_t distance;
+    TickType_t timestamp;
+} distance_measurement_t;
+
 class DistancePoint {
     public:
         DistancePoint(const uint8_t mac[6], uint8_t channel) 
-            : _channel(channel) {
+            : _channel(channel), _macstr(MAC2STR(mac)) {
                 memcpy(_mac, mac, 6);
             }
         static esp_err_t initDistanceMeasurement();
@@ -31,6 +36,7 @@ class DistancePoint {
         static ftm_result_t measureRawDistance(
                 wifi_ftm_initiator_cfg_t* ftmi_conf);
         const uint8_t* getMac() { return _mac; }
+        const std::string getMacStr() { return _macstr; }
         uint8_t getChannel() { return _channel; }
     private:
         static void event_handler(void* arg, esp_event_base_t event_base, 
@@ -40,6 +46,7 @@ class DistancePoint {
         static EventGroupHandle_t _s_ftm_event_group;
         static wifi_event_ftm_report_t _s_ftm_report;
         uint8_t _mac[6];
+        std::string _macstr;
         uint8_t _channel;
 };
 
@@ -56,7 +63,8 @@ class DistanceMeter{
             static_cast<DistanceMeter *>(param)->task();
         }
         void task();
-        std::vector<std::shared_ptr<DistancePoint>> _points;
+        std::unordered_map<std::string, std::shared_ptr<DistancePoint>> _points;
+        std::unordered_map<std::string, distance_measurement_t> _measurements;
         TaskHandle_t _xHandle = NULL;
 
 };

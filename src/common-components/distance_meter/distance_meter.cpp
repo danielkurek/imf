@@ -89,7 +89,10 @@ DistanceMeter::DistanceMeter(bool wifi_initialized) : _points() {
 }
 
 uint8_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel){
-    _points.emplace_back(std::make_shared<DistancePoint>(mac, channel));
+    std::string macstr (MAC2STR(mac));
+    if(!_points.contains(macstr)){
+        _points.emplace(macstr, std::make_shared<DistancePoint>(mac, channel));
+    }
     return 0;
 }
 // esp_err_t DistanceMeter::removePoint(uint8_t[6] mac){
@@ -123,8 +126,62 @@ std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
     return {};
 }
 std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
-    return {};
+    static uint16_t g_scan_ap_num;
+    static wifi_ap_record_t *g_ap_list_buffer;
+
+    std::vector<std::shared_ptr<DistancePoint>> result;
+
+    wifi_scan_config_t scan_config {};
+    esp_err_t err;
+    uint8_t i;
+
+    err = esp_wifi_scan_start(&scan_config, true);
+    if (err != ESP_OK) {
+        ESP_LOGI(TAG, "Failed to perform scan");
+        return {};
+    }
+
+    esp_wifi_scan_get_ap_num(&g_scan_ap_num);
+    if (g_scan_ap_num == 0) {
+        ESP_LOGI(TAG, "No matching AP found");
+        return {};
+    }
+
+    if (g_ap_list_buffer) {
+        free(g_ap_list_buffer);
+    }
+
+    g_ap_list_buffer = malloc(g_scan_ap_num * sizeof(wifi_ap_record_t));
+    if (g_ap_list_buffer == NULL) {
+        ESP_LOGE(TAG, "Failed to malloc buffer to print scan results");
+        return {};
+    }
+
+    err = esp_wifi_scan_get_ap_records(&g_scan_ap_num, (wifi_ap_record_t *)g_ap_list_buffer);
+    if (err == ESP_OK) {
+        for (i = 0; i < g_scan_ap_num; i++) {
+            std::string mac {MAC2STR(g_ap_list_buffer[i].bssid)};
+            if(_points.contains(mac) && g_ap_list_buffer[i].ftm_responder){
+                result.push_back(_points[mac]);
+            }
+            ESP_LOGI(TAG, "[%s][rssi=%d]""%s", g_ap_list_buffer[i].ssid, g_ap_list_buffer[i].rssi,
+                        g_ap_list_buffer[i].ftm_responder ? "[FTM Responder]" : "");
+        }
+    }
+
+    ESP_LOGI(TAG, "sta scan done");
+    return result;
 }
 void DistanceMeter::task(){
+    while(true){
+        auto points = reachablePoints();
+        for(auto&& point : points){
+            uint32_t distance = point->measureDistance();
+            distance_measurement_t dist_measurement{distance, xTaskGetTickCount()};
+            _measurements[point->getMacStr()] = dist_measurement;
+            ESP_LOGI(TAG, "Distance for point" MACSTR " is %ll", MAC2STR(point->getMac()), distance);
+        }
+        vTaskDelay(500 / portTICK_PERIOD_MS);
+    }
 
 }
