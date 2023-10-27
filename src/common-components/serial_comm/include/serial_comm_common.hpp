@@ -35,7 +35,7 @@ std::string GetCmdName(CmdType type) constexpr {
     }
 }
 
-std::string ParseCmdType(const std::string& cmdType) const {
+CmdType ParseCmdType(const std::string& cmdType) const {
     if(cmdType == "GET") {
         return CmdType::GET;
     }

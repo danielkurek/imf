@@ -52,7 +52,7 @@ std::string SerialCommSrv::SetStatus(CommStatus status){
     _current_status = status;
 }
 
-esp_err_t SerialCommSrv::SendGetResponse(const std::string& field, const std::string& body){
+ESP_FAIL_t SerialCommSrv::SendGetResponse(const std::string& field){
     auto iter = fields.find(field);
     if(iter == fields.end()){
         const std::string rsp = "FAIL";
@@ -63,19 +63,19 @@ esp_err_t SerialCommSrv::SendGetResponse(const std::string& field, const std::st
     return ESP_OK;
 }
 
-esp_err_t SerialCommSrv::SendPutResponse(const std::string& field, const std::string& body){
+ESP_FAIL_t SerialCommSrv::SendPutResponse(const std::string& field, const std::string& body){
     fields[field] = body;
     uart_write_bytes(_uart_port, body.c_str(), body.length()+1);
     return ESP_OK;
 }
 
-esp_err_t SerialCommSrv::SendStatusResponse(){
+ESP_FAIL_t SerialCommSrv::SendStatusResponse(){
     const std::string status = GetStatusName(_current_status);
     uart_write_bytes(_uart_port, status.c_str(), status.length()+1);
     return ESP_OK;
 }
 
-esp_err_t SerialCommSrv::SendResponse(CmdType type, const std::string& field, const std::string& body){
+ESP_FAIL_t SerialCommSrv::SendResponse(CmdType type, const std::string& field, const std::string& body){
     switch(type){
         case CmdType::GET:
             return SendGetResponse(field, body);
@@ -88,18 +88,81 @@ esp_err_t SerialCommSrv::SendResponse(CmdType type, const std::string& field, co
     }
 }
 
-void Task(){
+void SerialCommSrv::Task(){
     uint8_t data_buffer = (uint8_t *) malloc(RX_BUF_SIZE+1)
 
     while(1){
         const int rxBytes = uart_read_bytes(uart_port, data_buffer, RX_BUF_SIZE, 1000 / portTICK_PERIOD_MS);
         if(rxBytes > 0){
             data_buffer[rxBytes] = 0;
-            std::string 
+            std::string cmd {data_buffer};
+            ProcessCmd(cmd);
         }
     }
 
     free(data_buffer)
+}
+
+ESP_FAIL_t SerialCommSrv::ProcessCmd(std::string cmd){
+    size_t n = cmd.find("\0");
+	if (n != std::string::npos) {
+		cmd = cmd.substr(0, n);
+	}
+
+    std::istringstream s{ std::move(cmd) };
+
+    std::string command;
+    s >> command;
+    if(s.fail()){
+        return ESP_FAIL;
+    }
+
+    for(size_t i = 0; i < command.length(); i++){
+        command[i] = std::toupper(command[i]);
+    }
+
+    CmdType cmd_type = ParseCmdType(command);
+
+    std::string field;
+    s >> field;
+    switch(cmd_type){
+        case CmdType::STATUS:
+            if(!s.fail()) return ESP_FAIL;
+            return SendStatusResponse();
+        case CmdType::GET:
+        case CmdType::PUT:
+        default:
+            if(s.fail()) return ESP_FAIL;
+    }
+
+    std::string body;
+    s >> body;
+
+    switch(cmd_type){
+        case CmdType::GET:
+            if(!s.fail()) return ESP_FAIL;
+            return SendGetResponse(field);
+        case CmdType::STATUS:
+            return ESP_FAIL; // cannot happen
+        case CmdType::PUT:
+        default:
+            if(s.fail()) return ESP_FAIL;
+    }
+
+    std::string empty;
+    s >> empty;
+
+    switch(cmd_type){
+        case CmdType::PUT:
+            if(!s.fail()) return ESP_FAIL;
+            return SendPutResponse(field, body);
+        case CmdType::GET:
+        case CmdType::STATUS:
+        default:
+            return ESP_FAIL; // cannot happen for GET and STATUS
+    }
+
+    return ESP_FAIL; // redundant
 }
 
 #endif // CONFIG_SERIAL_COMM_SERVER
