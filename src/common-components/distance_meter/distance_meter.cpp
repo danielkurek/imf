@@ -1,9 +1,11 @@
 #include "distance_meter.hpp"
 #include "esp_log.h"
 #include "esp_wifi.h"
-#include "esp_mac.h"
 
 static const char *TAG = "DM";
+
+EventGroupHandle_t DistancePoint::_s_ftm_event_group {};
+wifi_event_ftm_report_t DistancePoint::_s_ftm_report{};
 
 esp_err_t DistancePoint::initDistanceMeasurement(){
     _s_ftm_event_group = xEventGroupCreate();
@@ -89,9 +91,11 @@ DistanceMeter::DistanceMeter(bool wifi_initialized) : _points() {
 }
 
 uint8_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel){
-    std::string macstr (MAC2STR(mac));
+    char buffer[17+1];
+    sprintf(buffer, MACSTR, MAC2STR(mac));
+    std::string macstr (buffer);
     if(!_points.contains(macstr)){
-        _points.emplace(macstr, std::make_shared<DistancePoint>(mac, channel));
+        _points.emplace(macstr, std::make_shared<DistancePoint>(mac, std::move(macstr), channel));
     }
     return 0;
 }
@@ -129,12 +133,12 @@ std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
     // TickType_t best_time;
     uint32_t best_dist;
     bool first = true;
-    for(auto&& const [key,val] : _measurements){
-        if(val.timestamp - now < time_threshold){
-            if(first || val->distance < best_dist){
+    for(auto&& item : _measurements){
+        if(item.second.timestamp - now < time_threshold){
+            if(first || item.second.distance < best_dist){
                 first = false;
-                best_dist = val->distance;
-                best_mac = key;
+                best_dist = item.second.distance;
+                best_mac = item.first;
             }
         }
     }
@@ -170,7 +174,7 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
         free(g_ap_list_buffer);
     }
 
-    g_ap_list_buffer = malloc(g_scan_ap_num * sizeof(wifi_ap_record_t));
+    g_ap_list_buffer = (wifi_ap_record_t*) malloc(g_scan_ap_num * sizeof(wifi_ap_record_t));
     if (g_ap_list_buffer == NULL) {
         ESP_LOGE(TAG, "Failed to malloc buffer to print scan results");
         return {};
@@ -179,7 +183,9 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
     err = esp_wifi_scan_get_ap_records(&g_scan_ap_num, (wifi_ap_record_t *)g_ap_list_buffer);
     if (err == ESP_OK) {
         for (i = 0; i < g_scan_ap_num; i++) {
-            std::string mac {MAC2STR(g_ap_list_buffer[i].bssid)};
+            char buffer[17+1];
+            sprintf(buffer, MACSTR, MAC2STR(g_ap_list_buffer[i].bssid));
+            std::string mac {buffer};
             if(_points.contains(mac) && g_ap_list_buffer[i].ftm_responder){
                 result.push_back(_points[mac]);
             }
@@ -198,7 +204,7 @@ void DistanceMeter::task(){
             uint32_t distance = point->measureDistance();
             distance_measurement_t dist_measurement{distance, xTaskGetTickCount()};
             _measurements[point->getMacStr()] = dist_measurement;
-            ESP_LOGI(TAG, "Distance for point" MACSTR " is %ll", MAC2STR(point->getMac()), distance);
+            ESP_LOGI(TAG, "Distance for point" MACSTR " is %" PRIu32, MAC2STR(point->getMac()), distance);
         }
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }

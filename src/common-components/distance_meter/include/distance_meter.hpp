@@ -10,6 +10,9 @@
 #include <vector>
 #include <memory>
 #include <cstring>
+#include "esp_mac.h"
+
+#include <unordered_map>
 
 typedef struct{
     uint8_t peer_mac[6];
@@ -28,7 +31,14 @@ typedef struct{
 class DistancePoint {
     public:
         DistancePoint(const uint8_t mac[6], uint8_t channel) 
-            : _channel(channel), _macstr(MAC2STR(mac)) {
+            : _channel(channel){
+                memcpy(_mac, mac, 6);
+                char buffer[17+1];
+                sprintf(buffer, MACSTR, MAC2STR(_mac));
+                _macstr = std::string(buffer);
+            }
+        DistancePoint(const uint8_t mac[6], std::string macstr, uint8_t channel) 
+            : _macstr(macstr), _channel(channel){
                 memcpy(_mac, mac, 6);
             }
         static esp_err_t initDistanceMeasurement();
@@ -66,7 +76,7 @@ class DistanceMeter{
         void task();
         std::unordered_map<std::string, std::shared_ptr<DistancePoint>> _points;
         std::unordered_map<std::string, distance_measurement_t> _measurements;
-        uint32_t time_threshold = 10_000 * (1000 / configTICK_RATE_HZ);
+        uint32_t time_threshold = 10000 * (1000 / configTICK_RATE_HZ);
         TaskHandle_t _xHandle = NULL;
 
 };
