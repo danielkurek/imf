@@ -34,6 +34,7 @@ void DistancePoint::event_handler(void* arg, esp_event_base_t event_base,
             _s_ftm_report.ftm_report_data = event->ftm_report_data;
             _s_ftm_report.ftm_report_num_entries = event->ftm_report_num_entries;
             xEventGroupSetBits(_s_ftm_event_group, FTM_REPORT_BIT);
+            ESP_LOGI(TAG, "FTM measurement success");
         } else {
             ESP_LOGI(TAG, "FTM procedure with Peer(" MACSTR ") failed! (Status - %d)",
                      MAC2STR(event->peer_mac), event->status);
@@ -47,7 +48,7 @@ uint32_t DistancePoint::measureDistance(){
     memcpy(ftmi_cfg.resp_mac, _mac, 6);
     ftmi_cfg.channel = _channel;
     ftmi_cfg.frm_count = 16;
-    ftmi_cfg.burst_period = 1;
+    ftmi_cfg.burst_period = 2;
 
     ftm_result_t ftm_report = measureRawDistance(&ftmi_cfg);
     // TODO: filter data
