@@ -16,6 +16,11 @@
 
 static const char *TAG = "APP";
 
+typedef struct{
+    uint8_t bssid[6];
+    uint8_t channel;
+} dm_point_info;
+
 void server(){
     wifi_init_ap_simple("TestingWifi", "SuPerdUpeRStrongPaSswoRdTHatNoOneWillguess", 1);
 
@@ -25,27 +30,37 @@ void server(){
 void client(){
     esp_err_t err;
 
-    //34:b4:72:69:e6:13
-    uint8_t mac[6] = {0x34,0xb4,0x72,0x69,0xe6,0x13};
-    uint8_t channel = 1;
+    dm_point_info points_info[] = {
+        {{0x34,0xb4,0x72,0x69,0xcb,0x9d}, 1},
+        {{0x34,0xb4,0x72,0x69,0xe6,0x13}, 1},
+        {{0x34,0xb4,0x72,0x6a,0x76,0xed}, 1},
+        {{0x34,0xb4,0x72,0x6a,0x77,0xc1}, 1},
+        {{0x34,0xb4,0x72,0x6a,0x84,0x59}, 1}
+    };
+
+    size_t points_info_len = sizeof(points_info) / sizeof(points_info[0]);
     
     err = DistancePoint::initDistanceMeasurement();
     if(err != ESP_OK){
         ESP_LOGI(TAG, "Error initiliazing DM, err: %s", esp_err_to_name(err));
     }
     
-    DistancePoint point{mac, channel};
+    // DistancePoint point{mac, channel};
 
-    while(true){
-        uint32_t distance_cm = point.measureDistance();
-        ESP_LOGI(TAG, "Distance to point is %" PRIu32, distance_cm);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // while(true){
+    //     uint32_t distance_cm = point.measureDistance();
+    //     ESP_LOGI(TAG, "Distance to point is %" PRIu32, distance_cm);
+    //     vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // }
+
+    DistanceMeter meter{};
+    for(size_t i = 0; i < points_info_len; i++){
+        meter.addPoint(points_info[i].bssid, points_info[i].channel);
     }
 
-    // DistanceMeter meter{};
-    // meter.addPoint(mac, 1);
+    meter.startTask();
 
-    // meter.startTask();
+    vTaskDelete(NULL);
 }
 
 void startup(void* param){
@@ -79,5 +94,5 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     wifi_start();
-    xTaskCreate(startup, "distance-test", 1024*8, NULL, configMAX_PRIORITIES, NULL);
+    xTaskCreate(startup, "distance-test", 1024*24, NULL, configMAX_PRIORITIES, NULL);
 }
