@@ -76,8 +76,9 @@ ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cf
         ftm_result.dist_est = _s_ftm_report.dist_est;
         //TODO: verify that this moving does not leak data
         for(uint8_t i = 0; i < _s_ftm_report.ftm_report_num_entries; i++){
-            ftm_result.ftm_report_data.push_back(std::move(_s_ftm_report.ftm_report_data[i]));
+            ftm_result.ftm_report_data.push_back(_s_ftm_report.ftm_report_data[i]);
         }
+        free(_s_ftm_report.ftm_report_data);
         _s_ftm_report.ftm_report_data = NULL;
         _s_ftm_report.ftm_report_num_entries = 0;
         return ftm_result;
@@ -96,7 +97,13 @@ uint8_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel){
     sprintf(buffer, MACSTR, MAC2STR(mac));
     std::string macstr (buffer);
     if(!_points.contains(macstr)){
-        _points.emplace(macstr, std::make_shared<DistancePoint>(mac, std::move(macstr), channel));
+        ESP_LOGI(TAG, "Added point: [%s] channel %d", macstr.c_str(), channel);
+        _points.emplace(macstr, std::make_shared<DistancePoint>(mac, macstr, channel));
+    }
+
+    ESP_LOGI(TAG, "Tracked points:");
+    for(const auto& [key,point] : _points){
+        ESP_LOGI(TAG, "[%s] channel=%d", key.c_str(), point->getChannel());
     }
     return 0;
 }
@@ -135,10 +142,10 @@ std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
     uint32_t best_dist;
     bool first = true;
     for(auto&& item : _measurements){
-        if(item.second.timestamp - now < time_threshold){
-            if(first || item.second.distance < best_dist){
+        if(item.second->timestamp - now < time_threshold){
+            if(first || item.second->distance < best_dist){
                 first = false;
-                best_dist = item.second.distance;
+                best_dist = item.second->distance;
                 best_mac = item.first;
             }
         }
@@ -190,7 +197,7 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
             if(_points.contains(mac) && g_ap_list_buffer[i].ftm_responder){
                 result.push_back(_points[mac]);
             }
-            ESP_LOGI(TAG, "[%s][rssi=%d]""%s", g_ap_list_buffer[i].ssid, g_ap_list_buffer[i].rssi,
+            ESP_LOGI(TAG, "[%s][%s][rssi=%d]""%s", mac.c_str(), g_ap_list_buffer[i].ssid, g_ap_list_buffer[i].rssi,
                         g_ap_list_buffer[i].ftm_responder ? "[FTM Responder]" : "");
         }
     }
@@ -201,11 +208,19 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
 void DistanceMeter::task(){
     while(true){
         auto points = reachablePoints();
+        ESP_LOGI(TAG, "%d reachable points", points.size());
         for(auto&& point : points){
             uint32_t distance = point->measureDistance();
-            distance_measurement_t dist_measurement{distance, xTaskGetTickCount()};
-            _measurements[point->getMacStr()] = dist_measurement;
-            ESP_LOGI(TAG, "Distance for point" MACSTR " is %" PRIu32, MAC2STR(point->getMac()), distance);
+            const std::string point_mac = point->getMacStr();
+            auto search = _measurements.find(point_mac);
+            if(search != _measurements.end()){
+                _measurements[point_mac]->distance = distance;
+                _measurements[point_mac]->timestamp = xTaskGetTickCount();
+            } else{
+                _measurements.emplace(point_mac, std::make_unique<distance_measurement_t>(distance, xTaskGetTickCount()));
+            }
+
+            ESP_LOGI(TAG, "Distance for point %s is %" PRIu32, point->getMacStr().c_str(), distance);
         }
         vTaskDelay(500 / portTICK_PERIOD_MS);
     }

@@ -41,6 +41,8 @@ class DistancePoint {
             : _macstr(macstr), _channel(channel){
                 memcpy(_mac, mac, 6);
             }
+        
+        // default event loop needs to be created before calling this function
         static esp_err_t initDistanceMeasurement();
         uint32_t measureDistance();
         static ftm_result_t measureRawDistance(
@@ -66,7 +68,7 @@ class DistanceMeter{
         uint8_t addPoint(uint8_t mac[6], uint8_t channel);
         // esp_err_t removePoint(uint8_t mac[6]);
         void startTask();
-        // nearest point in x amount of seconds
+        // nearest point in last x amount of seconds
         std::shared_ptr<DistancePoint> nearestPoint();
     private:
         std::vector<std::shared_ptr<DistancePoint>> reachablePoints();
@@ -75,7 +77,7 @@ class DistanceMeter{
         }
         void task();
         std::unordered_map<std::string, std::shared_ptr<DistancePoint>> _points;
-        std::unordered_map<std::string, distance_measurement_t> _measurements;
+        std::unordered_map<std::string, std::unique_ptr<distance_measurement_t>> _measurements;
         uint32_t time_threshold = 10000 * (1000 / configTICK_RATE_HZ);
         TaskHandle_t _xHandle = NULL;
 
