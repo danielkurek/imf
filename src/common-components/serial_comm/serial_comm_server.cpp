@@ -1,6 +1,12 @@
 #include "serial_comm_server.hpp"
+#include "serial_comm_common.hpp"
+#include "esp_log.h"
+#include <sstream>
+#include <string>
 
-#ifdef CONFIG_SERIAL_COMM_SERVER
+static const char *TAG = "SerialSrv";
+
+// #ifdef CONFIG_SERIAL_COMM_SERVER
 
 #define RX_BUF_SIZE 1024
 
@@ -44,41 +50,47 @@ std::string SerialCommSrv::GetField(const std::string& field){
     return iter->second;
 }
 
-std::string SerialCommSrv::SetField(const std::string& field, const std::string& value){
+esp_err_t SerialCommSrv::SetField(const std::string& field, const std::string& value){
     fields[field] = value;
+    return ESP_OK;
 }
 
-std::string SerialCommSrv::SetStatus(CommStatus status){
+esp_err_t SerialCommSrv::SetStatus(CommStatus status){
     _current_status = status;
+    return ESP_OK;
 }
 
-ESP_FAIL_t SerialCommSrv::SendGetResponse(const std::string& field){
+esp_err_t SerialCommSrv::SendGetResponse(const std::string& field){
     auto iter = fields.find(field);
     if(iter == fields.end()){
         const std::string rsp = "FAIL";
         uart_write_bytes(_uart_port, rsp.c_str(), rsp.length() + 1);
+        ESP_LOGI(TAG, "Sending GET response: %s", rsp.c_str());
         return ESP_FAIL;
     }
     uart_write_bytes(_uart_port, iter->second.c_str(), iter->second.length()+1);
+    ESP_LOGI(TAG, "Sending GET response: %s", iter->second.c_str());
     return ESP_OK;
 }
 
-ESP_FAIL_t SerialCommSrv::SendPutResponse(const std::string& field, const std::string& body){
+esp_err_t SerialCommSrv::SendPutResponse(const std::string& field, const std::string& body){
     fields[field] = body;
     uart_write_bytes(_uart_port, body.c_str(), body.length()+1);
+    ESP_LOGI(TAG, "Sending PUT response: %s", body.c_str());
     return ESP_OK;
 }
 
-ESP_FAIL_t SerialCommSrv::SendStatusResponse(){
+esp_err_t SerialCommSrv::SendStatusResponse(){
     const std::string status = GetStatusName(_current_status);
     uart_write_bytes(_uart_port, status.c_str(), status.length()+1);
+    ESP_LOGI(TAG, "Sending STATUS response: %s", status.c_str());
     return ESP_OK;
 }
 
-ESP_FAIL_t SerialCommSrv::SendResponse(CmdType type, const std::string& field, const std::string& body){
+esp_err_t SerialCommSrv::SendResponse(CmdType type, const std::string& field, const std::string& body){
     switch(type){
         case CmdType::GET:
-            return SendGetResponse(field, body);
+            return SendGetResponse(field);
         case CmdType::PUT:
             return SendPutResponse(field, body);
         case CmdType::STATUS:
@@ -89,50 +101,67 @@ ESP_FAIL_t SerialCommSrv::SendResponse(CmdType type, const std::string& field, c
 }
 
 void SerialCommSrv::Task(){
-    uint8_t data_buffer = (uint8_t *) malloc(RX_BUF_SIZE+1)
+    uint8_t* data_buffer = (uint8_t *) malloc(RX_BUF_SIZE+1);
 
     while(1){
-        const int rxBytes = uart_read_bytes(uart_port, data_buffer, RX_BUF_SIZE, 1000 / portTICK_PERIOD_MS);
+        const int rxBytes = uart_read_bytes(_uart_port, data_buffer, RX_BUF_SIZE, 1000 / portTICK_PERIOD_MS);
         if(rxBytes > 0){
             data_buffer[rxBytes] = 0;
-            std::string cmd {data_buffer};
+            ESP_LOGI(TAG, "Received: %s", data_buffer);
+            std::string cmd {(char*) data_buffer};
             ProcessCmd(cmd);
         }
     }
 
-    free(data_buffer)
+    free(data_buffer);
 }
 
-ESP_FAIL_t SerialCommSrv::ProcessCmd(std::string cmd){
-    size_t n = cmd.find("\0");
-	if (n != std::string::npos) {
-		cmd = cmd.substr(0, n);
-	}
+esp_err_t SerialCommSrv::ProcessCmd(std::string cmd){
+    ESP_LOGI(TAG, "Processing cmd: %s", cmd.c_str());
 
-    std::istringstream s{ std::move(cmd) };
+    // size_t n = cmd.find("\0");
+	// if (n != std::string::npos) {
+    //     ESP_LOGI(TAG, "Processing cmd: Found null byte, trimming string to %d", n);
+	// 	cmd = cmd.substr(0, n);
+	// }
+
+    ESP_LOGI(TAG, "Processing cmd: %s", cmd.c_str());
+
+    std::istringstream s {cmd};
 
     std::string command;
     s >> command;
     if(s.fail()){
+        ESP_LOGE(TAG, "While processing CMD, cannot get command type");
         return ESP_FAIL;
     }
 
     for(size_t i = 0; i < command.length(); i++){
         command[i] = std::toupper(command[i]);
     }
-
+    ESP_LOGI(TAG, "CMD part: %s", command.c_str());
     CmdType cmd_type = ParseCmdType(command);
 
     std::string field;
     s >> field;
     switch(cmd_type){
         case CmdType::STATUS:
-            if(!s.fail()) return ESP_FAIL;
+            if(!s.fail())
+            {
+                ESP_LOGE(TAG, "While processing CMD, STATUS cmd has more arguments, expected 0");
+                return ESP_FAIL;
+            }
             return SendStatusResponse();
         case CmdType::GET:
         case CmdType::PUT:
+            if(s.fail()){
+                ESP_LOGE(TAG, "While processing CMD, not enough arguments");
+                return ESP_FAIL;
+            }
+            break;
         default:
-            if(s.fail()) return ESP_FAIL;
+            ESP_LOGE(TAG, "While processing CMD, unknown command");
+            return ESP_FAIL;
     }
 
     std::string body;
@@ -140,13 +169,25 @@ ESP_FAIL_t SerialCommSrv::ProcessCmd(std::string cmd){
 
     switch(cmd_type){
         case CmdType::GET:
-            if(!s.fail()) return ESP_FAIL;
+            if(!s.fail())
+            {
+                ESP_LOGE(TAG, "While processing CMD, GET cmd has more arguments, expected 1");
+                return ESP_FAIL;
+            }
             return SendGetResponse(field);
         case CmdType::STATUS:
+            ESP_LOGE(TAG, "While processing CMD, STATUS cmd has more arguments, expected 0");
             return ESP_FAIL; // cannot happen
         case CmdType::PUT:
+            if(s.fail())
+            {
+                ESP_LOGE(TAG, "While processing CMD, PUT cmd - not enough arguments");
+                return ESP_FAIL;
+            }
+            break;
         default:
-            if(s.fail()) return ESP_FAIL;
+            ESP_LOGE(TAG, "While processing CMD, unknown command");
+            return ESP_FAIL;
     }
 
     std::string empty;
@@ -154,15 +195,20 @@ ESP_FAIL_t SerialCommSrv::ProcessCmd(std::string cmd){
 
     switch(cmd_type){
         case CmdType::PUT:
-            if(!s.fail()) return ESP_FAIL;
+            if(!s.fail())
+            {
+                ESP_LOGE(TAG, "While processing CMD, PUT cmd has more arguments, expected 2");
+                return ESP_FAIL;
+            }
             return SendPutResponse(field, body);
         case CmdType::GET:
         case CmdType::STATUS:
         default:
+            ESP_LOGE(TAG, "While processing CMD, unknown command or failed to parse");
             return ESP_FAIL; // cannot happen for GET and STATUS
     }
 
     return ESP_FAIL; // redundant
 }
 
-#endif // CONFIG_SERIAL_COMM_SERVER
+// #endif // CONFIG_SERIAL_COMM_SERVER

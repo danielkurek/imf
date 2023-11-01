@@ -1,7 +1,7 @@
 #ifndef SERIAL_COMM_COMMON_H_
 #define SERIAL_COMM_COMMON_H_
 
-#include <iostream>
+#include <string>
 
 enum class CmdType{
     None = 0,
@@ -17,67 +17,12 @@ enum class CommStatus{
     BOOTLOADER,
 };
 
-std::string GetCmdName(CmdType type) constexpr {
-    switch (type)
-    {
-    case CmdType::GET:
-        return "GET";
-        break;
-    case CmdType::PUT:
-        return "PUT";
-        break;
-    case CmdType::STATUS:
-        return "STATUS";
-        break;
-    default:
-        return "UNKWN";
-        break;
-    }
-}
+std::string GetCmdName(CmdType type);
 
-CmdType ParseCmdType(const std::string& cmdType) const {
-    if(cmdType == "GET") {
-        return CmdType::GET;
-    }
-    if(cmdType == "PUT") {
-        return CmdType::PUT;
-    }
-    if(cmdType == "STATUS") {
-        return CmdType::STATUS;
-    }
-    return CmdType::None;
-}
+CmdType ParseCmdType(const std::string& cmdType);
 
-std::string GetStatusName(CommStatus type) constexpr {
-    switch (type)
-    {
-    case CommStatus::OK:
-        return "OK";
-        break;
-    case CommStatus::FAIL:
-        return "FAIL";
-        break;
-    case CommStatus::BOOTLOADER:
-        return "BTLD";
-        break;
-    default:
-        return "UNKWN";
-        break;
-    }
-}
+std::string GetStatusName(CommStatus type);
 
-CommStatus ParseStatus(const std::string& status) const {
-    if(status == "OK"){
-        return CommStatus::OK;
-    }
-    else if(status == "FAIL"){
-        return CommStatus::OK;
-    }
-    else if(status == "BTLD"){
-        return CommStatus::OK;
-    }
-
-    return CommStatus::None;
-}
+CommStatus ParseStatus(const std::string& status);
 
 #endif

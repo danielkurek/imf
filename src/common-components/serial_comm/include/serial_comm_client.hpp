@@ -1,11 +1,9 @@
 #ifndef SERIAL_COMM_CLIENT_H_
 #define SERIAL_COMM_CLIENT_H_
 
-#ifdef CONFIG_SERIAL_COMM_CLIENT
-
 #include <inttypes.h>
 #include <driver/uart.h>
-#include <iostream>
+#include <string>
 #include "serial_comm_common.hpp"
 
 class SerialCommCli {
@@ -16,11 +14,12 @@ class SerialCommCli {
         CommStatus  GetStatus();
         std::string SendStatus(CommStatus status);
     private:
+        constexpr static size_t rx_buffer_len = 128;
+        
         std::string SendCmd(CmdType type, std::string field, std::string body);
+        std::string GetResponse();
         uart_port_t _uart_port;
         QueueHandle_t _uart_queue;
 };
-
-#endif //CONFIG_SERIAL_COMM_CLIENT
 
 #endif

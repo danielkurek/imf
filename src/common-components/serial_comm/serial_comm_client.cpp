@@ -1,10 +1,10 @@
-#ifdef CONFIG_SERIAL_COMM_CLIENT
+// #ifdef CONFIG_SERIAL_COMM_CLIENT
 
 #include "serial_comm_client.hpp"
 #include "esp_log.h"
 #include <string>
 
-static const char *TAG = "SCOM";
+static const char *TAG = "SerialCli";
 
 SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_num){
     // TODO: handle errors
@@ -53,23 +53,34 @@ std::string SerialCommCli::SendCmd(CmdType type, std::string field, std::string 
     // length() + 1 because of \0 at the end
     uart_write_bytes(_uart_port, cmdString.c_str(), cmdString.length()+1);
 
-    return "test ret";
+    return GetResponse();
 }
 
-std::string GetField(std::string field){
+std::string SerialCommCli::GetResponse(){
+    uint8_t buf[rx_buffer_len];
+    int len = uart_read_bytes(_uart_port, buf, rx_buffer_len, 2000 / portTICK_PERIOD_MS);
+    if(len > 0){
+        buf[len] = '\0';
+        std::string response{(char*)buf};
+        return response;
+    }
+    return "";
+}
+
+std::string SerialCommCli::GetField(std::string field){
     return SendCmd(CmdType::GET, field, "");
 }
 
-std::string PutField(std::string field, std::string value){
-    SendCmd(CmdType::PUT, field, value);
+std::string SerialCommCli::PutField(std::string field, std::string value){
+    return SendCmd(CmdType::PUT, field, value);
 }
-CommStatus GetStatus(){
+CommStatus SerialCommCli::GetStatus(){
     std::string result = SendCmd(CmdType::STATUS, "", "");
     return ParseStatus(result);
 }
 
-std::string SendStatus(CommStatus status){
+std::string SerialCommCli::SendStatus(CommStatus status){
     return SendCmd(CmdType::STATUS, GetStatusName(status), "");
 }
 
-#endif //CONFIG_SERIAL_COMM_CLIENT
+// #endif //CONFIG_SERIAL_COMM_CLIENT
