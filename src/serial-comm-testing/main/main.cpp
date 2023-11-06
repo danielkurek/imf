@@ -19,49 +19,49 @@
 static const char *TAG = "APP";
 
 void server(void* param){
-    SerialCommSrv serial_srv {UART_NUM_0, GPIO_NUM_1, GPIO_NUM_2};
+    SerialCommSrv serial_srv {UART_NUM_1, GPIO_NUM_16, GPIO_NUM_17};
     serial_srv.StartTask();
 
     vTaskDelete(NULL);
 }
 
 void client(void* param){
-    SerialCommCli cli {UART_NUM_1, GPIO_NUM_2, GPIO_NUM_1};
+    SerialCommCli cli {UART_NUM_1, GPIO_NUM_17, GPIO_NUM_16};
     std::string response;
     response = GetStatusName(cli.GetStatus());
     ESP_LOGI(TAG, "Get status: %s", response.c_str());
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     response = cli.GetField("test");
     ESP_LOGI(TAG, "Get \"test\": %s", response.c_str());
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     response = cli.PutField("test", "112233");
     ESP_LOGI(TAG, "Put \"test\"=\"112233\": %s", response.c_str());
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     response = cli.GetField("test");
     ESP_LOGI(TAG, "Get \"test\": %s", response.c_str());
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     response = cli.GetField("rgb");
     ESP_LOGI(TAG, "Get \"rgb\": %s", response.c_str());
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     response = cli.PutField("rgb", "af31bd");
     ESP_LOGI(TAG, "Put \"rgb\"=\"af31bd\": %s", response.c_str());
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     response = cli.GetField("rgb");
     ESP_LOGI(TAG, "Get \"rgb\": %s", response.c_str());
 
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     response = GetStatusName(cli.GetStatus());
     ESP_LOGI(TAG, "Get status: %s", response.c_str());
@@ -99,7 +99,7 @@ extern "C" void app_main(void)
 
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-    // xTaskCreate(startup, "serial-comm-test", 1024*24, NULL, configMAX_PRIORITIES, NULL);
-    xTaskCreate(server, "serial-comm-server", 1024*24, NULL, configMAX_PRIORITIES, NULL);
-    xTaskCreate(client, "serial-comm-client", 1024*24, NULL, configMAX_PRIORITIES, NULL);
+    xTaskCreate(startup, "serial-comm-test", 1024*24, NULL, configMAX_PRIORITIES, NULL);
+    // xTaskCreate(server, "serial-comm-server", 1024*24, NULL, configMAX_PRIORITIES, NULL);
+    // xTaskCreate(client, "serial-comm-client", 1024*24, NULL, configMAX_PRIORITIES, NULL);
 }

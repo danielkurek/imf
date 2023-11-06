@@ -104,7 +104,7 @@ void SerialCommSrv::Task(){
     uint8_t* data_buffer = (uint8_t *) malloc(RX_BUF_SIZE+1);
 
     while(1){
-        const int rxBytes = uart_read_bytes(_uart_port, data_buffer, RX_BUF_SIZE, 1000 / portTICK_PERIOD_MS);
+        const int rxBytes = uart_read_bytes(_uart_port, data_buffer, RX_BUF_SIZE, 200 / portTICK_PERIOD_MS);
         if(rxBytes > 0){
             data_buffer[rxBytes] = 0;
             ESP_LOGI(TAG, "Received: %s", data_buffer);
