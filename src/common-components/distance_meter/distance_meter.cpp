@@ -1,6 +1,9 @@
 #include "distance_meter.hpp"
 #include "esp_log.h"
+#include "esp_event.h"
 #include "esp_wifi.h"
+
+ESP_EVENT_DEFINE_BASE(DM_EVENT);
 
 static const char *TAG = "DM";
 
@@ -206,6 +209,7 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
     return result;
 }
 void DistanceMeter::task(){
+    static std::shared_ptr<DistancePoint> s_nearest_point = nullptr;
     while(true){
         auto points = reachablePoints();
         ESP_LOGI(TAG, "%d reachable points", points.size());
@@ -219,10 +223,35 @@ void DistanceMeter::task(){
             } else{
                 _measurements.emplace(point_mac, std::make_unique<distance_measurement_t>(distance, xTaskGetTickCount()));
             }
+            dm_measurement_data_t event_data;
+            memcpy(event_data.peer_mac, point->getMac(), 6);
+            event_data.distance = distance;
+            esp_event_post(DM_EVENT, DM_MEASUREMENT_DONE, event_data, sizeof(event_data), pdMS_TO_TICKS(10));
 
             ESP_LOGI(TAG, "Distance for point %s is %" PRIu32, point->getMacStr().c_str(), distance);
         }
-        vTaskDelay(500 / portTICK_PERIOD_MS);
+        
+        auto nearest_point = nearestPoint();
+        if(nearest_point != s_nearest_point){
+            std::string mac;
+            if(s_nearest_point){
+                mac = s_nearest_point;
+                esp_event_post(DM_EVENT, DM_NEAREST_DEVICE_LEAVE, mac.c_str(), mac.size()+1, pdMS_TO_TICKS(10));
+            } else{
+                esp_event_post(DM_EVENT, DM_NEAREST_DEVICE_LEAVE, NULL, 0, pdMS_TO_TICKS(10));
+            }
+            
+            s_nearest_point = nearest_point;
+
+            if(nearest_point){
+                mac = nearest_point->getMacStr();
+                esp_event_post(DM_EVENT, DM_NEAREST_DEVICE_ENTER, mac.c_str(), mac.size()+1, pdMS_TO_TICKS(10));
+            } else{
+                esp_event_post(DM_EVENT, DM_NEAREST_DEVICE_ENTER, NULL, 0, pdMS_TO_TICKS(10));
+            }
+        }
+
+        vTaskDelay(500 / portTICK_PERIOD_MS); // allow other tasks to run
     }
 
 }

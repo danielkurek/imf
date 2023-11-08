@@ -14,6 +14,18 @@
 
 #include <unordered_map>
 
+ESP_EVENT_DECLARE_BASE(DM_EVENT);
+typedef enum {
+    DM_MEASUREMENT_DONE,
+    DM_NEAREST_DEVICE_ENTER,
+    DM_NEAREST_DEVICE_LEAVE,
+} dm_event_t;
+
+typedef struct{
+    uint8_t peer_mac[6];
+    uint32_t distance;
+} dm_measurement_data_t
+
 typedef struct{
     uint8_t peer_mac[6];
     wifi_ftm_status_t status;
