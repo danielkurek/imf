@@ -1,0 +1,20 @@
+menu "Interactive Mesh Framework"
+
+    choice IMF_ROLE
+        prompt "Mesh Role"
+        default IMF_MOBILE_DEVICE
+        help
+            Mesh Role:
+
+            "Mobile" device can move
+
+            "Station" device does not move. It is stationary.
+
+        config IMF_MOBILE_DEVICE
+            bool "Mobile"
+        config IMF_STATION_DEVICE
+            bool "Station"
+    endchoice
+
+    
+endmenu
