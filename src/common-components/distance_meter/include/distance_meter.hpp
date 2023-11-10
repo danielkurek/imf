@@ -24,7 +24,7 @@ typedef enum {
 typedef struct{
     uint8_t peer_mac[6];
     uint32_t distance;
-} dm_measurement_data_t
+} dm_measurement_data_t;
 
 typedef struct{
     uint8_t peer_mac[6];
@@ -89,7 +89,7 @@ class DistanceMeter{
         }
         void task();
         std::unordered_map<std::string, std::shared_ptr<DistancePoint>> _points;
-        std::unordered_map<std::string, std::unique_ptr<distance_measurement_t>> _measurements;
+        std::unordered_map<std::string, std::shared_ptr<distance_measurement_t>> _measurements;
         uint32_t time_threshold = 10000 * (1000 / configTICK_RATE_HZ);
         TaskHandle_t _xHandle = NULL;
 

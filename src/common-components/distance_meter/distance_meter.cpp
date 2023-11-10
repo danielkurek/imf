@@ -2,6 +2,7 @@
 #include "esp_log.h"
 #include "esp_event.h"
 #include "esp_wifi.h"
+#include <stdint.h>
 
 ESP_EVENT_DEFINE_BASE(DM_EVENT);
 
@@ -39,8 +40,8 @@ void DistancePoint::event_handler(void* arg, esp_event_base_t event_base,
             xEventGroupSetBits(_s_ftm_event_group, FTM_REPORT_BIT);
             ESP_LOGI(TAG, "FTM measurement success");
         } else {
-            ESP_LOGI(TAG, "FTM procedure with Peer(" MACSTR ") failed! (Status - %d)",
-                     MAC2STR(event->peer_mac), event->status);
+            // ESP_LOGI(TAG, "FTM procedure with Peer(" MACSTR ") failed! (Status - %d)",
+            //          MAC2STR(event->peer_mac), event->status);
             xEventGroupSetBits(_s_ftm_event_group, FTM_FAILURE_BIT);
         }
     }
@@ -56,6 +57,8 @@ uint32_t DistancePoint::measureDistance(){
     ftm_result_t ftm_report = measureRawDistance(&ftmi_cfg);
     // TODO: filter data
 
+    if(ftm_report.status != FTM_STATUS_SUCCESS)
+        return UINT32_MAX;
     return ftm_report.dist_est;
 }
 
@@ -77,7 +80,6 @@ ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cf
         ftm_result.rtt_raw = _s_ftm_report.rtt_raw;
         ftm_result.rtt_est = _s_ftm_report.rtt_est;
         ftm_result.dist_est = _s_ftm_report.dist_est;
-        //TODO: verify that this moving does not leak data
         for(uint8_t i = 0; i < _s_ftm_report.ftm_report_num_entries; i++){
             ftm_result.ftm_report_data.push_back(_s_ftm_report.ftm_report_data[i]);
         }
@@ -87,6 +89,10 @@ ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cf
         return ftm_result;
     } else{
         // FTM failed
+        ftm_result_t ftm_result {};
+        ftm_result.status = FTM_STATUS_FAIL;
+        ftm_result.dist_est = UINT32_MAX;
+        return ftm_result;
     }
     return {};
 }
@@ -137,20 +143,26 @@ void DistanceMeter::startTask(){
     // STACK_SIZE=1024*2???
     xTaskCreate(taskWrapper, "DistanceMeter", 1024*8, this, configMAX_PRIORITIES, &_xHandle);
 }
+
+static uint32_t nearestDeviceDistanceFunction(std::shared_ptr<distance_measurement_t> measurement, TickType_t now){
+    TickType_t time_diff = (pdTICKS_TO_MS(now) - pdTICKS_TO_MS(measurement->timestamp));
+    // in 10s travel by 3m = 300 cm in 10000 ms
+    return measurement->distance + (time_diff * (300 / 10000));
+}
+
 std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
     TickType_t now = xTaskGetTickCount();
 
     std::string best_mac;
     // TickType_t best_time;
-    uint32_t best_dist;
+    uint32_t best_dist = UINT32_MAX;
     bool first = true;
-    for(auto&& item : _measurements){
-        if(item.second->timestamp - now < time_threshold){
-            if(first || item.second->distance < best_dist){
-                first = false;
-                best_dist = item.second->distance;
-                best_mac = item.first;
-            }
+    for(const auto& [mac, measurement] : _measurements){
+        uint32_t transformed_distance = nearestDeviceDistanceFunction(measurement, now);
+        if(first || transformed_distance < best_dist){
+            first = false;
+            best_dist = transformed_distance;
+            best_mac = mac;
         }
     }
     if(first){
@@ -211,9 +223,9 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
 void DistanceMeter::task(){
     static std::shared_ptr<DistancePoint> s_nearest_point = nullptr;
     while(true){
-        auto points = reachablePoints();
-        ESP_LOGI(TAG, "%d reachable points", points.size());
-        for(auto&& point : points){
+        // auto points = reachablePoints();
+        // ESP_LOGI(TAG, "%d reachable points", points.size());
+        for(const auto& [key, point] : _points){
             uint32_t distance = point->measureDistance();
             const std::string point_mac = point->getMacStr();
             auto search = _measurements.find(point_mac);
@@ -221,21 +233,22 @@ void DistanceMeter::task(){
                 _measurements[point_mac]->distance = distance;
                 _measurements[point_mac]->timestamp = xTaskGetTickCount();
             } else{
-                _measurements.emplace(point_mac, std::make_unique<distance_measurement_t>(distance, xTaskGetTickCount()));
+                _measurements.emplace(point_mac, std::make_shared<distance_measurement_t>(distance, xTaskGetTickCount()));
             }
             dm_measurement_data_t event_data;
             memcpy(event_data.peer_mac, point->getMac(), 6);
             event_data.distance = distance;
-            esp_event_post(DM_EVENT, DM_MEASUREMENT_DONE, event_data, sizeof(event_data), pdMS_TO_TICKS(10));
+            esp_event_post(DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
 
-            ESP_LOGI(TAG, "Distance for point %s is %" PRIu32, point->getMacStr().c_str(), distance);
+            if(distance != UINT32_MAX)
+                ESP_LOGI(TAG, "Distance for point %s is %" PRIu32, point->getMacStr().c_str(), distance);
         }
         
         auto nearest_point = nearestPoint();
         if(nearest_point != s_nearest_point){
             std::string mac;
             if(s_nearest_point){
-                mac = s_nearest_point;
+                mac = s_nearest_point->getMacStr();
                 esp_event_post(DM_EVENT, DM_NEAREST_DEVICE_LEAVE, mac.c_str(), mac.size()+1, pdMS_TO_TICKS(10));
             } else{
                 esp_event_post(DM_EVENT, DM_NEAREST_DEVICE_LEAVE, NULL, 0, pdMS_TO_TICKS(10));
