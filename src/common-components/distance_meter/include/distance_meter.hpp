@@ -23,7 +23,7 @@ typedef enum {
 
 typedef struct{
     uint8_t peer_mac[6];
-    uint32_t distance;
+    uint32_t distance_cm;
 } dm_measurement_data_t;
 
 typedef struct{
@@ -36,7 +36,7 @@ typedef struct{
 } ftm_result_t;
 
 typedef struct{
-    uint32_t distance;
+    uint32_t distance_cm;
     TickType_t timestamp;
 } distance_measurement_t;
 

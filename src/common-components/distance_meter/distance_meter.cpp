@@ -147,7 +147,7 @@ void DistanceMeter::startTask(){
 static uint32_t nearestDeviceDistanceFunction(std::shared_ptr<distance_measurement_t> measurement, TickType_t now){
     TickType_t time_diff = (pdTICKS_TO_MS(now) - pdTICKS_TO_MS(measurement->timestamp));
     // in 10s travel by 3m = 300 cm in 10000 ms
-    return measurement->distance + (time_diff * (300 / 10000));
+    return measurement->distance_cm + (time_diff * (300 / 10000));
 }
 
 std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
@@ -228,22 +228,22 @@ void DistanceMeter::task(){
         // auto points = reachablePoints();
         // ESP_LOGI(TAG, "%d reachable points", points.size());
         for(const auto& [key, point] : _points){
-            uint32_t distance = point->measureDistance();
+            uint32_t distance_cm = point->measureDistance();
             const std::string point_mac = point->getMacStr();
             auto search = _measurements.find(point_mac);
             if(search != _measurements.end()){
-                _measurements[point_mac]->distance = distance;
+                _measurements[point_mac]->distance_cm = distance_cm;
                 _measurements[point_mac]->timestamp = now;
             } else{
-                _measurements.emplace(point_mac, std::make_shared<distance_measurement_t>(distance, now));
+                _measurements.emplace(point_mac, std::make_shared<distance_measurement_t>(distance_cm, now));
             }
             dm_measurement_data_t event_data;
             memcpy(event_data.peer_mac, point->getMac(), 6);
-            event_data.distance = distance;
+            event_data.distance_cm = distance_cm;
             esp_event_post(DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
 
-            if(distance != UINT32_MAX)
-                ESP_LOGI(TAG, "Distance for point %s is %" PRIu32, point->getMacStr().c_str(), distance);
+            if(distance_cm != UINT32_MAX)
+                ESP_LOGI(TAG, "Distance for point %s is %" PRIu32, point->getMacStr().c_str(), distance_cm);
         }
 
         now = xTaskGetTickCount();
