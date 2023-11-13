@@ -223,6 +223,8 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
 void DistanceMeter::task(){
     static std::shared_ptr<DistancePoint> s_nearest_point = nullptr;
     while(true){
+        TickType_t now = xTaskGetTickCount();
+
         // auto points = reachablePoints();
         // ESP_LOGI(TAG, "%d reachable points", points.size());
         for(const auto& [key, point] : _points){
@@ -231,9 +233,9 @@ void DistanceMeter::task(){
             auto search = _measurements.find(point_mac);
             if(search != _measurements.end()){
                 _measurements[point_mac]->distance = distance;
-                _measurements[point_mac]->timestamp = xTaskGetTickCount();
+                _measurements[point_mac]->timestamp = now;
             } else{
-                _measurements.emplace(point_mac, std::make_shared<distance_measurement_t>(distance, xTaskGetTickCount()));
+                _measurements.emplace(point_mac, std::make_shared<distance_measurement_t>(distance, now));
             }
             dm_measurement_data_t event_data;
             memcpy(event_data.peer_mac, point->getMac(), 6);
@@ -243,8 +245,17 @@ void DistanceMeter::task(){
             if(distance != UINT32_MAX)
                 ESP_LOGI(TAG, "Distance for point %s is %" PRIu32, point->getMacStr().c_str(), distance);
         }
-        
+
+        now = xTaskGetTickCount();
+
         auto nearest_point = nearestPoint();
+        
+        // check if this device is in near proximity
+        auto nearest_distance = nearestDeviceDistanceFunction(_measurements[nearest_point.getMacStr()], now);
+        if(nearest_distance >= _distance_threshold_cm){
+            nearest_point = nullptr;
+        }
+
         if(nearest_point != s_nearest_point){
             std::string mac;
             if(s_nearest_point){
