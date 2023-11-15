@@ -1,6 +1,9 @@
 #include "board.h"
 #include "led_strip.h"
 #include <driver/gpio.h>
+#include "esp_log.h"
+
+static const char* TAG = "BOARD";
 
 rgb_conf_t internal_rgb_conf = {
     .pin = GPIO_NUM_38,
@@ -30,25 +33,51 @@ static button_conf_t buttons[] = {
 
 static size_t buttons_len = sizeof(buttons) / sizeof(buttons[0]);
 
-esp_err_t board_set_rgb(rgb_conf_t *conf, rgb_t new_color){
+esp_err_t update_led(rgb_conf_t *conf){
+    if(!conf->on_off){
+        return led_strip_clear(conf->led_strip);
+    }
+    esp_err_t err = ESP_OK;
+    esp_err_t tmp_err;
+
     for(uint32_t i = 0; i < conf->number_of_leds; i++){
-        led_strip_set_pixel(conf->led_strip, i, new_color.red, new_color.green, new_color.blue);
+        tmp_err = led_strip_set_pixel(conf->led_strip, i, conf->color.red, conf->color.green, conf->color.blue);
+        if(tmp_err != ESP_OK && err == ESP_OK){
+            err = tmp_err;
+        }
     }
-    led_strip_refresh(conf->led_strip);
-    return ESP_OK;
+    tmp_err = led_strip_refresh(conf->led_strip);
+    if(tmp_err != ESP_OK && err == ESP_OK){
+        err = tmp_err;
+    }
+    return err;
 }
 
-esp_err_t board_buttons_release_register_callback(board_button_callback_t callback){
-    for(size_t i = 0; i < buttons_len; i++){
-        buttons[i].callback = callback;
-    }
-    return ESP_OK;
+esp_err_t board_set_rgb(rgb_conf_t *conf, rgb_t new_color){
+    conf->color = new_color;
+    return update_led(conf);
 }
 
-static esp_err_t board_led_init(){
+esp_err_t board_start_blinking(rgb_conf_t *conf, uint64_t period_us){
+    return esp_timer_start_periodic(conf->timer, period_us);
+}
+
+esp_err_t board_stop_blinking(rgb_conf_t *conf){
+    return esp_timer_stop(conf->timer);
+}
+
+static void blink_cb(void *arg){
+    rgb_conf_t *conf = (rgb_conf_t*) arg;
+    conf->on_off = !conf->on_off;
+    update_led(conf);
+}
+
+static esp_err_t board_led_init(rgb_conf_t *conf){
+    esp_err_t err;
+
     led_strip_config_t strip_config = {
-        .strip_gpio_num = internal_rgb_conf.pin, // The GPIO that connected to the LED strip's data line
-        .max_leds = 1, // The number of LEDs in the strip,
+        .strip_gpio_num = conf->pin, // The GPIO that connected to the LED strip's data line
+        .max_leds = conf->number_of_leds, // The number of LEDs in the strip,
         .led_pixel_format = LED_PIXEL_FORMAT_GRB, // Pixel format of your LED strip
         .led_model = LED_MODEL_SK6812, // LED strip model
         .flags.invert_out = false, // whether to invert the output signal (useful when your hardware has a level inverter)
@@ -58,7 +87,33 @@ static esp_err_t board_led_init(){
         .resolution_hz = 10 * 1000 * 1000, // 10MHz
         .flags.with_dma = false, // whether to enable the DMA feature
     };
-    return led_strip_new_rmt_device(&strip_config, &rmt_config, &(internal_rgb_conf.led_strip));
+    
+    err = led_strip_new_rmt_device(&strip_config, &rmt_config, &(conf->led_strip));
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed initializing led driver! %s", esp_err_to_name(err));
+        return err;
+    }
+
+    esp_timer_create_args_t args = {
+        .callback = blink_cb,
+        .name = "BlinkTimer",
+        .arg = conf,
+    };
+    
+    err = esp_timer_create(&args, &(conf->timer));
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed initializing led timer! %s", esp_err_to_name(err));
+        return err;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t board_buttons_release_register_callback(board_button_callback_t callback){
+    for(size_t i = 0; i < buttons_len; i++){
+        buttons[i].callback = callback;
+    }
+    return ESP_OK;
 }
 
 static void button_cb(void* button_handle, void* user_data){
@@ -100,7 +155,7 @@ static esp_err_t board_buttons_init(){
 
 esp_err_t board_init(){
     esp_err_t err;
-    err = board_led_init();
+    err = board_led_init(&internal_rgb_conf);
 
     err = board_buttons_init();
     return err;

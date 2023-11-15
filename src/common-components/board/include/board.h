@@ -3,6 +3,7 @@
 
 #include "color.h"
 #include "driver/gpio.h"
+#include "esp_timer.h"
 #include "led_strip.h"
 #include "iot_button.h"
 
@@ -13,6 +14,8 @@ typedef struct{
     rgb_t color;
     uint32_t number_of_leds;
     led_strip_handle_t led_strip;
+    esp_timer_handle_t timer;
+    bool on_off;
 } rgb_conf_t;
 
 typedef struct{
@@ -23,9 +26,13 @@ typedef struct{
 } button_conf_t;
 
 
-rgb_conf_t internal_rgb_conf;
+extern rgb_conf_t internal_rgb_conf;
 
 esp_err_t board_set_rgb(rgb_conf_t *conf, rgb_t new_color);
+
+esp_err_t board_start_blinking(rgb_conf_t *conf, uint64_t period_us);
+
+esp_err_t board_stop_blinking(rgb_conf_t *conf);
 
 esp_err_t board_button_task();
 
