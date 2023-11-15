@@ -3,6 +3,9 @@
 
 #include <inttypes.h>
 
+#ifdef __cplusplus
+extern "C"{
+#endif
 typedef struct{
     uint16_t red;
     uint16_t green;
@@ -14,5 +17,9 @@ typedef struct {
     uint16_t hue;
     uint16_t saturation;
 } hsl_t;
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

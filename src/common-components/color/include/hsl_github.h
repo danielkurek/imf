@@ -1,6 +1,10 @@
 #ifndef HSL_GITHUB_H
 #define HSL_GITHUB_H
 
+#ifdef __cplusplus
+extern "C"{
+#endif
+
 /*
  * from https://gist.github.com/ciembor/1494530
  * with applied fix
@@ -39,5 +43,9 @@ float hue2rgb(float p, float q, float t);
  * returns RGB in the set [0, 255].
  */
 RGB hsl2rgb(float h, float s, float l);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

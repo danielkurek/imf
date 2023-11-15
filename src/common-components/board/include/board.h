@@ -7,6 +7,10 @@
 #include "led_strip.h"
 #include "iot_button.h"
 
+#ifdef __cplusplus
+extern "C"{
+#endif
+
 typedef void (*board_button_callback_t)(uint8_t button_num);
 
 typedef struct{
@@ -44,5 +48,9 @@ esp_err_t board_button_task();
 esp_err_t board_buttons_release_register_callback(board_button_callback_t callback);
 
 esp_err_t board_init();
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
