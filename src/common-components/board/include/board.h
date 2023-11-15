@@ -12,7 +12,7 @@ typedef void (*board_button_callback_t)(uint8_t button_num);
 typedef struct{
     gpio_num_t pin;
     rgb_t color;
-    uint32_t number_of_leds;
+    uint16_t number_of_leds;
     led_strip_handle_t led_strip;
     esp_timer_handle_t timer;
     bool on_off;
