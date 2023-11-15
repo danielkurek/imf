@@ -29,7 +29,7 @@ esp_err_t board_set_rgb(rgb_conf_t *conf, rgb_t new_color);
 
 esp_err_t board_button_task();
 
-esp_err_t board_register_buttons_release_callback(board_button_callback_t callback);
+esp_err_t board_buttons_release_register_callback(board_button_callback_t callback);
 
 esp_err_t board_init();
 

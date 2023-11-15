@@ -38,7 +38,7 @@ esp_err_t board_set_rgb(rgb_conf_t *conf, rgb_t new_color){
     return ESP_OK;
 }
 
-esp_err_t board_register_buttons_release_callback(board_button_callback_t callback){
+esp_err_t board_buttons_release_register_callback(board_button_callback_t callback){
     for(size_t i = 0; i < buttons_len; i++){
         buttons[i].callback = callback;
     }
