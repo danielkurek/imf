@@ -87,7 +87,6 @@ static struct example_info_store {
 } __attribute__((packed)) store = {
     .net_idx = ESP_BLE_MESH_KEY_UNUSED,
     .app_idx = ESP_BLE_MESH_KEY_UNUSED,
-    .onoff = LED_OFF,
     .tid = 0x0,
 };
 
@@ -227,7 +226,7 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
 {
     LOGGER_I(TAG, "net_idx: 0x%04x, addr: 0x%04x", net_idx, addr);
     LOGGER_I(TAG, "flags: 0x%02x, iv_index: 0x%08" PRIx32, flags, iv_index);
-    board_led_operation(LED_GREEN, LED_OFF);
+    board_set_rgb(&internal_rgb_conf, GREEN);
     store.net_idx = net_idx;
     /* mesh_example_info_store() shall not be invoked here, because if the device
      * is restarted and goes into a provisioned state, then the following events
@@ -250,23 +249,23 @@ static void example_change_led_state(esp_ble_mesh_model_t *model,
 
     if (ESP_BLE_MESH_ADDR_IS_UNICAST(ctx->recv_dst)) {
         if(onoff == 0){
-            board_led_off();
+            board_set_rgb(&internal_rgb_conf, WHITE);
         } else{
-            board_led_on();
+            board_set_rgb(&internal_rgb_conf, NONE);
         }
     } else if (ESP_BLE_MESH_ADDR_IS_GROUP(ctx->recv_dst)) {
         if (esp_ble_mesh_is_model_subscribed_to_group(model, ctx->recv_dst)) {
             if(onoff == 0){
-                board_led_off();
+                board_set_rgb(&internal_rgb_conf, NONE);
             } else{
-                board_led_on();
+                board_set_rgb(&internal_rgb_conf, WHITE);
             }
         }
     } else if (ctx->recv_dst == 0xFFFF) {
         if(onoff == 0){
-            board_led_off();
+            board_set_rgb(&internal_rgb_conf, NONE);
         } else{
-            board_led_on();
+            board_set_rgb(&internal_rgb_conf, WHITE);
         }
     }
 }
@@ -359,7 +358,7 @@ static void example_ble_mesh_provisioning_cb(esp_ble_mesh_prov_cb_event_t event,
     case ESP_BLE_MESH_PROV_REGISTER_COMP_EVT:
         LOGGER_I(TAG, "ESP_BLE_MESH_PROV_REGISTER_COMP_EVT, err_code %d", param->prov_register_comp.err_code);
         mesh_example_info_restore(); /* Restore proper mesh example info */
-        board_led_operation(LED_GREEN, LED_OFF);
+        board_set_rgb(&internal_rgb_conf, GREEN);
         break;
     case ESP_BLE_MESH_NODE_PROV_ENABLE_COMP_EVT:
         LOGGER_I(TAG, "ESP_BLE_MESH_NODE_PROV_ENABLE_COMP_EVT, err_code %d", param->node_prov_enable_comp.err_code);
@@ -432,10 +431,10 @@ static void example_ble_mesh_health_server_cb(esp_ble_mesh_health_server_cb_even
                                                  esp_ble_mesh_health_server_cb_param_t *param)
 {
     if(event == ESP_BLE_MESH_HEALTH_SERVER_ATTENTION_ON_EVT){
-        board_start_blinking();
+        board_start_blinking(&internal_rgb_conf, 200 * 1000);
     }
     if(event == ESP_BLE_MESH_HEALTH_SERVER_ATTENTION_OFF_EVT){
-        board_stop_blinking();
+        board_stop_blinking(&internal_rgb_conf);
     }
 }
 
@@ -444,7 +443,7 @@ static void example_ble_mesh_health_server_cb(esp_ble_mesh_health_server_cb_even
 // state has changed
 static void update_light(rgb_t rgb){
     LOGGER_I(TAG, "set light to R:%d G:%d B:%d", rgb.red, rgb.green, rgb.blue);
-    board_led_set_rgb(rgb);
+    board_set_rgb(&internal_rgb_conf, rgb);
 }
 
 // function for setting RGB value on other devices
@@ -519,7 +518,7 @@ static esp_err_t ble_mesh_init(void)
 
     // indicate that it the device is on
     // if it stays lit it means that the device needs to be provisioned
-    board_led_operation(LED_GREEN, LED_ON);
+    board_set_rgb(&internal_rgb_conf, BLUE);
     
     err = esp_ble_mesh_init(&provision, &composition);
     if (err != ESP_OK) {
