@@ -5,6 +5,12 @@
 
 static const char* TAG = "BOARD";
 
+rgb_t NONE  = {  0,  0,  0};
+rgb_t RED   = {255,  0,  0};
+rgb_t GREEN = {  0,255,  0};
+rgb_t BLUE  = {  0,  0,255};
+rgb_t WHITE = {255,255,255};
+
 rgb_conf_t internal_rgb_conf = {
     .pin = GPIO_NUM_38,
     .color = {0,0,0},

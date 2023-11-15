@@ -25,6 +25,11 @@ typedef struct{
     button_handle_t handle;
 } button_conf_t;
 
+extern rgb_t NONE;
+extern rgb_t RED;
+extern rgb_t GREEN;
+extern rgb_t BLUE;
+extern rgb_t WHITE;
 
 extern rgb_conf_t internal_rgb_conf;
 
