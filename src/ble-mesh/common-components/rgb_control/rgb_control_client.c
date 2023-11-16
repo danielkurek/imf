@@ -1,5 +1,50 @@
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 #include "rgb_control_client.h"
 #include "hsl.h"
+
+
+#define RGB_GET_BIT BIT0
+#define RGB_FAIL_BIT BIT1
+
+static const char *TAG = "RGBCLI";
+
+static EventGroupHandle_t s_rgb_event_group;
+
+typedef struct{
+    esp_ble_mesh_msg_ctx_t ctx;
+    esp_ble_mesh_light_hsl_status_cb_t hsl_status;
+} rgb_event_cb_param_t;
+
+static rgb_event_cb_param_t rgb_event_cb_param;
+
+static void ble_mesh_light_client_cb(esp_ble_mesh_light_client_cb_event_t event,
+                                     esp_ble_mesh_light_client_cb_param_t *param){
+    switch(event){
+        case ESP_BLE_MESH_LIGHT_CLIENT_GET_STATE_EVT:
+            ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_GET_STATE_EVT");
+            rgb_event_cb_param.ctx = param->params->ctx;
+            rgb_event_cb_param.hsl_status = param->status_cb.hsl_status;
+            xEventGroupSetBits(s_rgb_event_group, RGB_GET_BIT);
+            return;
+        case ESP_BLE_MESH_LIGHT_CLIENT_SET_STATE_EVT:
+            ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_SET_STATE_EVT");
+            break;
+        case ESP_BLE_MESH_LIGHT_CLIENT_PUBLISH_EVT:
+            ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_PUBLISH_EVT");
+            break;
+        case ESP_BLE_MESH_LIGHT_CLIENT_TIMEOUT_EVT:
+            ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_TIMEOUT_EVT");
+            rgb_event_cb_param.ctx = param->params->ctx;
+            rgb_event_cb_param.hsl_status = param->status_cb.hsl_status;
+            xEventGroupSetBits(s_rgb_event_group, RGB_FAIL_BIT);
+            return;
+        default:
+            ESP_LOGI(TAG, "Unknown esp_ble_mesh_light_client_cb_event_t event");
+    }
+    ESP_LOGI(TAG, "Bits not set by event");
+    xEventGroupSetBits(s_rgb_event_group, RGB_FAIL_BIT);
+}
 
 esp_err_t ble_mesh_rgb_client_set_state(esp_ble_mesh_client_common_param_t *common, esp_ble_mesh_rgb_set_t *set_state){
     esp_ble_mesh_light_client_set_state_t set = {0};
@@ -15,4 +60,48 @@ esp_err_t ble_mesh_rgb_client_set_state(esp_ble_mesh_client_common_param_t *comm
     set.hsl_set.delay = set_state->delay;
 
     return esp_ble_mesh_light_client_set_state(common, &set);
+}
+
+rgb_response_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t *common){
+    EventBits_t bits;
+    esp_err_t err;
+    rgb_response_t response;
+    
+    esp_ble_mesh_light_client_get_state_t get = {0};
+
+    err = esp_ble_mesh_light_client_get_state(common, &get);
+    if(err != ESP_OK){
+        response.valid = false;
+        return response;
+    }
+
+    while(true){
+        bits = xEventGroupWaitBits(s_rgb_event_group, RGB_GET_BIT | RGB_FAIL_BIT,
+                                        pdTRUE, pdFALSE, portMAX_DELAY);
+        // check rgb_event_cb_param.ctx.addr or rgb_event_cb_param.ctx.recv_dst
+        // compare it to common->ctx.addr
+        ESP_LOGI(TAG, "rgb_event_cb_param.ctx.addr=%d | rgb_event_cb_param.ctx.recv_dst=%d | common->ctx.addr=%d", rgb_event_cb_param.ctx.addr, rgb_event_cb_param.ctx.recv_dst, common->ctx.addr);
+        hsl_t hsl = {
+            .hue = rgb_event_cb_param.hsl_status.hsl_hue,
+            .saturation = rgb_event_cb_param.hsl_status.hsl_saturation,
+            .lightness = rgb_event_cb_param.hsl_status.hsl_lightness,
+        };
+        
+        response.rgb = hsl_to_rgb(hsl);
+        ESP_LOGI(TAG, "hsl.hue=%d, hsl.saturation=%d, hsl.lightness=%d, rgb.red=%d, rgb.green=%d, rgb.blue=%d", hsl.hue, hsl.saturation, hsl.lightness, response.rgb.red, response.rgb.green, response.rgb.blue);
+        if(bits & RGB_GET_BIT){
+            ESP_LOGI(TAG, "Success GET");
+            response.valid = true;
+            return response;
+        } else {
+            response.valid = false;
+            return response;
+        }
+    }
+}
+
+esp_err_t ble_mesh_rgb_client_init(){
+    s_rgb_event_group = xEventGroupCreate();
+
+    return esp_ble_mesh_register_light_client_callback(ble_mesh_light_client_cb);
 }
