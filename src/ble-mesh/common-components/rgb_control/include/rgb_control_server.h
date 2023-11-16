@@ -6,8 +6,6 @@
 #include "esp_ble_mesh_lighting_model_api.h"
 #include "color.h"
 
-#ifdef CONFIG_BLE_MESH_RGB_CONTROL_SERVER
-
 static esp_ble_mesh_light_hsl_state_t hsl_state = {
     .lightness_default = UINT16_MAX/2,
     .hue_default = UINT16_MAX/2,
@@ -63,7 +61,5 @@ static esp_ble_mesh_light_hsl_sat_srv_t light_hsl_sat_srv = {
 typedef void (* ble_mesh_rgb_control_server_change_cb_t)(rgb_t new_rgb);
 
 esp_err_t ble_mesh_rgb_control_server_register_change_callback(ble_mesh_rgb_control_server_change_cb_t callback);
-
-#endif // CONFIG_BLE_MESH_RGB_CONTROL_SERVER
 
 #endif // BLE_MESH_RGB_CONTROL_SERVER_H_

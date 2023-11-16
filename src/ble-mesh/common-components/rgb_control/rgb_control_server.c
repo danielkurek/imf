@@ -1,8 +1,6 @@
 #include "rgb_control_server.h"
 #include "hsl.h"
 
-#ifdef CONFIG_BLE_MESH_RGB_CONTROL_SERVER
-
 static const char* TAG = "RGB_server";
 
 static ble_mesh_rgb_control_server_change_cb_t rgb_control_change_callback = NULL;
@@ -57,6 +55,3 @@ esp_err_t ble_mesh_rgb_control_server_register_change_callback(ble_mesh_rgb_cont
     rgb_control_change_callback = callback;
     return err;
 }
-
-
-#endif // CONFIG_BLE_MESH_RGB_CONTROL_SERVER
