@@ -1,3 +1,3 @@
 idf_component_register(SRCS "board.c"
                     INCLUDE_DIRS "include"
-                    PRIV_REQUIRES led_strip color driver)
+                    REQUIRES button led_strip color driver esp_timer)
