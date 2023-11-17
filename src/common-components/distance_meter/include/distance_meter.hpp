@@ -90,8 +90,8 @@ class DistanceMeter{
         void task();
         std::unordered_map<std::string, std::shared_ptr<DistancePoint>> _points;
         std::unordered_map<std::string, std::shared_ptr<distance_measurement_t>> _measurements;
-        constexpr uint32_t time_threshold = 10000 * (1000 / configTICK_RATE_HZ);
-        constexpr uint32_t _distance_threshold_cm = 10 * 100;
+        const uint32_t time_threshold = 10000 * (1000 / configTICK_RATE_HZ);
+        const uint32_t _distance_threshold_cm = 10 * 100;
         TaskHandle_t _xHandle = NULL;
 
 };

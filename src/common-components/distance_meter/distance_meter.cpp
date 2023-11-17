@@ -251,7 +251,7 @@ void DistanceMeter::task(){
         auto nearest_point = nearestPoint();
         
         // check if this device is in near proximity
-        auto nearest_distance = nearestDeviceDistanceFunction(_measurements[nearest_point.getMacStr()], now);
+        auto nearest_distance = nearestDeviceDistanceFunction(_measurements[nearest_point->getMacStr()], now);
         if(nearest_distance >= _distance_threshold_cm){
             nearest_point = nullptr;
         }
