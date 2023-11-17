@@ -17,12 +17,15 @@ namespace imf{
 
     class Device{
         public:
+            Device(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, uint16_t _ble_mesh_addr);
             esp_err_t setRgb(rgb_t rgb);
             rgb_t getRgb();
             uint32_t measureDistance();
-            uint8_t wifi_mac[6];
-            uint16_t ble_mesh_addr;
-            DeviceType type;
+            const DeviceType type;
+            const uint16_t ble_mesh_addr;
+        private:
+            DistancePoint _point;
+            std::shared_ptr<SerialCommCli> _serial;
     };
 
     class IMF{
