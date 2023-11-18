@@ -28,6 +28,8 @@
 
 #include "logger.h"
 
+#include "serial_comm_server.hpp"
+
 // tag for logging
 static const char* TAG = "MESH-FMW";
 
@@ -37,9 +39,9 @@ static const char* TAG = "MESH-FMW";
 // custom web_config options
 static config_option_t options[] = {
     {
-        .key = "rgb/client/addr",
-        .type = NVS_TYPE_U16,
-        .value_to_log = true,
+        "rgb/client/addr", // key
+        NVS_TYPE_U16, // type
+        true, //value_to_log
     }
 };
 
@@ -48,14 +50,15 @@ static const size_t options_len = sizeof(options) / sizeof(options[0]);
 // NVS handle for reading the web_config options
 static nvs_handle_t config_nvs;
 
+static SerialCommSrv serialSrv;
 
 // start configuration mode if conditions are met
 bool web_config(){
-    gpio_config_t config = {
-        .pin_bit_mask = 1ull << CONFIG_BUTTON,
-        .mode = GPIO_MODE_INPUT,
-        .pull_up_en = 1,
-    };
+    gpio_config_t config;
+
+    config.pin_bit_mask = 1ull << CONFIG_BUTTON;
+    config.mode = GPIO_MODE_INPUT;
+    config.pull_up_en = 1;
 
     gpio_config(&config);
 
@@ -76,17 +79,22 @@ void log_init(){
     logger_output_to_default();
     logger_init_storage();
 
-    logger_output_to_uart(UART_NUM_1, 2, 3, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE);
     logger_output_to_file("/logs/log.txt", 2000);
 }
 
 esp_err_t serial_comm_init(){
+    serialSrv = {UART_NUM_1, GPIO_NUM_16, GPIO_NUM_17};
+    serialSrv.StartTask();
+
     return ESP_OK;
 } 
 
 void button_release_callback(uint8_t button_num){
     if(button_num == 0){
-
+        ble_mesh_set_rgb(0xffff, (rgb_t){120, 255, 0}, false);
+    }
+    if(button_num == 1){
+        ble_mesh_get_rgb(0xffff);
     }
 }
 
