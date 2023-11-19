@@ -50,7 +50,7 @@ static const size_t options_len = sizeof(options) / sizeof(options[0]);
 // NVS handle for reading the web_config options
 static nvs_handle_t config_nvs;
 
-static SerialCommSrv serialSrv;
+static SerialCommSrv serialSrv{UART_NUM_1, GPIO_NUM_16, GPIO_NUM_17};
 
 // start configuration mode if conditions are met
 bool web_config(){
@@ -58,7 +58,7 @@ bool web_config(){
 
     config.pin_bit_mask = 1ull << CONFIG_BUTTON;
     config.mode = GPIO_MODE_INPUT;
-    config.pull_up_en = 1;
+    config.pull_up_en = GPIO_PULLUP_ENABLE;
 
     gpio_config(&config);
 
@@ -83,7 +83,6 @@ void log_init(){
 }
 
 esp_err_t serial_comm_init(){
-    serialSrv = {UART_NUM_1, GPIO_NUM_16, GPIO_NUM_17};
     serialSrv.StartTask();
 
     return ESP_OK;
@@ -100,7 +99,7 @@ void button_release_callback(uint8_t button_num){
 
 // entry point of program
 // first initialize everything then start BLE-mesh
-void app_main(void)
+extern "C" void app_main(void)
 {
     esp_err_t err;
 
