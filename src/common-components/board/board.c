@@ -78,7 +78,7 @@ static void blink_cb(void *arg){
     update_led(conf);
 }
 
-static esp_err_t board_led_init(rgb_conf_t *conf){
+esp_err_t board_led_init(rgb_conf_t *conf){
     esp_err_t err;
 
     led_strip_config_t strip_config = {
