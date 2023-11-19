@@ -33,32 +33,47 @@ void client(void* param){
 
     // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
-    response = cli.GetField("test");
+    response = cli.GetField(0x0000, "test");
     ESP_LOGI(TAG, "Get \"test\": %s", response.c_str());
 
     // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
-    response = cli.PutField("test", "112233");
+    response = cli.PutField(0x0000, "test", "112233");
     ESP_LOGI(TAG, "Put \"test\"=\"112233\": %s", response.c_str());
 
     // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
-    response = cli.GetField("test");
+    response = cli.GetField(0x0000, "test");
     ESP_LOGI(TAG, "Get \"test\": %s", response.c_str());
 
     // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
-    response = cli.GetField("rgb");
+    response = cli.GetField(0x0001, "test");
+    ESP_LOGI(TAG, "Get \"test\": %s", response.c_str());
+
+    // vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    response = cli.PutField(0x0001, "test", "445566");
+    ESP_LOGI(TAG, "Put \"test\"=\"112233\": %s", response.c_str());
+
+    // vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    response = cli.GetField(0x0001, "test");
+    ESP_LOGI(TAG, "Get \"test\": %s", response.c_str());
+
+    // vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    response = cli.GetField(0x0000, "rgb");
     ESP_LOGI(TAG, "Get \"rgb\": %s", response.c_str());
 
     // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
-    response = cli.PutField("rgb", "af31bd");
+    response = cli.PutField(0x0000, "rgb", "af31bd");
     ESP_LOGI(TAG, "Put \"rgb\"=\"af31bd\": %s", response.c_str());
 
     // vTaskDelay(1000 / portTICK_PERIOD_MS);
 
-    response = cli.GetField("rgb");
+    response = cli.GetField(0x0000,"rgb");
     ESP_LOGI(TAG, "Get \"rgb\": %s", response.c_str());
 
     // vTaskDelay(1000 / portTICK_PERIOD_MS);

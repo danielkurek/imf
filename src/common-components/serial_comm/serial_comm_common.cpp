@@ -1,4 +1,5 @@
 #include "serial_comm_common.hpp"
+#include <cinttypes>
 
 std::string GetCmdName(CmdType type) {
     switch (type)
@@ -61,4 +62,21 @@ CommStatus ParseStatus(const std::string& status) {
     }
 
     return CommStatus::None;
+}
+
+std::string AddrToStr(uint16_t addr){
+    char buf[5];
+    snprintf(buf, 5, "%04" PRIx16, addr);
+    buf[4] = '\0';
+
+    return {buf};
+}
+
+esp_err_t StrToAddr(std::string addrStr, uint16_t *addrOut){
+    int ret = sscanf(addrStr.c_str(), "%04" SCNx16, addrOut);
+
+    if(ret == 1){
+        return ESP_OK;
+    }
+    return ESP_FAIL;
 }

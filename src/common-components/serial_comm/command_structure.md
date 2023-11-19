@@ -6,8 +6,8 @@ In serial communication you can either write to some field or get its value. Alt
 
 There are 3 command types:
 
-- `GET <field>`
-- `PUT <field> <value>`
+- `GET <addr> <field>`
+- `PUT <addr> <field> <value>`
 - `STATUS`
 
 Each command must end with null byte `\0`.

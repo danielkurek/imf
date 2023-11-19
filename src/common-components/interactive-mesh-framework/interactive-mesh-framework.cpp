@@ -14,13 +14,13 @@ esp_err_t Device::setRgb(rgb_t rgb){
     char buf[6+1];
     snprintf(buf, 6+1, "%2hx%2hx%2hx", rgb.red, rgb.green, rgb.blue);
     std::string rgb_value {buf};
-    _serial->PutField("rgb", rgb_value);
+    _serial->PutField(ble_mesh_addr, "rgb", rgb_value);
     return ESP_OK;
 }
 
 rgb_t Device::getRgb(){
     rgb_t rgb;
-    _serial->GetField("rgb");
+    _serial->GetField(ble_mesh_addr, "rgb");
     const int ret = std::scanf("%2hx%2hx%2hx", &(rgb.red), &(rgb.green), &(rgb.blue));
     if(ret != 3){
         // error
