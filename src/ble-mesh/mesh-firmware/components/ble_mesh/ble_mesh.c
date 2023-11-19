@@ -129,6 +129,21 @@ static esp_ble_mesh_health_srv_t health_server = {
     .health_test.test_ids = test_ids,
 };
 
+// RGB server definitions
+BLE_MESH_MODEL_RGB_STATE_DEFINE(rgb_state);
+BLE_MESH_MODEL_RGB_SRV_PUB_DEFINE(rgb_srv_pub, ROLE_NODE);
+BLE_MESH_MODEL_RGB_SRV_DEFINE(rgb_srv, &rgb_state);
+BLE_MESH_MODEL_RGB_SRV_PUB_DEFINE(rgb_setup_pub, ROLE_NODE);
+BLE_MESH_MODEL_RGB_SETUP_SRV_DEFINE(rgb_setup_srv, &rgb_state);
+BLE_MESH_MODEL_RGB_SRV_PUB_DEFINE(rgb_elm1_pub, ROLE_NODE);
+BLE_MESH_MODEL_RGB_SRV_ELM1_DEFINE(rgb_srv_elm1, &rgb_state);
+BLE_MESH_MODEL_RGB_SRV_PUB_DEFINE(rgb_elm2_pub, ROLE_NODE);
+BLE_MESH_MODEL_RGB_SRV_ELM2_DEFINE(rgb_srv_elm2, &rgb_state);
+
+// RGB client definitions
+static esp_ble_mesh_client_t rgb_client;
+BLE_MESH_RGB_CLI_PUB_DEFINE(rgb_cli_pub, ROLE_NODE);
+
 /*
  * Definitions of BLE-mesh Elements
  */
@@ -139,17 +154,17 @@ static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_CFG_SRV(&config_server),
     ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub_0, &onoff_server_0),
     ESP_BLE_MESH_MODEL_HEALTH_SRV(&health_server, &health_pub),
-    BLE_MESH_MODEL_RGB_SRV,
-    BLE_MESH_MODEL_RGB_SETUP_SRV,
-    BLE_MESH_MODEL_RGB_CLI,
+    BLE_MESH_MODEL_RGB_SRV(&rgb_srv_pub, &rgb_srv),
+    BLE_MESH_MODEL_RGB_SETUP_SRV(&rgb_setup_pub, &rgb_setup_srv),
+    BLE_MESH_MODEL_RGB_CLI(&rgb_cli_pub, &rgb_client),
 };
 
 // additional elements that are needed for RGB server
 static esp_ble_mesh_model_t extend_model_0[] = {
-    BLE_MESH_MODEL_RGB_HUE_SRV,
+    BLE_MESH_MODEL_RGB_ELM1_SRV(&rgb_elm1_pub, &rgb_srv_elm1),
 };
 static esp_ble_mesh_model_t extend_model_1[] = {
-    BLE_MESH_MODEL_RGB_SAT_SRV,
+    BLE_MESH_MODEL_RGB_ELM2_SRV(&rgb_elm2_pub, &rgb_srv_elm2),
 };
 
 // array of elements used in this node
@@ -485,7 +500,7 @@ esp_err_t ble_mesh_set_rgb(uint16_t addr, rgb_t color, bool ack){
     // }
     common.opcode = BLE_MESH_MODEL_OP_RGB_SET_UNACK;
 
-    common.model = light_hsl_client.model; // hsl because of the underlying model
+    common.model = rgb_client.model;
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
 
@@ -523,7 +538,7 @@ rgb_response_t ble_mesh_get_rgb(uint16_t addr){
 
     common.opcode = BLE_MESH_MODEL_OP_RGB_GET;
 
-    common.model = light_hsl_client.model; // hsl because of the underlying model
+    common.model = rgb_client.model;
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
 
