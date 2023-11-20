@@ -60,6 +60,11 @@ esp_err_t SerialCommSrv::SetField(uint16_t addr, const std::string& field, const
         fields[addr] = {};
     }
     fields[addr][field] = value;
+
+    if(_callback != nullptr){
+        _callback(addr, field, value);
+    }
+
     return ESP_OK;
 }
 
@@ -89,11 +94,7 @@ esp_err_t SerialCommSrv::SendGetResponse(uint16_t addr, const std::string& field
 }
 
 esp_err_t SerialCommSrv::SendPutResponse(uint16_t addr, const std::string& field, const std::string& body){
-    auto iter = fields.find(addr);
-    if(iter == fields.end()){
-        fields[addr] = {};
-    }
-    fields[addr][field] = body;
+    SetField(addr, field, body);
     uart_write_bytes(_uart_port, body.c_str(), body.length()+1);
     ESP_LOGI(TAG, "Sending PUT response: %s", body.c_str());
     return ESP_OK;

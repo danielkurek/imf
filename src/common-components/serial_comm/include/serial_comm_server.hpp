@@ -7,6 +7,8 @@
 #include "serial_comm_common.hpp"
 #include <unordered_map>
 
+typedef void (*serial_comm_change_cb)(uint16_t addr, const std::string& field, const std::string& value);
+
 class SerialCommSrv {
     public:
         SerialCommSrv(const uart_port_t port, int tx_io_num, int rx_io_num);
@@ -22,6 +24,9 @@ class SerialCommSrv {
         std::string GetField(uint16_t addr, const std::string& field);
         esp_err_t SetField(uint16_t addr, const std::string& field, const std::string& value);
         esp_err_t SetStatus(CommStatus status);
+        void RegisterChangeCallback(serial_comm_change_cb cb){
+            _callback = cb;
+        }
     private:
         esp_err_t SendGetResponse(uint16_t addr, const std::string& field);
         esp_err_t SendPutResponse(uint16_t addr, const std::string& field, const std::string& body);
@@ -37,6 +42,7 @@ class SerialCommSrv {
         CommStatus _current_status;
         TaskHandle_t _xHandle = NULL;
         std::unordered_map<uint16_t, std::unordered_map<std::string, std::string>> fields;
+        serial_comm_change_cb _callback = nullptr;
 };
 
 #endif

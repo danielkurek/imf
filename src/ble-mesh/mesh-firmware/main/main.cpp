@@ -82,7 +82,20 @@ void log_init(){
     logger_output_to_file("/logs/log.txt", 2000);
 }
 
+void serial_comm_change_callback(uint16_t addr, const std::string& field, const std::string& value){
+    if(field == "rgb"){
+        rgb_t color;
+        esp_err_t err = str_to_rgb(value.c_str(), &color);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Invalid RGB value: %s", value.c_str());
+            return;
+        }
+        ble_mesh_set_rgb(addr, color, false);
+    }
+}
+
 esp_err_t serial_comm_init(){
+    serialSrv.RegisterChangeCallback(serial_comm_change_callback);
     serialSrv.StartTask();
 
     return ESP_OK;
