@@ -11,8 +11,13 @@ Device::Device(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, ui
 }
 
 esp_err_t Device::setRgb(rgb_t rgb){
-    char buf[6+1];
-    snprintf(buf, 6+1, "%2hx%2hx%2hx", rgb.red, rgb.green, rgb.blue);
+    size_t buf_len = 12+1;
+    char buf[buf_len];
+    esp_err_t err = rgb_to_str(rgb, buf_len, buf);
+    if(err != ESP_OK){
+        return err;
+    }
+
     std::string rgb_value {buf};
     _serial->PutField(ble_mesh_addr, "rgb", rgb_value);
     return ESP_OK;
@@ -20,10 +25,10 @@ esp_err_t Device::setRgb(rgb_t rgb){
 
 rgb_t Device::getRgb(){
     rgb_t rgb;
-    _serial->GetField(ble_mesh_addr, "rgb");
-    const int ret = std::scanf("%2hx%2hx%2hx", &(rgb.red), &(rgb.green), &(rgb.blue));
-    if(ret != 3){
-        // error
+    std::string rgb_val = _serial->GetField(ble_mesh_addr, "rgb");
+    esp_err_t err = str_to_rgb(rgb_val.c_str(), &rgb);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed to convert RGB string to value: %s", rgb_val.c_str());
     }
 
     return rgb;
