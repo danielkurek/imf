@@ -102,6 +102,8 @@ void button_release_callback(uint8_t button_num){
 extern "C" void app_main(void)
 {
     esp_err_t err;
+    
+    log_init();
 
     LOGGER_I(TAG, "Start up");
 
@@ -111,11 +113,12 @@ extern "C" void app_main(void)
 
     LOGGER_I(TAG, "Initializing...");
 
-    board_init();
+    err = board_init();
+    if(err != ESP_OK){
+        LOGGER_E(TAG, "Error occurred during board init! %d", err);
+    }
 
     board_buttons_release_register_callback(button_release_callback);
-
-    log_init();
 
     LOGGER_V(TAG, "init NVS");
     err = nvs_flash_init();
