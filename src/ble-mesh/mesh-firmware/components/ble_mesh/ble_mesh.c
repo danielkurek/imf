@@ -70,7 +70,6 @@ static uint8_t dev_uuid[16] = { 0xdd, 0xdd };
 static struct example_info_store {
     uint16_t net_idx;   /* NetKey Index */
     uint16_t app_idx;   /* AppKey Index */
-    uint8_t  onoff;     /* Remote OnOff */
     uint8_t  tid;       /* Message TID */
 } __attribute__((packed)) store = {
     .net_idx = ESP_BLE_MESH_KEY_UNUSED,
