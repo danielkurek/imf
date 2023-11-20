@@ -50,7 +50,7 @@ static const size_t options_len = sizeof(options) / sizeof(options[0]);
 // NVS handle for reading the web_config options
 static nvs_handle_t config_nvs;
 
-static SerialCommSrv serialSrv{UART_NUM_1, GPIO_NUM_16, GPIO_NUM_17};
+static SerialCommSrv serialSrv{UART_NUM_1, GPIO_NUM_10, GPIO_NUM_1};
 
 // start configuration mode if conditions are met
 bool web_config(){
