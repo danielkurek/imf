@@ -76,12 +76,14 @@ class DistancePoint {
 
 class DistanceMeter{
     public:
-        DistanceMeter(bool wifi_initialized = false);
+        DistanceMeter(bool wifi_initialized);
+        DistanceMeter(bool wifi_initialized, esp_event_loop_handle event_loop_handle);
         uint8_t addPoint(uint8_t mac[6], uint8_t channel);
         // esp_err_t removePoint(uint8_t mac[6]);
         void startTask();
         // nearest point in last x amount of seconds
         std::shared_ptr<DistancePoint> nearestPoint();
+        esp_err_t registerEventHandle(esp_event_handler_t event_handler, void *handler_args);
     private:
         std::vector<std::shared_ptr<DistancePoint>> reachablePoints();
         static void taskWrapper(void* param){
@@ -90,6 +92,7 @@ class DistanceMeter{
         void task();
         std::unordered_map<std::string, std::shared_ptr<DistancePoint>> _points;
         std::unordered_map<std::string, std::shared_ptr<distance_measurement_t>> _measurements;
+        esp_event_loop_handle_t _event_loop_hdl;
         const uint32_t time_threshold = 10000 * (1000 / configTICK_RATE_HZ);
         const uint32_t _distance_threshold_cm = 10 * 100;
         TaskHandle_t _xHandle = NULL;

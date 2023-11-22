@@ -6,6 +6,7 @@
 #include "serial_comm_client.hpp"
 #include "serial_comm_server.hpp"
 #include "color.h"
+#include "board.h"
 
 #include <vector>
 
@@ -32,11 +33,12 @@ namespace imf{
         public:
             IMF();
             esp_err_t start();
-            esp_err_t registerEventCallback();
+            esp_err_t registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args);
             esp_err_t addDevice();
         private:
             std::vector<std::shared_ptr<Device>> _devices;
-
+            DistanceMeter _dm;
+            esp_event_loop_handle_t _event_loop_hdl;
     };
 }
 

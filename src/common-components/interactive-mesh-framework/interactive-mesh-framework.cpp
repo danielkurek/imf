@@ -2,6 +2,12 @@
 #include "serial_comm_client.hpp"
 #include <string>
 #include <cstdio>
+#include "board.h"
+#include "logger.h"
+
+#define EVENT_LOOP_QUEUE_SIZE 16
+
+static const char* TAG = "IMF";
 
 using namespace imf;
 
@@ -40,7 +46,44 @@ uint32_t Device::measureDistance(){
     }
     return _point.measureDistance();
 }
-IMF::IMF(){}
-esp_err_t IMF::start() { return ESP_FAIL; }
-esp_err_t IMF::registerEventCallback() { return ESP_FAIL; }
+
+IMF::IMF(){
+    // Init custom Logger
+    logger_init(ESP_LOG_INFO);
+    logger_output_to_default();
+    logger_init_storage();
+
+    logger_output_to_file("/logs/log.txt", 2000);
+
+    // Init board helper functions
+    board_init();
+
+    // event loop init
+    esp_event_loop_args_t loop_args = {
+        .queue_size = EVENT_LOOP_QUEUE_SIZE,
+        .task_name = NULL
+    };
+    if (esp_event_loop_create(&loop_args, &_event_loop_hdl) != ESP_OK) {
+        ESP_LOGE(TAG, "create event loop failed");
+        return;
+    }
+
+    // DistanceMeter init
+    dm = {false, _event_loop_hdl}
+}
+
+esp_err_t IMF::start() { 
+    dm.startTask();
+}
+esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args) 
+{ 
+    esp_err_t err;
+    err = board_buttons_release_register_callback(btn_cb);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Cannot board register button callback");
+        return err;
+    }
+
+    dm.registerEventHandle(event_handler, handler_args);
+}
 esp_err_t IMF::addDevice() { return ESP_FAIL; }

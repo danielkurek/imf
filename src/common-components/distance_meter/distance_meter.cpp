@@ -4,6 +4,8 @@
 #include "esp_wifi.h"
 #include <stdint.h>
 
+#define EVENT_LOOP_QUEUE_SIZE 16
+
 ESP_EVENT_DEFINE_BASE(DM_EVENT);
 
 static const char *TAG = "DM";
@@ -98,7 +100,18 @@ ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cf
 }
 
 DistanceMeter::DistanceMeter(bool wifi_initialized) : _points() {
-    
+    esp_event_loop_args_t loop_args = {
+        .queue_size = EVENT_LOOP_QUEUE_SIZE,
+        .task_name = NULL
+    };
+    if (esp_event_loop_create(&loop_args, &_event_loop_hdl) != ESP_OK) {
+        ESP_LOGE(TAG, "create event loop failed");
+        return;
+    }
+}
+
+DistanceMeter::DistanceMeter(bool wifi_initialized, esp_event_loop_handle event_loop_handle) : _points() {
+    _event_loop_hdl = event_loop_handle;
 }
 
 uint8_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel){
@@ -240,7 +253,7 @@ void DistanceMeter::task(){
             dm_measurement_data_t event_data;
             memcpy(event_data.peer_mac, point->getMac(), 6);
             event_data.distance_cm = distance_cm;
-            esp_event_post(DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
+            esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
 
             if(distance_cm != UINT32_MAX)
                 ESP_LOGI(TAG, "Distance for point %s is %" PRIu32, point->getMacStr().c_str(), distance_cm);
@@ -260,22 +273,30 @@ void DistanceMeter::task(){
             std::string mac;
             if(s_nearest_point){
                 mac = s_nearest_point->getMacStr();
-                esp_event_post(DM_EVENT, DM_NEAREST_DEVICE_LEAVE, mac.c_str(), mac.size()+1, pdMS_TO_TICKS(10));
+                esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_LEAVE, mac.c_str(), mac.size()+1, pdMS_TO_TICKS(10));
             } else{
-                esp_event_post(DM_EVENT, DM_NEAREST_DEVICE_LEAVE, NULL, 0, pdMS_TO_TICKS(10));
+                esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_LEAVE, NULL, 0, pdMS_TO_TICKS(10));
             }
             
             s_nearest_point = nearest_point;
 
             if(nearest_point){
                 mac = nearest_point->getMacStr();
-                esp_event_post(DM_EVENT, DM_NEAREST_DEVICE_ENTER, mac.c_str(), mac.size()+1, pdMS_TO_TICKS(10));
+                esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_ENTER, mac.c_str(), mac.size()+1, pdMS_TO_TICKS(10));
             } else{
-                esp_event_post(DM_EVENT, DM_NEAREST_DEVICE_ENTER, NULL, 0, pdMS_TO_TICKS(10));
+                esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_ENTER, NULL, 0, pdMS_TO_TICKS(10));
             }
         }
 
         vTaskDelay(500 / portTICK_PERIOD_MS); // allow other tasks to run
     }
 
+}
+
+esp_err_t DistanceMeter::registerEventHandle(esp_event_handler_t event_handler, void *handler_args){
+    esp_err_t err = esp_event_handler_register_with(_event_loop_hdl, DM_EVENT, ESP_EVENT_ANY_ID, event_handler, handler_args);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Cannot register DM_EVENT handler");
+        return err;
+    }
 }
