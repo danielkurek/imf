@@ -219,7 +219,7 @@ static void mesh_example_info_restore(void)
 
     if (exist) {
         LOGGER_I(TAG, "Restore, net_idx 0x%04x, app_idx 0x%04x, onoff %u, tid 0x%02x",
-            store.net_idx, store.app_idx, store.onoff, store.tid);
+            store.net_idx, store.app_idx, store.tid);
     }
 }
 
