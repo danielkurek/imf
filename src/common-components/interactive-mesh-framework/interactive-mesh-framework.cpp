@@ -4,12 +4,15 @@
 #include <cstdio>
 #include "board.h"
 #include "logger.h"
+#include <memory>
 
 #define EVENT_LOOP_QUEUE_SIZE 16
 
 static const char* TAG = "IMF";
 
 using namespace imf;
+
+std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>(UART_NUM_1, GPIO_NUM_14, GPIO_NUM_17);
 
 Device::Device(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, uint16_t _ble_mesh_addr)
     : type(_type), ble_mesh_addr(_ble_mesh_addr), _point(_wifi_mac, _wifi_channel){
@@ -25,7 +28,21 @@ esp_err_t Device::setRgb(rgb_t rgb){
     }
 
     std::string rgb_value {buf};
-    _serial->PutField(ble_mesh_addr, "rgb", rgb_value);
+    std::string response = _serial->PutField(ble_mesh_addr, "rgb", rgb_value);
+    ESP_LOGI(TAG, "setRgb response %s", response.c_str());
+    return ESP_OK;
+}
+
+esp_err_t Device::setRgbAll(rgb_t rgb){
+    size_t buf_len = 12+1;
+    char buf[buf_len];
+    esp_err_t err = rgb_to_str(rgb, buf_len, buf);
+    if(err != ESP_OK){
+        return err;
+    }
+
+    std::string rgb_value {buf};
+    _serial->PutField(0xffff, "rgb", rgb_value);
     return ESP_OK;
 }
 
@@ -59,31 +76,41 @@ IMF::IMF(){
     board_init();
 
     // event loop init
-    esp_event_loop_args_t loop_args = {
-        .queue_size = EVENT_LOOP_QUEUE_SIZE,
-        .task_name = NULL
-    };
+    esp_event_loop_args_t loop_args;
+    loop_args.queue_size = EVENT_LOOP_QUEUE_SIZE;
+    loop_args.task_name = NULL;
+    
     if (esp_event_loop_create(&loop_args, &_event_loop_hdl) != ESP_OK) {
         ESP_LOGE(TAG, "create event loop failed");
         return;
     }
 
     // DistanceMeter init
-    dm = {false, _event_loop_hdl}
+    _dm = std::make_unique<DistanceMeter>(false, _event_loop_hdl);
 }
 
 esp_err_t IMF::start() { 
-    dm.startTask();
+    _dm->startTask();
+    return ESP_OK;
 }
 esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args) 
 { 
     esp_err_t err;
     err = board_buttons_release_register_callback(btn_cb);
     if(err != ESP_OK){
-        ESP_LOGE(TAG, "Cannot board register button callback");
+        ESP_LOGE(TAG, "Cannot register board button callback");
         return err;
     }
 
-    dm.registerEventHandle(event_handler, handler_args);
+    err = _dm->registerEventHandle(event_handler, handler_args);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Cannot board register DM event handle");
+        return err;
+    }
+
+    return err;
 }
-esp_err_t IMF::addDevice() { return ESP_FAIL; }
+esp_err_t IMF::addDevice(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, uint16_t _ble_mesh_addr) {
+    devices.emplace_back(std::make_shared<Device>(_type, _wifi_mac, _wifi_channel, _ble_mesh_addr));
+    return ESP_OK;
+}
