@@ -15,9 +15,9 @@ rgb_t hsl_to_rgb(hsl_t hsl){
 }
 
 hsl_t rgb_to_hsl(rgb_t rgb){
-    float r = (((float) rgb.red) / UINT16_MAX) * 255;
-    float g = (((float) rgb.green) / UINT16_MAX) * 255;
-    float b = (((float) rgb.blue) / UINT16_MAX) * 255;
+    float r = (float) rgb.red;
+    float g = (float) rgb.green;
+    float b = (float) rgb.blue;
     HSL result = rgb2hsl(r, g, b);
     hsl_t hsl = {
         .hue = (uint16_t) (result.h * UINT16_MAX),
