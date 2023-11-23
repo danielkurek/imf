@@ -77,7 +77,7 @@ class DistancePoint {
 class DistanceMeter{
     public:
         DistanceMeter(bool wifi_initialized);
-        DistanceMeter(bool wifi_initialized, esp_event_loop_handle event_loop_handle);
+        DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t event_loop_handle);
         uint8_t addPoint(uint8_t mac[6], uint8_t channel);
         // esp_err_t removePoint(uint8_t mac[6]);
         void startTask();

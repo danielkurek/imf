@@ -110,7 +110,7 @@ DistanceMeter::DistanceMeter(bool wifi_initialized) : _points() {
     }
 }
 
-DistanceMeter::DistanceMeter(bool wifi_initialized, esp_event_loop_handle event_loop_handle) : _points() {
+DistanceMeter::DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t event_loop_handle) : _points() {
     _event_loop_hdl = event_loop_handle;
 }
 
@@ -236,6 +236,8 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
 void DistanceMeter::task(){
     static std::shared_ptr<DistancePoint> s_nearest_point = nullptr;
     while(true){
+        vTaskDelay(500 / portTICK_PERIOD_MS); // allow other tasks to run
+
         TickType_t now = xTaskGetTickCount();
 
         // auto points = reachablePoints();
@@ -263,6 +265,10 @@ void DistanceMeter::task(){
 
         auto nearest_point = nearestPoint();
         
+        if(nearest_point == nullptr){
+            continue;
+        }
+
         // check if this device is in near proximity
         auto nearest_distance = nearestDeviceDistanceFunction(_measurements[nearest_point->getMacStr()], now);
         if(nearest_distance >= _distance_threshold_cm){
@@ -287,8 +293,6 @@ void DistanceMeter::task(){
                 esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_ENTER, NULL, 0, pdMS_TO_TICKS(10));
             }
         }
-
-        vTaskDelay(500 / portTICK_PERIOD_MS); // allow other tasks to run
     }
 
 }
@@ -299,4 +303,5 @@ esp_err_t DistanceMeter::registerEventHandle(esp_event_handler_t event_handler, 
         ESP_LOGE(TAG, "Cannot register DM_EVENT handler");
         return err;
     }
+    return err;
 }
