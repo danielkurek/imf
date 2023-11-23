@@ -210,7 +210,7 @@ esp_err_t SerialCommSrv::ProcessCmd(std::string& cmd){
         case CmdType::GET:
             if(!s.fail())
             {
-                ESP_LOGE(TAG, "While processing CMD, GET cmd has more arguments, expected 1");
+                ESP_LOGE(TAG, "While processing CMD, GET cmd has more arguments, expected 2");
                 return ESP_FAIL;
             }
             return SendGetResponse(addr, field);
@@ -236,7 +236,8 @@ esp_err_t SerialCommSrv::ProcessCmd(std::string& cmd){
         case CmdType::PUT:
             if(!s.fail())
             {
-                ESP_LOGE(TAG, "While processing CMD, PUT cmd has more arguments, expected 2");
+                ESP_LOGE(TAG, "%s", empty.c_str());
+                ESP_LOGE(TAG, "While processing CMD, PUT cmd has more arguments, expected 3");
                 return ESP_FAIL;
             }
             return SendPutResponse(addr, field, body);
