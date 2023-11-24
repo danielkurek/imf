@@ -4,6 +4,7 @@
 #include <cstdio>
 #include "board.h"
 #include <memory>
+#include "wifi_connect.h"
 
 #define EVENT_LOOP_QUEUE_SIZE 16
 
@@ -86,6 +87,9 @@ IMF::IMF(){
 
     // DistanceMeter init
     _dm = std::make_unique<DistanceMeter>(false, _event_loop_hdl);
+
+    // init wifi
+    wifi_start();
 }
 
 esp_err_t IMF::start() { 
@@ -112,4 +116,20 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
 esp_err_t IMF::addDevice(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, uint16_t _ble_mesh_addr) {
     devices.emplace_back(std::make_shared<Device>(_type, _wifi_mac, _wifi_channel, _ble_mesh_addr));
     return ESP_OK;
+}
+
+esp_err_t IMF::createAP(std::string ssid, std::string password, uint8_t channel){
+    return wifi_init_ap_simple(ssid.c_str(), password.c_str(), channel);
+}
+
+esp_err_t IMF::connectToAP(std::string ssid, std::string password){
+    return wifi_connect_simple(ssid.c_str(), password.c_str());
+}
+
+esp_err_t IMF::getMAC(std::string &){
+    int64_t mac_addr = 0LL;
+    esp_read_mac((uint8_t*) (&mac_addr), ESP_MAC_WIFI_SOFTAP);
+    
+    char ssid[MAX_SSID_LEN];
+    snprintf(ssid, MAX_SSID_LEN, "NODE-%llX", mac_addr);
 }
