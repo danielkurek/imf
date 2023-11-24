@@ -7,6 +7,7 @@
 #include "serial_comm_server.hpp"
 #include "color.h"
 #include "board.h"
+#include "logger.h"
 
 #include <vector>
 

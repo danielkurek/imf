@@ -3,7 +3,6 @@
 #include <string>
 #include <cstdio>
 #include "board.h"
-#include "logger.h"
 #include <memory>
 
 #define EVENT_LOOP_QUEUE_SIZE 16
