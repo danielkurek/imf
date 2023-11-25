@@ -238,6 +238,10 @@ esp_err_t wifi_init_ap(wifi_config_t wifi_config)
     if(err != ESP_OK){
         return err;
     }
+    err = esp_wifi_set_bandwidth(ESP_IF_WIFI_AP, WIFI_BW_HT20);
+    if(err != ESP_OK){
+        return err;
+    }
     err = esp_wifi_start();
     if(err != ESP_OK){
         return err;
