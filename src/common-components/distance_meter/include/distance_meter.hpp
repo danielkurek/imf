@@ -12,6 +12,7 @@
 #include <cstring>
 #include "esp_mac.h"
 
+#include <set>
 #include <unordered_map>
 
 ESP_EVENT_DECLARE_BASE(DM_EVENT);
@@ -22,7 +23,7 @@ typedef enum {
 } dm_event_t;
 
 typedef struct{
-    uint8_t peer_mac[6];
+    uint32_t point_id;
     uint32_t distance_cm;
 } dm_measurement_data_t;
 
@@ -42,15 +43,15 @@ typedef struct{
 
 class DistancePoint {
     public:
-        DistancePoint(const uint8_t mac[6], uint8_t channel) 
-            : _channel(channel){
+        DistancePoint(uint32_t id, const uint8_t mac[6], uint8_t channel) 
+            : _id(id), _channel(channel){
                 memcpy(_mac, mac, 6);
                 char buffer[17+1];
                 sprintf(buffer, MACSTR, MAC2STR(_mac));
                 _macstr = std::string(buffer);
             }
-        DistancePoint(const uint8_t mac[6], std::string macstr, uint8_t channel) 
-            : _macstr(macstr), _channel(channel){
+        DistancePoint(uint16_t id, const uint8_t mac[6], std::string macstr, uint8_t channel) 
+            : _id(id), _macstr(macstr), _channel(channel){
                 memcpy(_mac, mac, 6);
             }
         
@@ -62,6 +63,7 @@ class DistancePoint {
         const uint8_t* getMac() { return _mac; }
         const std::string getMacStr() { return _macstr; }
         uint8_t getChannel() { return _channel; }
+        uint16_t getID() { return _id; }
     private:
         static void event_handler(void* arg, esp_event_base_t event_base, 
             int32_t event_id, void* event_data);
@@ -69,6 +71,7 @@ class DistancePoint {
         static const int FTM_FAILURE_BIT = BIT1;
         static EventGroupHandle_t _s_ftm_event_group;
         static wifi_event_ftm_report_t _s_ftm_report;
+        uint32_t _id;
         uint8_t _mac[6];
         std::string _macstr;
         uint8_t _channel;
@@ -78,7 +81,11 @@ class DistanceMeter{
     public:
         DistanceMeter(bool wifi_initialized);
         DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t event_loop_handle);
-        uint8_t addPoint(uint8_t mac[6], uint8_t channel);
+
+        // return   ID of added Point (if point already is added, ID of the existing point is returned)
+        //          UINT32_MAX means an error occurred (    ran out of IDs or something else)
+        uint32_t addPoint(uint8_t mac[6], uint8_t channel);
+        std::shared_ptr<DistancePoint> getPoint(uint32_t id);
         // esp_err_t removePoint(uint8_t mac[6]);
         void startTask();
         // nearest point in last x amount of seconds
@@ -90,13 +97,14 @@ class DistanceMeter{
             static_cast<DistanceMeter *>(param)->task();
         }
         void task();
-        std::unordered_map<std::string, std::shared_ptr<DistancePoint>> _points;
-        std::unordered_map<std::string, std::shared_ptr<distance_measurement_t>> _measurements;
+        std::unordered_map<uint32_t, std::shared_ptr<DistancePoint>> _points;
+        std::unordered_map<uint32_t, std::shared_ptr<distance_measurement_t>> _measurements;
+        std::unordered_map<std::string, uint32_t> _points_mac_id;
         esp_event_loop_handle_t _event_loop_hdl;
         const uint32_t time_threshold = 10000 * (1000 / configTICK_RATE_HZ);
         const uint32_t _distance_threshold_cm = 10 * 100;
         TaskHandle_t _xHandle = NULL;
-
+        uint32_t _next_id = 0;
 };
 
 

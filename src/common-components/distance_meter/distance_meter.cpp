@@ -114,21 +114,41 @@ DistanceMeter::DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t even
     _event_loop_hdl = event_loop_handle;
 }
 
-uint8_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel){
+uint32_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel){
+    if(_next_id == UINT32_MAX){
+        return UINT32_MAX;
+    }
     char buffer[17+1];
     sprintf(buffer, MACSTR, MAC2STR(mac));
     std::string macstr (buffer);
-    if(!_points.contains(macstr)){
+    uint32_t id;
+    auto search = _points_mac_id.find(macstr);
+    if(search != _points_mac_id.end()){
+        return search->second; // MAC is already added
+    } else{
+        id = _next_id;
+        _next_id += 1;
         ESP_LOGI(TAG, "Added point: [%s] channel %d", macstr.c_str(), channel);
-        _points.emplace(macstr, std::make_shared<DistancePoint>(mac, macstr, channel));
+        _points.emplace(id, std::make_shared<DistancePoint>(id, mac, macstr, channel));
+        _points_mac_id.emplace(macstr, id);
+        return id;
     }
 
-    ESP_LOGI(TAG, "Tracked points:");
-    for(const auto& [key,point] : _points){
-        ESP_LOGI(TAG, "[%s] channel=%d", key.c_str(), point->getChannel());
-    }
-    return 0;
+    // ESP_LOGI(TAG, "Tracked points:");
+    // for(const auto& [key,point] : _points){
+    //     ESP_LOGI(TAG, "[%s] channel=%d", key.c_str(), point->getChannel());
+    // }
+    return UINT32_MAX;
 }
+
+std::shared_ptr<DistancePoint> DistanceMeter::getPoint(uint32_t id){
+    auto search = _points.find(id);
+    if(search != _points.end()){
+        return search->second;
+    }
+    return nullptr;
+}
+
 // esp_err_t DistanceMeter::removePoint(uint8_t[6] mac){
 //     for(auto it = _points.begin(); it != _points.end(); it++){
 //         const uint8_t[6] other_mac = *it->getMac();
@@ -166,23 +186,23 @@ static uint32_t nearestDeviceDistanceFunction(std::shared_ptr<distance_measureme
 std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
     TickType_t now = xTaskGetTickCount();
 
-    std::string best_mac;
+    uint32_t best_id;
     // TickType_t best_time;
     uint32_t best_dist = UINT32_MAX;
     bool first = true;
-    for(const auto& [mac, measurement] : _measurements){
+    for(const auto& [id, measurement] : _measurements){
         uint32_t transformed_distance = nearestDeviceDistanceFunction(measurement, now);
         if(first || transformed_distance < best_dist){
             first = false;
             best_dist = transformed_distance;
-            best_mac = mac;
+            best_id = id;
         }
     }
     if(first){
         // no nearest point was found
         return nullptr;
     }
-    return _points[best_mac];
+    return _points[best_id];
 }
 std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
     static uint16_t g_scan_ap_num;
@@ -222,8 +242,8 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
             char buffer[17+1];
             sprintf(buffer, MACSTR, MAC2STR(g_ap_list_buffer[i].bssid));
             std::string mac {buffer};
-            if(_points.contains(mac) && g_ap_list_buffer[i].ftm_responder){
-                result.push_back(_points[mac]);
+            if(_points_mac_id.contains(mac) && g_ap_list_buffer[i].ftm_responder){
+                result.push_back(_points[_points_mac_id[mac]]);
             }
             ESP_LOGI(TAG, "[%s][%s][rssi=%d]""%s", mac.c_str(), g_ap_list_buffer[i].ssid, g_ap_list_buffer[i].rssi,
                         g_ap_list_buffer[i].ftm_responder ? "[FTM Responder]" : "");
@@ -244,16 +264,17 @@ void DistanceMeter::task(){
         // ESP_LOGI(TAG, "%d reachable points", points.size());
         for(const auto& [key, point] : _points){
             uint32_t distance_cm = point->measureDistance();
+            uint32_t point_id = point->getID();
             const std::string point_mac = point->getMacStr();
-            auto search = _measurements.find(point_mac);
+            auto search = _measurements.find(point_id);
             if(search != _measurements.end()){
-                _measurements[point_mac]->distance_cm = distance_cm;
-                _measurements[point_mac]->timestamp = now;
+                _measurements[point_id]->distance_cm = distance_cm;
+                _measurements[point_id]->timestamp = now;
             } else{
-                _measurements.emplace(point_mac, std::make_shared<distance_measurement_t>(distance_cm, now));
+                _measurements.emplace(point_id, std::make_shared<distance_measurement_t>(distance_cm, now));
             }
             dm_measurement_data_t event_data;
-            memcpy(event_data.peer_mac, point->getMac(), 6);
+            event_data.point_id = point_id;
             event_data.distance_cm = distance_cm;
             esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
 
@@ -270,16 +291,16 @@ void DistanceMeter::task(){
         }
 
         // check if this device is in near proximity
-        auto nearest_distance = nearestDeviceDistanceFunction(_measurements[nearest_point->getMacStr()], now);
+        auto nearest_distance = nearestDeviceDistanceFunction(_measurements[nearest_point->getID()], now);
         if(nearest_distance >= _distance_threshold_cm){
             nearest_point = nullptr;
         }
 
         if(nearest_point != s_nearest_point){
-            std::string mac;
+            uint32_t id;
             if(s_nearest_point){
-                mac = s_nearest_point->getMacStr();
-                esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_LEAVE, mac.c_str(), mac.size()+1, pdMS_TO_TICKS(10));
+                id = s_nearest_point->getID();
+                esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_LEAVE, &id, sizeof(id), pdMS_TO_TICKS(10));
             } else{
                 esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_LEAVE, NULL, 0, pdMS_TO_TICKS(10));
             }
@@ -287,8 +308,8 @@ void DistanceMeter::task(){
             s_nearest_point = nearest_point;
 
             if(nearest_point){
-                mac = nearest_point->getMacStr();
-                esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_ENTER, mac.c_str(), mac.size()+1, pdMS_TO_TICKS(10));
+                id = nearest_point->getID();
+                esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_ENTER, &id, sizeof(id), pdMS_TO_TICKS(10));
             } else{
                 esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_ENTER, NULL, 0, pdMS_TO_TICKS(10));
             }

@@ -10,6 +10,7 @@
 #include "logger.h"
 
 #include <vector>
+#include <memory>
 
 namespace imf{
     enum class DeviceType {
@@ -26,9 +27,11 @@ namespace imf{
             const DeviceType type;
             const uint16_t ble_mesh_addr;
             static esp_err_t setRgbAll(rgb_t rgb);
+            static void setDM(std::shared_ptr<DistanceMeter> dm) { _dm = dm; }
         private:
-            DistancePoint _point;
+            std::shared_ptr<DistancePoint> _point;
             static std::shared_ptr<SerialCommCli> _serial;
+            static std::shared_ptr<DistanceMeter> _dm;
     };
 
     class IMF{
@@ -41,7 +44,7 @@ namespace imf{
             esp_err_t connectToAP(const std::string& ssid, const std::string& password);
             std::vector<std::shared_ptr<Device>> devices;
         private:
-            std::unique_ptr<DistanceMeter> _dm;
+            std::shared_ptr<DistanceMeter> _dm;
             esp_event_loop_handle_t _event_loop_hdl;
     };
 }

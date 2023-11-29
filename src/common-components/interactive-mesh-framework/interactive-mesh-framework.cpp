@@ -13,10 +13,20 @@ static const char* TAG = "IMF";
 using namespace imf;
 
 std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>(UART_NUM_1, GPIO_NUM_14, GPIO_NUM_17);
+std::shared_ptr<DistanceMeter> Device::_dm = nullptr;
 
 Device::Device(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, uint16_t _ble_mesh_addr)
-    : type(_type), ble_mesh_addr(_ble_mesh_addr), _point(_wifi_mac, _wifi_channel){
-    
+    : type(_type), ble_mesh_addr(_ble_mesh_addr){
+    if(_type == DeviceType::Station){
+        if(_dm != nullptr){
+            uint32_t id = _dm->addPoint(_wifi_mac, _wifi_channel);
+            if(id != UINT32_MAX){
+                _point = _dm->getPoint(id);
+            }
+        } else{
+            _point = std::make_shared<DistancePoint>(UINT32_MAX, _wifi_mac, _wifi_channel);
+        }
+    }
 }
 
 esp_err_t Device::setRgb(rgb_t rgb){
@@ -58,10 +68,10 @@ rgb_t Device::getRgb(){
 }
 
 uint32_t Device::measureDistance(){
-    if(type == DeviceType::Mobile){
+    if(type == DeviceType::Mobile || _point == nullptr){
         return UINT32_MAX;
     }
-    return _point.measureDistance();
+    return _point->measureDistance();
 }
 
 IMF::IMF(){
@@ -86,7 +96,8 @@ IMF::IMF(){
     }
 
     // DistanceMeter init
-    _dm = std::make_unique<DistanceMeter>(false, _event_loop_hdl);
+    _dm = std::make_shared<DistanceMeter>(false, _event_loop_hdl);
+    Device::setDM(_dm);
 
     // init wifi
     wifi_start();
