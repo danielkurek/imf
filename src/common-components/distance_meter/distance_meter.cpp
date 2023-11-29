@@ -110,12 +110,20 @@ DistanceMeter::DistanceMeter(bool wifi_initialized) : _points() {
 
     if (esp_event_loop_create(&loop_args, &_event_loop_hdl) != ESP_OK) {
         ESP_LOGE(TAG, "create event loop failed");
-        return;
+    }
+
+    esp_err_t err = DistancePoint::initDistanceMeasurement();
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "DistancePoint initDistanceMeasurement failed! %d", err);
     }
 }
 
 DistanceMeter::DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t event_loop_handle) : _points() {
     _event_loop_hdl = event_loop_handle;
+    esp_err_t err = DistancePoint::initDistanceMeasurement();
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "DistancePoint initDistanceMeasurement failed! %d", err);
+    }
 }
 
 uint32_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel){
