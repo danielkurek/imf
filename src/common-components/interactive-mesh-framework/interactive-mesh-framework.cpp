@@ -86,9 +86,13 @@ IMF::IMF(){
     board_init();
 
     // event loop init
-    esp_event_loop_args_t loop_args;
-    loop_args.queue_size = EVENT_LOOP_QUEUE_SIZE;
-    loop_args.task_name = NULL;
+    esp_event_loop_args_t loop_args{
+        EVENT_LOOP_QUEUE_SIZE, // queue_size
+        "IMF-loop",             // task_name
+        tskIDLE_PRIORITY,      // task_priority
+        1024*4,                // task_stack_size
+        tskNO_AFFINITY         // task_core_id
+    };
     
     if (esp_event_loop_create(&loop_args, &_event_loop_hdl) != ESP_OK) {
         ESP_LOGE(TAG, "create event loop failed");
