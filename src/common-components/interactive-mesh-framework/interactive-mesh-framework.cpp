@@ -118,11 +118,11 @@ esp_err_t IMF::addDevice(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_c
     return ESP_OK;
 }
 
-esp_err_t IMF::createAP(std::string ssid, std::string password, uint8_t channel){
+esp_err_t IMF::createAP(const std::string& ssid, const std::string& password, uint8_t channel){
     return wifi_init_ap_simple(ssid.c_str(), password.c_str(), channel);
 }
 
-esp_err_t IMF::connectToAP(std::string ssid, std::string password){
+esp_err_t IMF::connectToAP(const std::string& ssid, const std::string& password){
     return wifi_connect_simple(ssid.c_str(), password.c_str());
 }
 

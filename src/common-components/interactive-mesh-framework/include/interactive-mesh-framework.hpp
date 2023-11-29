@@ -37,8 +37,8 @@ namespace imf{
             esp_err_t start();
             esp_err_t registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args);
             esp_err_t addDevice(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, uint16_t _ble_mesh_addr);
-            esp_err_t createAP(std::string ssid, std::string password, uint8_t channel);
-            esp_err_t connectToAP(std::string ssid, std::string password);
+            esp_err_t createAP(const std::string& ssid, const std::string& password, uint8_t channel);
+            esp_err_t connectToAP(const std::string& ssid, const std::string& password);
             std::vector<std::shared_ptr<Device>> devices;
         private:
             std::unique_ptr<DistanceMeter> _dm;
