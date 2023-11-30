@@ -161,9 +161,19 @@ static esp_err_t board_buttons_init(){
 }
 
 esp_err_t board_init(){
+    esp_err_t ret_err = ESP_OK;
     esp_err_t err;
     err = board_led_init(&internal_rgb_conf);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Could not init internal LED");
+        ret_err = err;
+    }
 
     err = board_buttons_init();
-    return err;
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Could not init buttons");
+        ret_err = err;
+    }
+
+    return ret_err;
 }
