@@ -12,7 +12,11 @@ rgb_t BLUE  = {  0,  0,255};
 rgb_t WHITE = {255,255,255};
 
 rgb_conf_t internal_rgb_conf = {
+#if CONFIG_IDF_TARGET_ESP32C3
+    .pin = GPIO_NUM_8,
+#else
     .pin = GPIO_NUM_38,
+#endif
     .color = {0,0,0},
     .number_of_leds = 1,
     .led_strip = 0,
