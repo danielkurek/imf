@@ -21,6 +21,31 @@ typedef struct{
     uint8_t channel;
 } dm_point_info;
 
+extern "C" void event_handler(void* event_handler_arg, esp_event_base_t event_base,
+                   int32_t event_id, void* event_data){
+    ESP_LOGI(TAG, "EVT id=%" PRId32, event_id);
+    if(event_base == DM_EVENT){
+        dm_measurement_data_t *dm_data;
+        char *mac_str;
+        switch(event_id){
+            case DM_MEASUREMENT_DONE:
+                dm_data = (dm_measurement_data_t*) event_data;
+                ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", distance_cm=%" PRIu32, dm_data->point_id, dm_data->distance_cm);
+                break;
+            case DM_NEAREST_DEVICE_ENTER:
+                mac_str = (char *) event_data;
+                ESP_LOGI(TAG, "DM_NEAREST_DEVICE_ENTER, %s", mac_str);
+                break;
+            case DM_NEAREST_DEVICE_LEAVE:
+                mac_str = (char *) event_data;
+                ESP_LOGI(TAG, "DM_NEAREST_DEVICE_LEAVE, %s", mac_str);
+                break;
+            default:
+                ESP_LOGE(TAG, "Unknown event of DM, id=%" PRId32, event_id);
+        }
+    }
+}
+
 void server(){
     wifi_init_ap_simple("TestingWifi", "SuPerdUpeRStrongPaSswoRdTHatNoOneWillguess", 1);
 
@@ -53,11 +78,13 @@ void client(){
     //     vTaskDelay(1000 / portTICK_PERIOD_MS);
     // }
 
-    DistanceMeter meter{};
+    DistanceMeter meter{true};
     for(size_t i = 0; i < points_info_len; i++){
         meter.addPoint(points_info[i].bssid, points_info[i].channel);
     }
 
+    err = meter.registerEventHandle(event_handler, NULL);
+    ESP_LOGI(TAG, "Register ERR %d", err);
     meter.startTask();
 
     vTaskDelete(NULL);
