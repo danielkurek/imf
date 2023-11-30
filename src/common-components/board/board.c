@@ -15,7 +15,8 @@ rgb_conf_t internal_rgb_conf = {
     .pin = GPIO_NUM_38,
     .color = {0,0,0},
     .number_of_leds = 1,
-    .led_strip = 0
+    .led_strip = 0,
+    .on_off = 1,
 };
 
 static button_conf_t buttons[] = {
