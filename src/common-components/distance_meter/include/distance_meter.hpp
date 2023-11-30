@@ -15,6 +15,9 @@
 #include <set>
 #include <unordered_map>
 
+#define MACSTR_SCN "%02" SCNx8 ":%02" SCNx8 ":%02" SCNx8 ":%02" SCNx8 ":%02" SCNx8 ":%02" SCNx8
+#define STR2MAC(a) &(a)[0], &(a)[1], &(a)[2], &(a)[3], &(a)[4], &(a)[5]
+
 ESP_EVENT_DECLARE_BASE(DM_EVENT);
 typedef enum {
     DM_MEASUREMENT_DONE,
@@ -51,7 +54,7 @@ class DistancePoint {
                 sprintf(buffer, MACSTR, MAC2STR(_mac));
                 _macstr = std::string(buffer);
             }
-        DistancePoint(uint16_t id, const uint8_t mac[6], std::string macstr, uint8_t channel) 
+        DistancePoint(uint32_t id, const uint8_t mac[6], std::string macstr, uint8_t channel) 
             : _id(id), _macstr(macstr), _channel(channel){
                 memcpy(_mac, mac, 6);
             }
@@ -86,6 +89,7 @@ class DistanceMeter{
         // return   ID of added Point (if point already is added, ID of the existing point is returned)
         //          UINT32_MAX means an error occurred (    ran out of IDs or something else)
         uint32_t addPoint(uint8_t mac[6], uint8_t channel);
+        uint32_t addPoint(std::string macstr, uint8_t channel);
         std::shared_ptr<DistancePoint> getPoint(uint32_t id);
         // esp_err_t removePoint(uint8_t mac[6]);
         void startTask();
@@ -93,6 +97,7 @@ class DistanceMeter{
         std::shared_ptr<DistancePoint> nearestPoint();
         esp_err_t registerEventHandle(esp_event_handler_t event_handler, void *handler_args);
     private:
+        uint32_t _addPoint(const uint8_t mac[6], std::string macstr, uint8_t channel);
         std::vector<std::shared_ptr<DistancePoint>> reachablePoints();
         static void taskWrapper(void* param){
             static_cast<DistanceMeter *>(param)->task();

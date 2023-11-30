@@ -129,12 +129,29 @@ DistanceMeter::DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t even
 }
 
 uint32_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel){
-    if(_next_id == UINT32_MAX){
-        return UINT32_MAX;
-    }
     char buffer[17+1];
     sprintf(buffer, MACSTR, MAC2STR(mac));
     std::string macstr (buffer);
+
+    return _addPoint(mac, macstr, channel);
+}
+
+uint32_t DistanceMeter::addPoint(std::string macstr, uint8_t channel){
+    uint8_t mac[6];
+    int ret = sscanf(macstr.c_str(), MACSTR_SCN, STR2MAC(mac));
+    if(ret != 6){
+        ESP_LOGE(TAG, "Error parsing MAC address, parsed %d, expected 6! \"%s\"", ret, macstr.c_str());
+        return UINT32_MAX;
+    }
+
+    return _addPoint(mac, macstr, channel);
+}
+
+uint32_t DistanceMeter::_addPoint(const uint8_t mac[6], std::string macstr, uint8_t channel){
+    if(_next_id == UINT32_MAX){
+        return UINT32_MAX;
+    }
+
     uint32_t id;
     auto search = _points_mac_id.find(macstr);
     if(search != _points_mac_id.end()){
@@ -147,12 +164,6 @@ uint32_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel){
         _points_mac_id.emplace(macstr, id);
         return id;
     }
-
-    // ESP_LOGI(TAG, "Tracked points:");
-    // for(const auto& [key,point] : _points){
-    //     ESP_LOGI(TAG, "[%s] channel=%d", key.c_str(), point->getChannel());
-    // }
-    return UINT32_MAX;
 }
 
 std::shared_ptr<DistancePoint> DistanceMeter::getPoint(uint32_t id){

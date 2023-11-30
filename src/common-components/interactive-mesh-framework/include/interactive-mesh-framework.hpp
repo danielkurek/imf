@@ -20,7 +20,7 @@ namespace imf{
 
     class Device{
         public:
-            Device(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, uint16_t _ble_mesh_addr);
+            Device(DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr);
             esp_err_t setRgb(rgb_t rgb);
             rgb_t getRgb();
             esp_err_t measureDistance(uint32_t *distance_cm);
@@ -39,7 +39,7 @@ namespace imf{
             IMF();
             esp_err_t start();
             esp_err_t registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args);
-            esp_err_t addDevice(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, uint16_t _ble_mesh_addr);
+            esp_err_t addDevice(DeviceType type, std::string wifi_mac_str, uint8_t wifi_channel, uint16_t ble_mesh_addr);
             esp_err_t createAP(const std::string& ssid, const std::string& password, uint8_t channel);
             esp_err_t connectToAP(const std::string& ssid, const std::string& password);
             std::vector<std::shared_ptr<Device>> devices;

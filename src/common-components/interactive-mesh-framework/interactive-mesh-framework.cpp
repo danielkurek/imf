@@ -15,16 +15,18 @@ using namespace imf;
 std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>(UART_NUM_1, GPIO_NUM_14, GPIO_NUM_17);
 std::shared_ptr<DistanceMeter> Device::_dm = nullptr;
 
-Device::Device(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, uint16_t _ble_mesh_addr)
+Device::Device(DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr)
     : type(_type), ble_mesh_addr(_ble_mesh_addr){
     if(_type == DeviceType::Station){
         if(_dm != nullptr){
-            uint32_t id = _dm->addPoint(_wifi_mac, _wifi_channel);
+            uint32_t id = _dm->addPoint(_wifi_mac_str, _wifi_channel);
             if(id != UINT32_MAX){
                 _point = _dm->getPoint(id);
             }
         } else{
-            _point = std::make_shared<DistancePoint>(UINT32_MAX, _wifi_mac, _wifi_channel);
+            uint8_t wifi_mac[6];
+            sscanf(_wifi_mac_str.c_str(), MACSTR_SCN, STR2MAC(wifi_mac));
+            _point = std::make_shared<DistancePoint>(UINT32_MAX, wifi_mac, _wifi_mac_str, _wifi_channel);
         }
     }
 }
@@ -128,8 +130,8 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
 
     return err;
 }
-esp_err_t IMF::addDevice(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, uint16_t _ble_mesh_addr) {
-    devices.emplace_back(std::make_shared<Device>(_type, _wifi_mac, _wifi_channel, _ble_mesh_addr));
+esp_err_t IMF::addDevice(DeviceType type, std::string _wifi_mac_str, uint8_t wifi_channel, uint16_t ble_mesh_addr) {
+    devices.emplace_back(std::make_shared<Device>(type, _wifi_mac_str, wifi_channel, ble_mesh_addr));
     return ESP_OK;
 }
 

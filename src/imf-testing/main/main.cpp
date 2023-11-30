@@ -61,10 +61,9 @@ void event_handler(void* event_handler_arg, esp_event_base_t event_base,
 void testapp(void* param){
     ESP_LOGI(TAG, "Testapp start");
     IMF imf;
-    uint8_t mac[6] = {0x34,0xb4,0x72,0x6a,0x77,0xc1};
     
     ESP_LOGI(TAG, "imf add device");
-    imf.addDevice(DeviceType::Station, mac, 1, 0xffff);
+    imf.addDevice(DeviceType::Station, "34:b4:72:6a:77:c1", 1, 0xffff);
     
     ESP_LOGI(TAG, "imf register callbacks");
     imf.registerCallbacks(button_cb, event_handler, NULL);
