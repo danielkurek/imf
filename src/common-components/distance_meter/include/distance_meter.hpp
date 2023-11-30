@@ -25,6 +25,7 @@ typedef enum {
 typedef struct{
     uint32_t point_id;
     uint32_t distance_cm;
+    bool valid;
 } dm_measurement_data_t;
 
 typedef struct{
@@ -57,7 +58,7 @@ class DistancePoint {
         
         // default event loop needs to be created before calling this function
         static esp_err_t initDistanceMeasurement();
-        uint32_t measureDistance();
+        esp_err_t measureDistance(uint32_t *distance_cm);
         static ftm_result_t measureRawDistance(
                 wifi_ftm_initiator_cfg_t* ftmi_conf);
         const uint8_t* getMac() { return _mac; }

@@ -31,7 +31,10 @@ void event_handler(void* event_handler_arg, esp_event_base_t event_base,
         switch(event_id){
             case DM_MEASUREMENT_DONE:
                 dm_data = (dm_measurement_data_t*) event_data;
-                ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, mac=" MACSTR ", distance_cm=%" PRId32, MAC2STR(dm_data->peer_mac), dm_data->distance_cm);
+                if(dm_data->valid)
+                    ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", distance_cm=%" PRIu32, dm_data->point_id, dm_data->distance_cm);
+                else
+                    ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", INVALID", dm_data->point_id);
                 break;
             case DM_NEAREST_DEVICE_ENTER:
                 mac_str = (char *) event_data;

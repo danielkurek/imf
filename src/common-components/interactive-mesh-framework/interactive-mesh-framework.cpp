@@ -67,11 +67,11 @@ rgb_t Device::getRgb(){
     return rgb;
 }
 
-uint32_t Device::measureDistance(){
+esp_err_t Device::measureDistance(uint32_t *distance_cm){
     if(type == DeviceType::Mobile || _point == nullptr){
         return UINT32_MAX;
     }
-    return _point->measureDistance();
+    return _point->measureDistance(distance_cm);
 }
 
 IMF::IMF(){

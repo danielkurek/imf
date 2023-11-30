@@ -49,7 +49,7 @@ void DistancePoint::event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-uint32_t DistancePoint::measureDistance(){
+esp_err_t DistancePoint::measureDistance(uint32_t *distance_cm){
     wifi_ftm_initiator_cfg_t ftmi_cfg {};
     memcpy(ftmi_cfg.resp_mac, _mac, 6);
     ftmi_cfg.channel = _channel;
@@ -59,9 +59,11 @@ uint32_t DistancePoint::measureDistance(){
     ftm_result_t ftm_report = measureRawDistance(&ftmi_cfg);
     // TODO: filter data
 
-    if(ftm_report.status != FTM_STATUS_SUCCESS)
-        return UINT32_MAX;
-    return ftm_report.dist_est;
+    if(ftm_report.status == FTM_STATUS_SUCCESS){
+        (*distance_cm) = ftm_report.dist_est;
+        return ESP_OK;
+    }
+    return ESP_FAIL;
 }
 
 ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cfg){
@@ -274,24 +276,29 @@ void DistanceMeter::task(){
 
         // auto points = reachablePoints();
         // ESP_LOGI(TAG, "%d reachable points", points.size());
+        ESP_LOGI(TAG, "Measuring distance to %d points", _points.size());
         for(const auto& [key, point] : _points){
-            uint32_t distance_cm = point->measureDistance();
+            uint32_t distance_cm = UINT32_MAX;
+            err = point->measureDistance(&distance_cm);
+            bool valid = err == ESP_OK;
             uint32_t point_id = point->getID();
-            const std::string point_mac = point->getMacStr();
-            auto search = _measurements.find(point_id);
-            if(search != _measurements.end()){
-                _measurements[point_id]->distance_cm = distance_cm;
-                _measurements[point_id]->timestamp = now;
-            } else{
-                _measurements.emplace(point_id, std::make_shared<distance_measurement_t>(distance_cm, now));
+            if(valid){
+                auto search = _measurements.find(point_id);
+                if(search != _measurements.end()){
+                    _measurements[point_id]->distance_cm = distance_cm;
+                    _measurements[point_id]->timestamp = now;
+                } else{
+                    _measurements.emplace(point_id, std::make_shared<distance_measurement_t>(distance_cm, now));
+                }
             }
             dm_measurement_data_t event_data;
             event_data.point_id = point_id;
             event_data.distance_cm = distance_cm;
-            esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
-
-            if(distance_cm != UINT32_MAX)
-                ESP_LOGI(TAG, "Distance for point %s is %" PRIu32, point->getMacStr().c_str(), distance_cm);
+            event_data.valid = valid;
+            err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
+            if(err != ESP_OK){
+                ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
+            }
         }
 
         now = xTaskGetTickCount();

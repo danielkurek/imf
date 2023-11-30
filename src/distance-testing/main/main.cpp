@@ -30,7 +30,10 @@ extern "C" void event_handler(void* event_handler_arg, esp_event_base_t event_ba
         switch(event_id){
             case DM_MEASUREMENT_DONE:
                 dm_data = (dm_measurement_data_t*) event_data;
-                ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", distance_cm=%" PRIu32, dm_data->point_id, dm_data->distance_cm);
+                if(dm_data->valid)
+                    ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", distance_cm=%" PRIu32, dm_data->point_id, dm_data->distance_cm);
+                else
+                    ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", INVALID", dm_data->point_id);
                 break;
             case DM_NEAREST_DEVICE_ENTER:
                 mac_str = (char *) event_data;
@@ -73,7 +76,8 @@ void client(){
     // DistancePoint point{mac, channel};
 
     // while(true){
-    //     uint32_t distance_cm = point.measureDistance();
+    //     uint32_t distance_cm;
+    //     err = point.measureDistance(&distance_cm);
     //     ESP_LOGI(TAG, "Distance to point is %" PRIu32, distance_cm);
     //     vTaskDelay(1000 / portTICK_PERIOD_MS);
     // }

@@ -23,7 +23,7 @@ namespace imf{
             Device(DeviceType _type, uint8_t _wifi_mac[6], uint8_t _wifi_channel, uint16_t _ble_mesh_addr);
             esp_err_t setRgb(rgb_t rgb);
             rgb_t getRgb();
-            uint32_t measureDistance();
+            esp_err_t measureDistance(uint32_t *distance_cm);
             const DeviceType type;
             const uint16_t ble_mesh_addr;
             static esp_err_t setRgbAll(rgb_t rgb);
