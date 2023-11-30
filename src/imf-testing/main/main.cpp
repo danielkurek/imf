@@ -37,10 +37,18 @@ void event_handler(void* event_handler_arg, esp_event_base_t event_base,
                     ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", INVALID", dm_data->point_id);
                 break;
             case DM_NEAREST_DEVICE_ENTER:
+                if(event_data == NULL){
+                    ESP_LOGI(TAG, "DM_NEAREST_DEVICE_ENTER, NONE");
+                    break;
+                }
                 mac_str = (char *) event_data;
                 ESP_LOGI(TAG, "DM_NEAREST_DEVICE_ENTER, %s", mac_str);
                 break;
             case DM_NEAREST_DEVICE_LEAVE:
+                if(event_data == NULL){
+                    ESP_LOGI(TAG, "DM_NEAREST_DEVICE_LEAVE, NONE");
+                    break;
+                }
                 mac_str = (char *) event_data;
                 ESP_LOGI(TAG, "DM_NEAREST_DEVICE_LEAVE, %s", mac_str);
                 break;
