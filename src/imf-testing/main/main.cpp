@@ -19,6 +19,10 @@ static const char *TAG = "APP";
 
 using namespace imf;
 
+void update_cb(TickType_t diff){
+    ESP_LOGI(TAG, "Ticks from last update: %" PRIu32, diff);
+}
+
 void button_cb(uint8_t button_num){
     ESP_LOGI(TAG, "Button no. %d was pressed", button_num);
 }
@@ -66,7 +70,7 @@ void testapp(void* param){
     imf.addDevice(DeviceType::Station, "34:b4:72:6a:77:c1", 1, 0xffff);
     
     ESP_LOGI(TAG, "imf register callbacks");
-    imf.registerCallbacks(button_cb, event_handler, NULL);
+    imf.registerCallbacks(button_cb, event_handler, NULL, update_cb);
 
     ESP_LOGI(TAG, "imf start");
     imf.start();

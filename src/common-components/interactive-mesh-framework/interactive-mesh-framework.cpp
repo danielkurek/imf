@@ -5,12 +5,15 @@
 #include "board.h"
 #include <memory>
 #include "wifi_connect.h"
+#include "esp_timer.h"
 
 #define EVENT_LOOP_QUEUE_SIZE 16
 
 static const char* TAG = "IMF";
 
 using namespace imf;
+
+static esp_timer_handle_t update_timer;
 
 std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>(UART_NUM_1, GPIO_NUM_14, GPIO_NUM_17);
 std::shared_ptr<DistanceMeter> Device::_dm = nullptr;
@@ -113,7 +116,18 @@ esp_err_t IMF::start() {
     _dm->startTask();
     return ESP_OK;
 }
-esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args) 
+
+void IMF::_update_timer_cb(){
+    static TickType_t _last_update = 0;
+    TickType_t now = xTaskGetTickCount();
+    TickType_t diff = pdTICKS_TO_MS(now) - pdTICKS_TO_MS(_last_update);
+    if(_update_cb != NULL){
+        _update_cb(diff);
+    }
+    _last_update = now;
+}
+
+esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args, update_function_t update_cb) 
 { 
     esp_err_t err;
     err = board_buttons_release_register_callback(btn_cb);
@@ -127,7 +141,31 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
         ESP_LOGE(TAG, "Cannot board register DM event handle");
         return err;
     }
+    if(update_cb != NULL){
+        esp_timer_create_args_t args = {
+            .callback = _update_timer_cb_wrapper,
+            .arg = this,
+            .dispatch_method = ESP_TIMER_TASK,
+            .name = "UpdateTimer",
+            .skip_unhandled_events = true
+        };
+        
+        _update_timer_cb();
 
+        err = esp_timer_create(&args, &(update_timer));
+        if(err != ESP_OK){
+            ESP_LOGE(TAG, "Failed initializing update timer! %s", esp_err_to_name(err));
+            return err;
+        }
+        
+        _update_cb = update_cb;
+
+        err = esp_timer_start_periodic(update_timer, 200 * 1000); // every 200 ms
+        if(err != ESP_OK){
+            ESP_LOGE(TAG, "Failed to start update timer! %s", esp_err_to_name(err));
+            return err;
+        }
+    }
     return err;
 }
 esp_err_t IMF::addDevice(DeviceType type, std::string _wifi_mac_str, uint8_t wifi_channel, uint16_t ble_mesh_addr) {

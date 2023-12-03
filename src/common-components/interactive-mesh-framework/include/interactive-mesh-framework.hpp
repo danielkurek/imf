@@ -13,6 +13,8 @@
 #include <memory>
 
 namespace imf{
+    typedef void (*update_function_t)(TickType_t diff_ms);
+
     enum class DeviceType {
         Mobile,
         Station
@@ -38,14 +40,18 @@ namespace imf{
         public:
             IMF();
             esp_err_t start();
-            esp_err_t registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args);
-            esp_err_t addDevice(DeviceType type, std::string wifi_mac_str, uint8_t wifi_channel, uint16_t ble_mesh_addr);
+            esp_err_t registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args, update_function_t update_func);
             esp_err_t createAP(const std::string& ssid, const std::string& password, uint8_t channel);
             esp_err_t connectToAP(const std::string& ssid, const std::string& password);
             std::vector<std::shared_ptr<Device>> devices;
         private:
+            static void _update_timer_cb_wrapper(void *param){
+                static_cast<IMF *>(param)->_update_timer_cb();
+            }
+            void _update_timer_cb();
             std::shared_ptr<DistanceMeter> _dm;
             esp_event_loop_handle_t _event_loop_hdl;
+            update_function_t _update_cb;
     };
 }
 
