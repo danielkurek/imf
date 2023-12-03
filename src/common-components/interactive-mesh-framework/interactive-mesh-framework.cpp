@@ -18,8 +18,8 @@ static esp_timer_handle_t update_timer;
 std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>(UART_NUM_1, GPIO_NUM_14, GPIO_NUM_17);
 std::shared_ptr<DistanceMeter> Device::_dm = nullptr;
 
-Device::Device(DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr)
-    : type(_type), ble_mesh_addr(_ble_mesh_addr){
+Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr)
+    : id(_id), type(_type), ble_mesh_addr(_ble_mesh_addr){
     if(_type == DeviceType::Station){
         if(_dm != nullptr){
             uint32_t id = _dm->addPoint(_wifi_mac_str, _wifi_channel);
@@ -168,9 +168,23 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
     }
     return err;
 }
-esp_err_t IMF::addDevice(DeviceType type, std::string _wifi_mac_str, uint8_t wifi_channel, uint16_t ble_mesh_addr) {
-    devices.emplace_back(std::make_shared<Device>(type, _wifi_mac_str, wifi_channel, ble_mesh_addr));
-    return ESP_OK;
+uint32_t IMF::addDevice(DeviceType type, std::string _wifi_mac_str, uint8_t wifi_channel, uint16_t ble_mesh_addr) {
+    if(_next_id == UINT32_MAX){
+        return UINT32_MAX;
+    }
+    uint32_t id = _next_id;
+    _devices.emplace(id, std::make_shared<Device>(type, _wifi_mac_str, wifi_channel, ble_mesh_addr));
+    _next_id += 1;
+    return id;
+}
+
+std::shared_ptr<Device> IMF::getDevice(uint32_t id){
+    auto search = _devices.find();
+    if(search != _devices.end()){
+        return search->second;
+    }
+
+    return nullptr;
 }
 
 esp_err_t IMF::createAP(const std::string& ssid, const std::string& password, uint8_t channel){
