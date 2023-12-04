@@ -1,0 +1,26 @@
+graph {
+    normalize=true
+
+    a -- b [len=2]
+    a -- d [len=1.4]
+    a -- e [len=1.4]
+    a -- f [len=1.4]
+    a -- h [len=1.4]
+    
+    b -- d [len=1.4]
+    b -- h [len=1.4]
+    b -- c [len=2]
+
+    d -- e [len=2]
+    
+    e -- f [len=2]
+    
+    f -- g [len=1.4]
+    f -- h [len=2]
+    
+    g -- h [len=1.4]
+
+    a[pos="0,0!"]
+    g[pos="0,-2!"]
+}
+
