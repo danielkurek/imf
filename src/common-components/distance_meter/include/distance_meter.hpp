@@ -25,6 +25,11 @@ typedef enum {
     DM_NEAREST_DEVICE_LEAVE,
 } dm_event_t;
 
+typedef struct {
+    uint32_t point_id;
+    TickType_t timestamp_ms;
+} dm_event_data_t;
+
 typedef struct{
     uint32_t point_id;
     uint32_t distance_cm;

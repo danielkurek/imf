@@ -23,25 +23,33 @@ typedef struct{
 
 extern "C" void event_handler(void* event_handler_arg, esp_event_base_t event_base,
                    int32_t event_id, void* event_data){
-    ESP_LOGI(TAG, "EVT id=%" PRId32, event_id);
     if(event_base == DM_EVENT){
-        dm_measurement_data_t *dm_data;
-        char *mac_str;
+        dm_measurement_data_t *dm_measurement;
+        dm_event_data_t *dm_event_data;
+        uint32_t *device_id;
         switch(event_id){
             case DM_MEASUREMENT_DONE:
-                dm_data = (dm_measurement_data_t*) event_data;
-                if(dm_data->valid)
-                    ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", distance_cm=%" PRIu32, dm_data->point_id, dm_data->distance_cm);
+                dm_measurement = (dm_measurement_data_t*) event_data;
+                if(dm_measurement->valid)
+                    ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", distance_cm=%" PRIu32, dm_measurement->point_id, dm_measurement->distance_cm);
                 else
-                    ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", INVALID", dm_data->point_id);
+                    ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", INVALID", dm_measurement->point_id);
                 break;
             case DM_NEAREST_DEVICE_ENTER:
-                mac_str = (char *) event_data;
-                ESP_LOGI(TAG, "DM_NEAREST_DEVICE_ENTER, %s", mac_str);
+                dm_event_data = (dm_event_data_t*) event_data;
+                if(dm_event_data->point_id == UINT32_MAX){
+                    ESP_LOGI(TAG, "DM_NEAREST_DEVICE_ENTER, NONE");
+                    break;
+                }
+                ESP_LOGI(TAG, "DM_NEAREST_DEVICE_ENTER, %" PRIu32, dm_event_data->point_id);
                 break;
             case DM_NEAREST_DEVICE_LEAVE:
-                mac_str = (char *) event_data;
-                ESP_LOGI(TAG, "DM_NEAREST_DEVICE_LEAVE, %s", mac_str);
+                dm_event_data = (dm_event_data_t*) event_data;
+                if(dm_event_data->point_id == UINT32_MAX){
+                    ESP_LOGI(TAG, "DM_NEAREST_DEVICE_LEAVE, NONE");
+                    break;
+                }
+                ESP_LOGI(TAG, "DM_NEAREST_DEVICE_LEAVE, %" PRIu32, dm_event_data->point_id);
                 break;
             default:
                 ESP_LOGE(TAG, "Unknown event of DM, id=%" PRId32, event_id);
