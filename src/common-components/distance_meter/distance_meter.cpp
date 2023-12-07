@@ -329,36 +329,24 @@ void DistanceMeter::task(){
 
         if(nearest_point != s_nearest_point){
             // when posting to event loop, the data are copied so we can use one instance for multiple events
-            dm_event_data_t event_data;
+            dm_nearest_device_change_t event_data;
             event_data.timestamp_ms = pdTICKS_TO_MS(xTaskGetTickCount());
             if(s_nearest_point){
-                event_data.point_id = s_nearest_point->getID();;
-                err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_LEAVE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
-                if(err != ESP_OK){
-                    ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
-                }
+                event_data.old_point_id = s_nearest_point->getID();;
             } else{
-                event_data.point_id = UINT32_MAX;
-                err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_LEAVE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
-                if(err != ESP_OK){
-                    ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
-                }
+                event_data.old_point_id = UINT32_MAX;
             }
             
-            s_nearest_point = nearest_point;
-
             if(nearest_point){
-                event_data.point_id = nearest_point->getID();
-                err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_ENTER, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
-                if(err != ESP_OK){
-                    ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
-                }
+                event_data.new_point_id = nearest_point->getID();
             } else{
-                event_data.point_id = UINT32_MAX;
-                err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_ENTER, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
-                if(err != ESP_OK){
-                    ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
-                }
+                event_data.new_point_id = UINT32_MAX;
+            }
+
+            s_nearest_point = nearest_point;
+            err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_CHANGE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
+            if(err != ESP_OK){
+                ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
             }
         }
     }

@@ -21,14 +21,14 @@
 ESP_EVENT_DECLARE_BASE(DM_EVENT);
 typedef enum {
     DM_MEASUREMENT_DONE,
-    DM_NEAREST_DEVICE_ENTER,
-    DM_NEAREST_DEVICE_LEAVE,
+    DM_NEAREST_DEVICE_CHANGE,
 } dm_event_t;
 
 typedef struct {
-    uint32_t point_id;
+    uint32_t old_point_id;
+    uint32_t new_point_id;
     TickType_t timestamp_ms;
-} dm_event_data_t;
+} dm_nearest_device_change_t;
 
 typedef struct{
     uint32_t point_id;

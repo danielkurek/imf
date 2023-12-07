@@ -31,8 +31,7 @@ extern "C" void event_handler(void* event_handler_arg, esp_event_base_t event_ba
                    int32_t event_id, void* event_data){
     if(event_base == DM_EVENT){
         dm_measurement_data_t *dm_measurement;
-        dm_event_data_t *dm_event_data;
-        uint32_t *device_id;
+        dm_nearest_device_change_t *dm_nearest_dev;
         switch(event_id){
             case DM_MEASUREMENT_DONE:
                 dm_measurement = (dm_measurement_data_t*) event_data;
@@ -41,9 +40,9 @@ extern "C" void event_handler(void* event_handler_arg, esp_event_base_t event_ba
                 else
                     ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", INVALID", dm_measurement->point_id);
                 break;
-            case DM_NEAREST_DEVICE_ENTER:
-                dm_event_data = (dm_event_data_t*) event_data;
-                if(dm_event_data->point_id == UINT32_MAX){
+            case DM_NEAREST_DEVICE_CHANGE:
+                dm_nearest_dev = (dm_nearest_device_change_t*) event_data;
+                ESP_LOGI(TAG, "DM_NEAREST_DEVICE_CHANGE, from: %" PRIx32 " | to: %" PRIx32, dm_nearest_dev->old_point_id, dm_nearest_dev->new_point_id);
                     ESP_LOGI(TAG, "DM_NEAREST_DEVICE_ENTER, NONE");
                     break;
                 }
