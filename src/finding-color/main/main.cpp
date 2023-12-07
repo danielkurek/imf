@@ -19,8 +19,18 @@ static const char *TAG = "APP";
 
 using namespace imf;
 
+static IMF s_imf;
+static std::shared_ptr<Device> closest_device;
+static TickType_t closest_timestamp_ms;
+
+constexpr uint32_t closest_time_limit = 10000;
+
 void update_cb(TickType_t diff_ms){
     ESP_LOGI(TAG, "Time since last update: %lu", diff_ms);
+    TickType_t now_ms = pdTICKS_TO_MS(xTaskGetTickCount());
+    if((now_ms - closest_timestamp_ms) >= closest_time_limit){
+        // check color
+    }
 }
 
 extern "C" void button_cb(uint8_t button_num){
@@ -43,18 +53,18 @@ extern "C" void event_handler(void* event_handler_arg, esp_event_base_t event_ba
             case DM_NEAREST_DEVICE_CHANGE:
                 dm_nearest_dev = (dm_nearest_device_change_t*) event_data;
                 ESP_LOGI(TAG, "DM_NEAREST_DEVICE_CHANGE, from: %" PRIx32 " | to: %" PRIx32, dm_nearest_dev->old_point_id, dm_nearest_dev->new_point_id);
-                    ESP_LOGI(TAG, "DM_NEAREST_DEVICE_ENTER, NONE");
-                    break;
+
+                // check if the event is newer than what is saved
+                // does not hold when timestamp overflows 
+                // but it is ok, since it happens after more than 1000 hours (way more than expected runtime)
+                if(dm_nearest_dev->closest_timestamp_ms >= closest_timestamp_ms){
+                    if(dm_nearest_dev->new_point_id == UINT32_MAX){
+                        closest_device = nullptr;
+                    } else{
+                        closest_device = s_imf.getDevice(dm_nearest_dev->new_point_id);
+                    }
+                    closest_timestamp_ms = dm_nearest_dev->closest_timestamp_ms;
                 }
-                ESP_LOGI(TAG, "DM_NEAREST_DEVICE_ENTER, %" PRIu32, dm_event_data->point_id);
-                break;
-            case DM_NEAREST_DEVICE_LEAVE:
-                dm_event_data = (dm_event_data_t*) event_data;
-                if(dm_event_data->point_id == UINT32_MAX){
-                    ESP_LOGI(TAG, "DM_NEAREST_DEVICE_LEAVE, NONE");
-                    break;
-                }
-                ESP_LOGI(TAG, "DM_NEAREST_DEVICE_LEAVE, %" PRIu32, dm_event_data->point_id);
                 break;
             default:
                 ESP_LOGE(TAG, "Unknown event of DM, id=%" PRId32, event_id);
@@ -79,14 +89,14 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     ESP_LOGI(TAG, "init IMF");
-    IMF imf;
+    
     
     ESP_LOGI(TAG, "IMF add devices");
-    imf.addDevice(DeviceType::Station, "34:b4:72:6a:77:c1", 1, 0xc000);
+    s_imf.addDevice(DeviceType::Station, "34:b4:72:6a:77:c1", 1, 0xc000);
     
     ESP_LOGI(TAG, "IMF register callbacks");
-    imf.registerCallbacks(button_cb, event_handler, NULL, update_cb);
+    s_imf.registerCallbacks(button_cb, event_handler, NULL, update_cb);
 
     ESP_LOGI(TAG, "IMF start");
-    imf.start();
+    s_imf.start();
 }
