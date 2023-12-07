@@ -67,7 +67,9 @@ void testapp(void* param){
     IMF imf;
     
     ESP_LOGI(TAG, "imf add device");
-    imf.addDevice(DeviceType::Station, "34:b4:72:6a:77:c1", 1, 0xffff);
+    uint32_t id = imf.addDevice(DeviceType::Station, "34:b4:72:6a:77:c1", 1, 0xffff);
+
+    std::shared_ptr<Device> device = imf.getDevice(id);
     
     ESP_LOGI(TAG, "imf register callbacks");
     imf.registerCallbacks(button_cb, event_handler, NULL, update_cb);
@@ -82,7 +84,7 @@ void testapp(void* param){
     while(1){
         vTaskDelay(1000 / portTICK_PERIOD_MS);
         ESP_LOGI(TAG, "set %d", i);
-        imf.devices[0]->setRgb(seq[i]);
+        device->setRgb(seq[i]);
         i++;
         if(i >= seq_len){
             i = 0;

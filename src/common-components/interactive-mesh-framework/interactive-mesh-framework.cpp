@@ -173,13 +173,13 @@ uint32_t IMF::addDevice(DeviceType type, std::string _wifi_mac_str, uint8_t wifi
         return UINT32_MAX;
     }
     uint32_t id = _next_id;
-    _devices.emplace(id, std::make_shared<Device>(type, _wifi_mac_str, wifi_channel, ble_mesh_addr));
+    _devices.emplace(id, std::make_shared<Device>(id, type, _wifi_mac_str, wifi_channel, ble_mesh_addr));
     _next_id += 1;
     return id;
 }
 
 std::shared_ptr<Device> IMF::getDevice(uint32_t id){
-    auto search = _devices.find();
+    auto search = _devices.find(id);
     if(search != _devices.end()){
         return search->second;
     }
@@ -193,12 +193,4 @@ esp_err_t IMF::createAP(const std::string& ssid, const std::string& password, ui
 
 esp_err_t IMF::connectToAP(const std::string& ssid, const std::string& password){
     return wifi_connect_simple(ssid.c_str(), password.c_str());
-}
-
-esp_err_t IMF::getMAC(std::string &){
-    int64_t mac_addr = 0LL;
-    esp_read_mac((uint8_t*) (&mac_addr), ESP_MAC_WIFI_SOFTAP);
-    
-    char ssid[MAX_SSID_LEN];
-    snprintf(ssid, MAX_SSID_LEN, "NODE-%llX", mac_addr);
 }
