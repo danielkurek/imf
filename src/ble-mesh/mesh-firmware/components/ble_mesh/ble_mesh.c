@@ -45,10 +45,21 @@
 
 #include "logger.h"
 
+#define LOC_LOCAL_SIZE 9
+
+#define EVENT_GET_SUCCESS_BIT BIT0
+#define EVENT_GET_FAIL_BIT BIT1
+
 // tag for logging
 static const char* TAG = "EXAMPLE-STA";
 
 static rgb_conf_t *rgb_conf;
+
+static EventGroupHandle_t s_location_event_group;
+static struct{
+    location_local_t location;
+    uint16_t addr;   
+} s_location_event_data;
 
 // company ID who implemented BLE-mesh
 // needs to be member of Bluetooth group
@@ -143,6 +154,27 @@ BLE_MESH_MODEL_RGB_SRV_ELM2_DEFINE(rgb_srv_elm2, &rgb_state);
 static esp_ble_mesh_client_t rgb_client;
 BLE_MESH_RGB_CLI_PUB_DEFINE(rgb_cli_pub, ROLE_NODE);
 
+// Location server definition
+static esp_ble_mesh_gen_location_state_t location_state = {};
+
+ESP_BLE_MESH_MODEL_PUB_DEFINE(location_srv_pub, 2 + LOC_LOCAL_SIZE, ROLE_NODE);
+static esp_ble_mesh_gen_location_srv_t location_server = {
+    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .state = &location_state
+};
+
+ESP_BLE_MESH_MODEL_PUB_DEFINE(location_setup_pub, 2 + LOC_LOCAL_SIZE, ROLE_NODE);
+static esp_ble_mesh_gen_location_setup_srv_t location_setup_server = {
+    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
+    .state = &location_state
+};
+
+// Location client definition
+ESP_BLE_MESH_MODEL_PUB_DEFINE(location_cli_pub, 2 + LOC_LOCAL_SIZE, ROLE_NODE);
+static esp_ble_mesh_client_t location_client;
+
 /*
  * Definitions of BLE-mesh Elements
  */
@@ -156,6 +188,9 @@ static esp_ble_mesh_model_t root_models[] = {
     BLE_MESH_MODEL_RGB_SRV(&rgb_srv_pub, &rgb_srv),
     BLE_MESH_MODEL_RGB_SETUP_SRV(&rgb_setup_pub, &rgb_setup_srv),
     BLE_MESH_MODEL_RGB_CLI(&rgb_cli_pub, &rgb_client),
+    ESP_BLE_MESH_MODEL_GEN_LOCATION_SRV(&location_srv_pub, &location_server),
+    ESP_BLE_MESH_MODEL_GEN_LOCATION_SETUP_SRV(&location_setup_pub, &location_setup_server),
+    ESP_BLE_MESH_MODEL_GEN_LOCATION_CLI(&location_cli_pub, &location_client)
 };
 
 // additional elements that are needed for RGB server
@@ -305,6 +340,10 @@ static void example_handle_gen_onoff_msg(esp_ble_mesh_model_t *model,
     }
 }
 
+static void change_local_loc_state(esp_ble_mesh_state_change_gen_loc_local_set_t loc_local){
+
+}
+
 // Callback for Generic server
 // this is needed for OnOff Server
 // because it does not have its own callback
@@ -322,6 +361,17 @@ static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_ev
             param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK) {
             LOGGER_I(TAG, "onoff 0x%02x", param->value.state_change.onoff_set.onoff);
             example_change_led_state(param->model, &param->ctx, param->value.state_change.onoff_set.onoff);
+        }
+        if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET ||
+            param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET_UNACK) {
+            esp_ble_mesh_state_change_gen_loc_local_set_t loc_change = param->value.state_change.loc_local_set;
+            LOGGER_I(TAG, "local location: N=%" PRId16 " E=%" PRId16" Alt=%" PRId16 " Floor=%" PRIu8 " Uncertainty=%" PRIu16, 
+                                        loc_change.north, 
+                                        loc_change.east,
+                                        loc_change.altitude,
+                                        loc_change.floor_number,
+                                        loc_change.uncertainty);
+            change_local_loc_state(loc_change);
         }
         break;
     case ESP_BLE_MESH_GENERIC_SERVER_RECV_GET_MSG_EVT:
@@ -342,6 +392,47 @@ static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_ev
                     param->value.set.onoff.trans_time, param->value.set.onoff.delay);
             }
             example_handle_gen_onoff_msg(param->model, &param->ctx, &param->value.set.onoff);
+        }
+        break;
+    default:
+        LOGGER_E(TAG, "Unknown Generic Server event 0x%02x", event);
+        break;
+    }
+}
+
+void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
+                       esp_ble_mesh_generic_client_cb_param_t *param){
+    esp_ble_mesh_gen_onoff_srv_t *srv;
+    LOGGER_I(TAG, "event 0x%02x, opcode 0x%04" PRIx32 ", src 0x%04x, dst 0x%04x",
+        event, param->ctx.recv_op, param->ctx.addr, param->ctx.recv_dst);
+
+    switch (event) {
+    case ESP_BLE_MESH_GENERIC_CLIENT_GET_STATE_EVT:
+        LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_GET_STATE_EVT");
+        if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET){
+            s_location_event_data.location.local_north = param->status_cb.location_local_status.local_north;
+            s_location_event_data.location.local_east = param->status_cb.location_local_status.local_east;
+            s_location_event_data.location.local_altitude = param->status_cb.location_local_status.local_altitude;
+            s_location_event_data.location.floor_number = param->status_cb.location_local_status.floor_number;
+            s_location_event_data.location.uncertainty = param->status_cb.location_local_status.uncertainty;
+            
+            // TODO: test if this is the right address
+            s_location_event_data.addr = param->params->ctx.addr;
+            xEventGroupSetBits(s_location_event_group, EVENT_GET_SUCCESS_BIT);
+        }
+        break;
+    case ESP_BLE_MESH_GENERIC_CLIENT_SET_STATE_EVT:
+        // Triggered by receiving acknowledgment packet after sending SET message through GENERIC_CLIENT
+        LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_SET_STATE_EVT");
+        break;
+    case ESP_BLE_MESH_GENERIC_CLIENT_PUBLISH_EVT:
+        // Triggered by receiving publishing message
+        LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_PUBLISH_EVT");
+        break;
+    case ESP_BLE_MESH_GENERIC_CLIENT_TIMEOUT_EVT:
+        LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_TIMEOUT_EVT");
+        if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET){
+            xEventGroupSetBits(s_location_event_group, EVENT_GET_FAIL_BIT);
         }
         break;
     default:
@@ -470,6 +561,8 @@ static esp_err_t mesh_init(void)
         LOGGER_E(TAG, "Failed to initialize mesh stack (err %d)", err);
         return err;
     }
+    
+    bt_mesh_set_device_name("TEST1");
 
     err = esp_ble_mesh_node_prov_enable(ESP_BLE_MESH_PROV_ADV | ESP_BLE_MESH_PROV_GATT);
     if (err != ESP_OK) {
@@ -561,6 +654,70 @@ rgb_response_t ble_mesh_get_rgb(uint16_t addr){
     return response;
 }
 
+esp_err_t ble_mesh_set_loc_local(const location_local_t *loc_local){
+    esp_ble_mesh_client_common_param_t common = {0};
+    esp_ble_mesh_generic_client_set_state_t set_state = {0};
+
+    common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET_UNACK;
+
+    common.model = location_client.model;
+    common.ctx.net_idx = store.net_idx;
+    common.ctx.app_idx = store.app_idx;
+
+    LOGGER_I(TAG, "Sending Loc Local set to 0x%0" PRIx16, addr);
+
+    common.ctx.addr = addr;
+    common.ctx.send_ttl = 3;
+    common.ctx.send_rel = false;
+    common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
+    common.msg_role = ROLE_NODE;
+
+    set_state.loc_local_set.local_north = loc_local.local_north;
+    set_state.loc_local_set.local_east = loc_local.local_east;
+    set_state.loc_local_set.local_altitude = loc_local.local_altitude;
+    set_state.loc_local_set.floor_number = loc_local.floor_number;
+    set_state.loc_local_set.uncertainty = loc_local.uncertainty;
+
+    return esp_ble_mesh_generic_client_set_state(&common, &set_state);
+}
+
+esp_err_t ble_mesh_get_loc_local(uint16_t addr, location_local_t *result){
+    EventBits_t bits;
+    esp_ble_mesh_client_common_param_t common = {0};
+    esp_ble_mesh_generic_client_get_state_t get_state = {0};
+
+    common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET;
+
+    common.model = location_client.model;
+    common.ctx.net_idx = store.net_idx;
+    common.ctx.app_idx = store.app_idx;
+
+    LOGGER_I(TAG, "Sending Loc Local get to 0x%0" PRIx16, addr);
+
+    common.ctx.addr = addr;
+    common.ctx.send_ttl = 3;
+    common.ctx.send_rel = true;
+    common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
+    common.msg_role = ROLE_NODE;
+
+    esp_ble_mesh_generic_client_get_state(&common, &get_state);
+
+    while(true){
+        bits = xEventGroupWaitBits(s_location_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
+                                            pdTRUE, pdFALSE, portMAX_DELAY);
+        if(s_location_event_data.addr != addr){
+            continue;
+        }
+        
+        if(bits & EVENT_GET_SUCCESS_BIT){
+            (*result) = s_location_event_data.location;
+            return ESP_OK;
+        } else{
+            return ESP_FAIL;
+        }
+    }
+}
+
 
 // before calling this function:
 //  - init board
@@ -595,6 +752,8 @@ esp_err_t ble_mesh_init()
 
     // populate uuid
     ble_mesh_get_dev_uuid(dev_uuid);
+
+    s_location_event_group = xEventGroupCreate();
 
     /* Initialize the Bluetooth Mesh Subsystem */
     LOGGER_V(TAG, "mesh init");
