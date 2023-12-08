@@ -307,39 +307,6 @@ static void example_change_led_state(esp_ble_mesh_model_t *model,
     }
 }
 
-// callback for OnOff model (called from generic server callback)
-static void example_handle_gen_onoff_msg(esp_ble_mesh_model_t *model,
-                                         esp_ble_mesh_msg_ctx_t *ctx,
-                                         esp_ble_mesh_server_recv_gen_onoff_set_t *set)
-{
-    esp_ble_mesh_gen_onoff_srv_t *srv = model->user_data;
-
-    switch (ctx->recv_op) {
-    case ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_GET:
-        esp_ble_mesh_server_model_send_msg(model, ctx,
-            ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS, sizeof(srv->state.onoff), &srv->state.onoff);
-        break;
-    case ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET:
-    case ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK:
-        if (set->op_en == false) {
-            srv->state.onoff = set->onoff;
-        } else {
-            /* TODO: Delay and state transition */
-            srv->state.onoff = set->onoff;
-        }
-        if (ctx->recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET) {
-            esp_ble_mesh_server_model_send_msg(model, ctx,
-                ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS, sizeof(srv->state.onoff), &srv->state.onoff);
-        }
-        esp_ble_mesh_model_publish(model, ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS,
-            sizeof(srv->state.onoff), &srv->state.onoff, ROLE_NODE);
-        example_change_led_state(model, ctx, srv->state.onoff);
-        break;
-    default:
-        break;
-    }
-}
-
 static void change_local_loc_state(esp_ble_mesh_state_change_gen_loc_local_set_t loc_local){
 
 }
@@ -356,6 +323,7 @@ static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_ev
 
     switch (event) {
     case ESP_BLE_MESH_GENERIC_SERVER_STATE_CHANGE_EVT:
+        // Triggered by SET operation, only if SET AUTO_RSP is set
         LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_SERVER_STATE_CHANGE_EVT");
         if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET ||
             param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK) {
@@ -375,24 +343,14 @@ static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_ev
         }
         break;
     case ESP_BLE_MESH_GENERIC_SERVER_RECV_GET_MSG_EVT:
+        // Triggered by GET operation, only if GET RSP_BY_APP is set
+        // we should send back a response message
         LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_SERVER_RECV_GET_MSG_EVT");
-        if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_GET) {
-            srv = param->model->user_data;
-            LOGGER_I(TAG, "onoff 0x%02x", srv->state.onoff);
-            example_handle_gen_onoff_msg(param->model, &param->ctx, NULL);
-        }
         break;
     case ESP_BLE_MESH_GENERIC_SERVER_RECV_SET_MSG_EVT:
+        // Triggered by GET operation, only if SET RSP_BY_APP is set
+        // we should send back a response message
         LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_SERVER_RECV_SET_MSG_EVT");
-        if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET ||
-            param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK) {
-            LOGGER_I(TAG, "onoff 0x%02x, tid 0x%02x", param->value.set.onoff.onoff, param->value.set.onoff.tid);
-            if (param->value.set.onoff.op_en) {
-                LOGGER_I(TAG, "trans_time 0x%02x, delay 0x%02x",
-                    param->value.set.onoff.trans_time, param->value.set.onoff.delay);
-            }
-            example_handle_gen_onoff_msg(param->model, &param->ctx, &param->value.set.onoff);
-        }
         break;
     default:
         LOGGER_E(TAG, "Unknown Generic Server event 0x%02x", event);
@@ -430,6 +388,7 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
         LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_PUBLISH_EVT");
         break;
     case ESP_BLE_MESH_GENERIC_CLIENT_TIMEOUT_EVT:
+        // Timeout reached when sending a message
         LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_TIMEOUT_EVT");
         if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET){
             xEventGroupSetBits(s_location_event_group, EVENT_GET_FAIL_BIT);
