@@ -1,4 +1,4 @@
-idf_component_register(SRCS ""
+idf_component_register(SRCS "location_common.c" ""
                     INCLUDE_DIRS "include"
                     REQUIRES ""
                     PRIV_REQUIRES "")
