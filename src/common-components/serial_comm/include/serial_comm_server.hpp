@@ -8,6 +8,7 @@
 #include <unordered_map>
 
 typedef void (*serial_comm_change_cb)(uint16_t addr, const std::string& field, const std::string& value);
+typedef void (*serial_comm_get_cb)(uint16_t addr, const std::string& field);
 
 class SerialCommSrv {
     public:
@@ -21,11 +22,12 @@ class SerialCommSrv {
             xTaskCreate(TaskWrapper, "SerialCommSrv", 1024*8, this, configMAX_PRIORITIES, &_xHandle);
             return ESP_OK;
         }
-        std::string GetField(uint16_t addr, const std::string& field);
+        esp_err_t GetField(uint16_t addr, const std::string& field, std::string& out);
         esp_err_t SetField(uint16_t addr, const std::string& field, const std::string& value);
         esp_err_t SetStatus(CommStatus status);
-        void RegisterChangeCallback(serial_comm_change_cb cb){
-            _callback = cb;
+        void RegisterChangeCallback(serial_comm_change_cb change_cb, serial_comm_get_cb get_cb){
+            _change_callback = change_cb;
+            _get_callback = get_cb;
         }
     private:
         esp_err_t SendGetResponse(uint16_t addr, const std::string& field);
@@ -42,7 +44,8 @@ class SerialCommSrv {
         CommStatus _current_status;
         TaskHandle_t _xHandle = NULL;
         std::unordered_map<uint16_t, std::unordered_map<std::string, std::string>> fields;
-        serial_comm_change_cb _callback = nullptr;
+        serial_comm_change_cb _change_callback = nullptr;
+        serial_comm_get_cb _get_callback = nullptr;
 };
 
 #endif

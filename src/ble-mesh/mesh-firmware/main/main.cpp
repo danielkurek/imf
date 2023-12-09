@@ -106,8 +106,42 @@ void serial_comm_change_callback(uint16_t addr, const std::string& field, const 
     }
 }
 
+void serial_comm_get_callback(uint16_t addr, const std::string& field){
+    esp_err_t err;
+    if(field == "rgb"){
+        rgb_t color;
+        err = ble_mesh_get_rgb(addr, &color);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not get RGB value for 0x%04" PRIx16, addr);
+        }
+        size_t buf_len = 6+1;
+        char buf[buf_len];
+        err = rgb_to_str(color, buf_len, buf);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, addr);
+            return;
+        }
+        serialSrv.SetField(addr, field, buf);
+    }
+    if(field == "loc"){
+        location_local_t loc_local;
+        err = ble_mesh_get_loc_local(addr, &loc_local);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not get local location value for 0x%04" PRIx16, addr);
+        }
+        size_t buf_len = 10+1;
+        char buf[buf_len];
+        err = simple_loc_to_str(&loc_local, buf_len, buf);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, addr);
+            return;
+        }
+        serialSrv.SetField(addr, field, buf);
+    }
+}
+
 esp_err_t serial_comm_init(){
-    serialSrv.RegisterChangeCallback(serial_comm_change_callback);
+    serialSrv.RegisterChangeCallback(serial_comm_change_callback, serial_comm_get_callback);
     serialSrv.StartTask();
 
     return ESP_OK;
@@ -118,7 +152,20 @@ void button_release_callback(uint8_t button_num){
         ble_mesh_set_rgb(0xffff, (rgb_t){120, 255, 0}, false);
     }
     if(button_num == 1){
-        ble_mesh_get_rgb(0xffff);
+        rgb_t color;
+        uint16_t addr = 0xffff;
+        esp_err_t err = ble_mesh_get_rgb(addr, &color);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not get RGB value for 0x%04" PRIx16, addr);
+        }
+        size_t buf_len = 6+1;
+        char buf[buf_len];
+        err = rgb_to_str(color, buf_len, buf);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, addr);
+        } else{
+            LOGGER_I(TAG, "0x%04" PRIx16" - color=%s", addr, buf);
+        }
     }
 }
 

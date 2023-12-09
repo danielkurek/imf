@@ -27,13 +27,8 @@ typedef struct {
     uint8_t  delay;       /*!< Indicate message execution delay (C.1) */
 } esp_ble_mesh_rgb_set_t;
 
-typedef struct{
-    rgb_t rgb;
-    bool valid;
-} rgb_response_t;
-
 esp_err_t ble_mesh_rgb_client_set_state(esp_ble_mesh_client_common_param_t *common, esp_ble_mesh_rgb_set_t *set_state);
-rgb_response_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t *common);
+esp_err_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t *common, rgb_t *color_out);
 esp_err_t ble_mesh_rgb_client_init();
 
 #endif

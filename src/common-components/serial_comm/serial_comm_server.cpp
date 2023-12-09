@@ -42,16 +42,17 @@ SerialCommSrv::SerialCommSrv(const uart_port_t port, int tx_io_num, int rx_io_nu
     // return true;
 }
 
-std::string SerialCommSrv::GetField(uint16_t addr, const std::string& field){
+esp_err_t SerialCommSrv::GetField(uint16_t addr, const std::string& field, std::string& out){
     auto iter = fields.find(addr);
     if(iter == fields.end()){
-        return "";
+        return ESP_FAIL;
     }
     auto iter2 = iter->second.find(field);
     if(iter2 == iter->second.end()){
-        return "";
+        return ESP_FAIL;
     }
-    return iter2->second;
+    out = iter2->second;
+    return ESP_OK;
 }
 
 esp_err_t SerialCommSrv::SetField(uint16_t addr, const std::string& field, const std::string& value){
@@ -61,8 +62,8 @@ esp_err_t SerialCommSrv::SetField(uint16_t addr, const std::string& field, const
     }
     fields[addr][field] = value;
 
-    if(_callback != nullptr){
-        _callback(addr, field, value);
+    if(_change_callback != nullptr){
+        _change_callback(addr, field, value);
     }
 
     return ESP_OK;
@@ -74,22 +75,23 @@ esp_err_t SerialCommSrv::SetStatus(CommStatus status){
 }
 
 esp_err_t SerialCommSrv::SendGetResponse(uint16_t addr, const std::string& field){
-    auto iter = fields.find(addr);
-    if(iter == fields.end()){
+    std::string value;
+    esp_err_t err = GetField(addr, field, value);
+    // if no value is in cache, try to fetch it
+    if(err != ESP_OK && _get_callback != nullptr){
+        _get_callback(addr, field);
+        err = GetField(addr, field, value);
+    }
+    
+    if(err != ESP_OK){
         const std::string rsp = "FAIL";
-        uart_write_bytes(_uart_port, rsp.c_str(), rsp.length() + 1);
         ESP_LOGI(TAG, "Sending GET response: %s", rsp.c_str());
+        uart_write_bytes(_uart_port, rsp.c_str(), rsp.length() + 1);
+        
         return ESP_FAIL;
     }
-    auto iter2 = iter->second.find(field);
-    if(iter2 == iter->second.end()){
-        const std::string rsp = "FAIL";
-        uart_write_bytes(_uart_port, rsp.c_str(), rsp.length() + 1);
-        ESP_LOGI(TAG, "Sending GET response: %s", rsp.c_str());
-        return ESP_FAIL;
-    }
-    uart_write_bytes(_uart_port, iter2->second.c_str(), iter2->second.length()+1);
-    ESP_LOGI(TAG, "Sending GET response: %s", iter2->second.c_str());
+    uart_write_bytes(_uart_port, value.c_str(), value.length()+1);
+    ESP_LOGI(TAG, "Sending GET response: %s", value.c_str());
     return ESP_OK;
 }
 

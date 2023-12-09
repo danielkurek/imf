@@ -62,17 +62,15 @@ esp_err_t ble_mesh_rgb_client_set_state(esp_ble_mesh_client_common_param_t *comm
     return esp_ble_mesh_light_client_set_state(common, &set);
 }
 
-rgb_response_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t *common){
+esp_err_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t *common, rgb_t *color_out){
     EventBits_t bits;
     esp_err_t err;
-    rgb_response_t response;
     
     esp_ble_mesh_light_client_get_state_t get = {0};
 
     err = esp_ble_mesh_light_client_get_state(common, &get);
     if(err != ESP_OK){
-        response.valid = false;
-        return response;
+        return err;
     }
 
     while(true){
@@ -87,15 +85,13 @@ rgb_response_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t 
             .lightness = rgb_event_cb_param.hsl_status.hsl_lightness,
         };
         
-        response.rgb = hsl_to_rgb(hsl);
-        ESP_LOGI(TAG, "hsl.hue=%d, hsl.saturation=%d, hsl.lightness=%d, rgb.red=%d, rgb.green=%d, rgb.blue=%d", hsl.hue, hsl.saturation, hsl.lightness, response.rgb.red, response.rgb.green, response.rgb.blue);
+        (*color_out) = hsl_to_rgb(hsl);
+        ESP_LOGI(TAG, "hsl.hue=%d, hsl.saturation=%d, hsl.lightness=%d, rgb.red=%d, rgb.green=%d, rgb.blue=%d", hsl.hue, hsl.saturation, hsl.lightness, color_out->red, color_out->green, color_out->blue);
         if(bits & RGB_GET_BIT){
             ESP_LOGI(TAG, "Success GET");
-            response.valid = true;
-            return response;
+            return ESP_OK;
         } else {
-            response.valid = false;
-            return response;
+            return ESP_FAIL;
         }
     }
 }

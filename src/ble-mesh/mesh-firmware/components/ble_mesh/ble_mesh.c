@@ -591,7 +591,7 @@ esp_err_t ble_mesh_set_rgb(uint16_t addr, rgb_t color, bool ack){
     return ESP_OK;
 }
 
-rgb_response_t ble_mesh_get_rgb(uint16_t addr){
+esp_err_t ble_mesh_get_rgb(uint16_t addr, rgb_t *color_out){
     esp_ble_mesh_client_common_param_t common = {0};
 
     common.opcode = BLE_MESH_MODEL_OP_RGB_GET;
@@ -608,16 +608,13 @@ rgb_response_t ble_mesh_get_rgb(uint16_t addr){
     common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
     common.msg_role = ROLE_NODE;
 
-    rgb_response_t response = ble_mesh_rgb_client_get_state(&common);
-    if(!response.valid){
+    esp_err_t err = ble_mesh_rgb_client_get_state(&common, color_out);
+    if(err != ESP_OK){
         LOGGER_E(TAG, "RGB Get failed");
-        return response;
+        return err;
     }
-
-    // store the info because TID has changed
-    mesh_example_info_store();
     
-    return response;
+    return ESP_OK;
 }
 
 esp_err_t ble_mesh_set_loc_local(uint16_t addr, const location_local_t *loc_local){
