@@ -7,6 +7,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+// Library Header
+
+#include "ble_mesh.h"
 
 // General imports
 
@@ -44,6 +47,9 @@
 #include "hsl.h"
 
 #include "logger.h"
+
+#include "freertos/FreeRTOS.h"
+#include "freertos/event_groups.h"
 
 #define LOC_LOCAL_SIZE 9
 
@@ -362,7 +368,7 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
                        esp_ble_mesh_generic_client_cb_param_t *param){
     esp_ble_mesh_gen_onoff_srv_t *srv;
     LOGGER_I(TAG, "event 0x%02x, opcode 0x%04" PRIx32 ", src 0x%04x, dst 0x%04x",
-        event, param->ctx.recv_op, param->ctx.addr, param->ctx.recv_dst);
+        event, param->params->ctx.recv_op, param->params->ctx.addr, param->params->ctx.recv_dst);
 
     switch (event) {
     case ESP_BLE_MESH_GENERIC_CLIENT_GET_STATE_EVT:
@@ -507,6 +513,7 @@ static esp_err_t mesh_init(void)
     esp_ble_mesh_register_prov_callback(example_ble_mesh_provisioning_cb);
     esp_ble_mesh_register_config_server_callback(example_ble_mesh_config_server_cb);
     esp_ble_mesh_register_generic_server_callback(example_ble_mesh_generic_server_cb);
+    esp_ble_mesh_register_generic_client_callback(generic_client_cb);
     esp_ble_mesh_register_health_server_callback(example_ble_mesh_health_server_cb);
     ble_mesh_rgb_control_server_register_change_callback(update_light);
     ble_mesh_rgb_client_init();
@@ -613,7 +620,7 @@ rgb_response_t ble_mesh_get_rgb(uint16_t addr){
     return response;
 }
 
-esp_err_t ble_mesh_set_loc_local(const location_local_t *loc_local){
+esp_err_t ble_mesh_set_loc_local(uint16_t addr, const location_local_t *loc_local){
     esp_ble_mesh_client_common_param_t common = {0};
     esp_ble_mesh_generic_client_set_state_t set_state = {0};
 
@@ -631,11 +638,11 @@ esp_err_t ble_mesh_set_loc_local(const location_local_t *loc_local){
     common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
     common.msg_role = ROLE_NODE;
 
-    set_state.loc_local_set.local_north = loc_local.local_north;
-    set_state.loc_local_set.local_east = loc_local.local_east;
-    set_state.loc_local_set.local_altitude = loc_local.local_altitude;
-    set_state.loc_local_set.floor_number = loc_local.floor_number;
-    set_state.loc_local_set.uncertainty = loc_local.uncertainty;
+    set_state.loc_local_set.local_north    = loc_local->local_north;
+    set_state.loc_local_set.local_east     = loc_local->local_east;
+    set_state.loc_local_set.local_altitude = loc_local->local_altitude;
+    set_state.loc_local_set.floor_number   = loc_local->floor_number;
+    set_state.loc_local_set.uncertainty    = loc_local->uncertainty;
 
     return esp_ble_mesh_generic_client_set_state(&common, &set_state);
 }
@@ -665,6 +672,7 @@ esp_err_t ble_mesh_get_loc_local(uint16_t addr, location_local_t *result){
         bits = xEventGroupWaitBits(s_location_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
                                             pdTRUE, pdFALSE, portMAX_DELAY);
         if(s_location_event_data.addr != addr){
+            LOGGER_W(TAG, "Get Location local woke up to different address! Expected:0x%0" PRIx16 " Result for: 0x%0" PRIx16, addr, s_location_event_data.addr);
             continue;
         }
         

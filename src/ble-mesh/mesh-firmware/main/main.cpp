@@ -29,6 +29,7 @@
 #include "logger.h"
 
 #include "serial_comm_server.hpp"
+#include "location_common.h"
 
 // tag for logging
 static const char* TAG = "MESH-FMW";
@@ -90,6 +91,7 @@ void serial_comm_change_callback(uint16_t addr, const std::string& field, const 
             LOGGER_E(TAG, "Invalid RGB value: %s", value.c_str());
             return;
         }
+        ESP_LOGI(TAG, "Setting 0x%04" PRIx16 " to RGB R=%d, G=%d, B=%d", addr, color.red, color.green, color.blue);
         ble_mesh_set_rgb(addr, color, false);
     }
 }
@@ -120,9 +122,9 @@ extern "C" void app_main(void)
 
     LOGGER_I(TAG, "Start up");
 
-    if(web_config()){
-        return;
-    }
+    // if(web_config()){
+    //     return;
+    // }
 
     LOGGER_I(TAG, "Initializing...");
 

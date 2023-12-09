@@ -2,4 +2,4 @@ set(srcs "main.cpp")
 
 idf_component_register(SRCS "${srcs}"
                     INCLUDE_DIRS  "."
-                    PRIV_REQUIRES serial_comm ble_mesh board web_config logger nvs_flash driver)
+                    PRIV_REQUIRES location serial_comm ble_mesh board web_config logger nvs_flash driver)
