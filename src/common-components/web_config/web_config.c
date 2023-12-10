@@ -25,7 +25,7 @@
 #include <errno.h>
 #include "cJSON.h"
 
-#define SCRATCH_BUFSIZE (10240)
+#define SCRATCH_BUFSIZE (4000)
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
@@ -43,33 +43,41 @@ static const char *TAG = "web_config";
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 
+static esp_err_t ssid_validate(const char *received_value);
+static esp_err_t channel_validate(const char *received_value);
+static esp_err_t password_validate(const char *received_value);
+
 static const config_option_t options[] ={
     {
         .key = STA_SSID_KEY,
         .type = NVS_TYPE_STR,
         .value_to_log = true,
+        .validate_function = ssid_validate,
     },
     {
         .key = STA_PASSWORD_KEY,
         .type = NVS_TYPE_STR,
         .value_to_log = false,
+        .validate_function = password_validate,
     },
     {
         .key = AP_SSID_KEY,
         .type = NVS_TYPE_STR,
         .value_to_log = true,
+        .validate_function = ssid_validate,
     },
     {
         .key = AP_PASSWORD_KEY,
         .type = NVS_TYPE_STR,
         .value_to_log = false,
+        .validate_function = password_validate,
     },
     {
         .key = AP_CHANNEL_KEY,
         .type = NVS_TYPE_I16,
         .value_to_log = true,
+        .validate_function = channel_validate
     },
-    
 };
 
 static const size_t options_len = sizeof(options) / sizeof(options[0]);
@@ -83,6 +91,29 @@ typedef struct {
     httpd_handle_t server;
     regex_t url_regex;
 } web_config_data_t;
+
+static esp_err_t ssid_validate(const char *received_value){
+    if(strlen(received_value) < MAX_SSID_LEN){
+        return ESP_OK;
+    }
+    return ESP_FAIL;
+}
+
+static esp_err_t password_validate(const char *received_value){
+    if(strlen(received_value) < MAX_PASSPHRASE_LEN){
+        return ESP_OK;
+    }
+    return ESP_FAIL;
+}
+
+static esp_err_t channel_validate(const char *received_value){
+    int16_t ssid;
+    int ret = sscanf(received_value, "%" SCNd16, &ssid);
+    if(ret == 1 && ssid <= CONFIG_MAX_WIFI_CHANNEL){
+        return ESP_OK;
+    }
+    return ESP_FAIL;
+}
 
 static esp_err_t get_key_from_uri(char *dest, size_t prefix_len, const char *full_uri, size_t destsize)
 {
@@ -340,10 +371,7 @@ static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, const config_optio
 
     // response_custom_header(req);
 
-    char value[32];
-    strlcpy(value, received_value, sizeof(value));
-
-    esp_err_t err = nvs_set_str(data->config_handle, option->key, value);
+    esp_err_t err = nvs_set_str(data->config_handle, option->key, received_value);
     if(err != ESP_OK){
         httpd_resp_set_status(req, HTTPD_500);
         return httpd_resp_sendstr(req, "Cannot set key");
@@ -401,12 +429,13 @@ static esp_err_t nvs_write_post_handler_u16(httpd_req_t *req, const config_optio
 static esp_err_t nvs_write_post_handler(httpd_req_t *req){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
     static const size_t prefix_len = sizeof(API_PATH("/nvs/")) - 1;
+    esp_err_t err;
 
     response_custom_header(req);
 
     char nvs_key[NVS_KEY_NAME_MAX_SIZE];
-    esp_err_t ret = get_key_from_uri(nvs_key, prefix_len, req->uri, sizeof(nvs_key));
-    if(ret != ESP_OK){
+    err = get_key_from_uri(nvs_key, prefix_len, req->uri, sizeof(nvs_key));
+    if(err != ESP_OK){
         httpd_resp_set_status(req, HTTPD_500);
         return httpd_resp_sendstr(req, "Cannot parse key");
     }
@@ -420,6 +449,14 @@ static esp_err_t nvs_write_post_handler(httpd_req_t *req){
     long int received = http_load_post_req_to_buf(req, data->scratch_buf, sizeof(data->scratch_buf));
     if(received < 0){
         return ESP_FAIL;
+    }
+
+    if(option->validate_function != NULL){
+        err = validate_function(data->scratch_buf);
+        if(err != ESP_OK){
+            httpd_resp_set_status(req, HTTPD_500);
+            return httpd_resp_sendstr(req, "Did not pass validation");
+        }
     }
 
     switch(option->type){

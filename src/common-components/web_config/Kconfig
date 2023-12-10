@@ -1,0 +1,9 @@
+menu "Web config"
+    config MAX_WIFI_CHANNEL
+        int "Last Wifi allowed channel"
+        range 0 14
+        default 11
+        help
+            What is the maximum allowed Wifi channel to be set in web config
+
+endmenu
