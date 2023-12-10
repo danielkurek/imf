@@ -24,6 +24,10 @@ esp_err_t ble_mesh_set_loc_local(uint16_t addr, const location_local_t *loc_loca
 
 esp_err_t ble_mesh_get_loc_local(uint16_t addr, location_local_t *result);
 
+esp_err_t ble_mesh_set_onoff(uint16_t addr, bool onoff);
+
+esp_err_t ble_mesh_get_onoff(uint16_t addr, bool *onoff_out);
+
 #ifdef __cplusplus
 }
 #endif

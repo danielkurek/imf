@@ -104,6 +104,19 @@ void serial_comm_change_callback(uint16_t addr, const std::string& field, const 
         ESP_LOGI(TAG, "Setting 0x%04" PRIx16 " to North: %" PRId16 " East: %" PRId16, addr, loc_local.local_north, loc_local.local_east);
         ble_mesh_set_loc_local(addr, &loc_local);
     }
+    if(field == "onoff"){
+        bool onoff;
+        if(value == "ON"){
+            onoff = true;
+        } else if(value == "OFF"){
+            onoff = false;
+        } else {
+            LOGGER_E(TAG, "Invalid OnOff value: %s", value.c_str());
+            return;
+        }
+        ESP_LOGI(TAG, "Setting 0x%04" PRIx16 " to %d", addr, onoff);
+        ble_mesh_set_onoff(addr, onoff);
+    }
 }
 
 void serial_comm_get_callback(uint16_t addr, const std::string& field){
@@ -137,6 +150,19 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             return;
         }
         serialSrv.SetField(addr, field, buf);
+    }
+    if(field == "onoff"){
+        bool onoff;
+        err = ble_mesh_get_onoff(addr, &onoff);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not get local location value for 0x%04" PRIx16, addr);
+            return;
+        }
+        if(onoff){
+            serialSrv.SetField(addr, field, "ON");
+        } else{
+            serialSrv.SetField(addr, field, "OFF");
+        }
     }
 }
 
