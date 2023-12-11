@@ -155,7 +155,7 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
         bool onoff;
         err = ble_mesh_get_onoff(addr, &onoff);
         if(err != ESP_OK){
-            LOGGER_E(TAG, "Could not get local location value for 0x%04" PRIx16, addr);
+            LOGGER_E(TAG, "Could not get onoff value for 0x%04" PRIx16, addr);
             return;
         }
         if(onoff){

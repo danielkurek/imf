@@ -71,7 +71,7 @@ static EventGroupHandle_t s_onoff_event_group;
 static struct{
     bool onoff;
     uint16_t addr;   
-} s_onoff_data;
+} s_onoff_event_data;
 
 // company ID who implemented BLE-mesh
 // needs to be member of Bluetooth group
@@ -211,7 +211,7 @@ static esp_ble_mesh_client_t location_client;
 static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_CFG_SRV(&config_server),
     ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub_0, &onoff_server_0),
-    ESP_BLE_MESH_MODEL_GEN_ONOFF_CLI(&onoff_cli_pub, &onoff_client)
+    ESP_BLE_MESH_MODEL_GEN_ONOFF_CLI(&onoff_cli_pub, &onoff_client),
     ESP_BLE_MESH_MODEL_HEALTH_SRV(&health_server, &health_pub),
     BLE_MESH_MODEL_RGB_SRV(&rgb_srv_pub, &rgb_srv),
     BLE_MESH_MODEL_RGB_SETUP_SRV(&rgb_setup_pub, &rgb_setup_srv),
@@ -409,10 +409,10 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
             xEventGroupSetBits(s_location_event_group, EVENT_GET_SUCCESS_BIT);
         }
         if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_GET){
-            s_onoff_data.onoff = param->status_cb.location_local_status.local_north;
+            s_onoff_event_data.onoff = param->status_cb.location_local_status.local_north;
             
             // TODO: test if this is the right address
-            s_onoff_data.addr = param->params->ctx.addr;
+            s_onoff_event_data.addr = param->params->ctx.addr;
             xEventGroupSetBits(s_onoff_event_group, EVENT_GET_SUCCESS_BIT);
         }
         break;
@@ -722,11 +722,11 @@ esp_err_t ble_mesh_set_onoff(uint16_t addr, bool onoff){
 
     common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET_UNACK;
 
-    common.model = location_client.model;
+    common.model = onoff_client.model;
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
 
-    LOGGER_I(TAG, "Sending Loc Local set to 0x%0" PRIx16, addr);
+    LOGGER_I(TAG, "Sending Loc Local set to 0x%04" PRIx16, addr);
 
     common.ctx.addr = addr;
     common.ctx.send_ttl = 3;
@@ -759,7 +759,7 @@ esp_err_t ble_mesh_get_onoff(uint16_t addr, bool *onoff_out){
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
 
-    LOGGER_I(TAG, "Sending OnOff get to 0x%0" PRIx16, addr);
+    LOGGER_I(TAG, "Sending OnOff get to 0x%04" PRIx16, addr);
 
     common.ctx.addr = addr;
     common.ctx.send_ttl = 3;
@@ -773,7 +773,7 @@ esp_err_t ble_mesh_get_onoff(uint16_t addr, bool *onoff_out){
         bits = xEventGroupWaitBits(s_onoff_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
                                             pdTRUE, pdFALSE, portMAX_DELAY);
         if(s_onoff_event_data.addr != addr){
-            LOGGER_W(TAG, "Get OnOff woke up to different address! Expected:0x%0" PRIx16 " Result for: 0x%0" PRIx16, addr, s_onoff_event_data.addr);
+            LOGGER_W(TAG, "Get OnOff woke up to different address! Expected:0x%04" PRIx16 " Result for: 0x%04" PRIx16, addr, s_onoff_event_data.addr);
             continue;
         }
         
