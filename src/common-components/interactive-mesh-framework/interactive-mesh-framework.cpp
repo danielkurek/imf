@@ -6,6 +6,7 @@
 #include <memory>
 #include "wifi_connect.h"
 #include "esp_timer.h"
+#include <vector>
 
 #define EVENT_LOOP_QUEUE_SIZE 16
 
@@ -79,6 +80,11 @@ esp_err_t Device::measureDistance(uint32_t *distance_cm){
     return _point->measureDistance(distance_cm);
 }
 
+static esp_err_t color_validate(const char* value){
+    rgb_t color;
+    return str_to_rgb(value, &color);
+}
+
 IMF::IMF(){
     // Init custom Logger
     logger_init(ESP_LOG_INFO);
@@ -107,6 +113,19 @@ IMF::IMF(){
     // DistanceMeter init
     _dm = std::make_shared<DistanceMeter>(false, _event_loop_hdl);
     Device::setDM(_dm);
+
+    _options = {};
+    _options.emplace_back((config_option_t){
+        .key = "color",
+        .type = NVS_TYPE_STR,
+        .value_to_log = true,
+        .validate_function = color_validate,
+    });
+
+    if(nvs_open("config", NVS_READWRITE, &_options_handle) != ESP_OK){
+        ESP_LOGI(TAG, "Error opening NVS!");
+        return;
+    }
 
     // init wifi
     wifi_start();
@@ -193,4 +212,22 @@ esp_err_t IMF::createAP(const std::string& ssid, const std::string& password, ui
 
 esp_err_t IMF::connectToAP(const std::string& ssid, const std::string& password){
     return wifi_connect_simple(ssid.c_str(), password.c_str());
+}
+
+esp_err_t IMF::addOption(const config_option_t& option){
+    _options.push_back(option);
+    return ESP_OK;
+}
+
+void IMF::startWebConfig(){
+    esp_err_t err = web_config_set_custom_options(_options.size(), _options.data());
+    if(err != ESP_OK){
+        LOGGER_E(TAG, "Could not set custom web config options! Err: %d", err);
+        return;
+    }
+    web_config_start();
+}
+
+void IMF::stopWebConfig(){
+    web_config_stop();
 }

@@ -47,6 +47,10 @@ namespace imf{
             std::shared_ptr<Device> getDevice(uint32_t id);
             esp_err_t createAP(const std::string& ssid, const std::string& password, uint8_t channel);
             esp_err_t connectToAP(const std::string& ssid, const std::string& password);
+            esp_err_t addOption(const config_option_t& option);
+            nvs_handle_t getOptionsHandle() { return _options_handle; }
+            void startWebConfig();
+            void stopWebConfig();
         private:
             std::map<uint32_t, std::shared_ptr<Device>> _devices;
             static void _update_timer_cb_wrapper(void *param){
@@ -54,9 +58,11 @@ namespace imf{
             }
             void _update_timer_cb();
             std::shared_ptr<DistanceMeter> _dm;
+            std::vector<config_option_t> _options;
             esp_event_loop_handle_t _event_loop_hdl;
             update_function_t _update_cb;
             uint32_t _next_id = 0;
+            nvs_handle_t _options_handle;
 
     };
 }
