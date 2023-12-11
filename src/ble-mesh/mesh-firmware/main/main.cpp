@@ -117,6 +117,16 @@ void serial_comm_change_callback(uint16_t addr, const std::string& field, const 
         ESP_LOGI(TAG, "Setting 0x%04" PRIx16 " to %d", addr, onoff);
         ble_mesh_set_onoff(addr, onoff);
     }
+    if(field == "level"){
+        int16_t level;
+        int ret = sscanf(value.c_str(), "%" SCNd16, &level);
+        if(ret != 1){
+            LOGGER_E(TAG, "Invalid Level value: %s", value.c_str());
+            return;
+        }
+        ESP_LOGI(TAG, "Setting 0x%04" PRIx16 " to level: %" PRId16, addr, level);
+        ble_mesh_set_level(addr, level);
+    }
 }
 
 void serial_comm_get_callback(uint16_t addr, const std::string& field){
@@ -163,6 +173,23 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
         } else{
             serialSrv.SetField(addr, field, "OFF");
         }
+    }
+    if(field == "level"){
+        int16_t level;
+        err = ble_mesh_get_level(addr, &level);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not get level value for 0x%04" PRIx16, addr);
+            return;
+        }
+        
+        char buf[7];
+        int ret = snprintf(buf, 7, "%" PRId16, level);
+        if(ret <= 0){
+            LOGGER_E(TAG, "Could not convert level value to str 0x%04" PRIx16, addr);
+            return;
+        }
+
+        serialSrv.SetField(addr, field, buf);
     }
 }
 

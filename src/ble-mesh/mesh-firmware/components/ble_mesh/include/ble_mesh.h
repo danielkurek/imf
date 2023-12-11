@@ -28,6 +28,10 @@ esp_err_t ble_mesh_set_onoff(uint16_t addr, bool onoff);
 
 esp_err_t ble_mesh_get_onoff(uint16_t addr, bool *onoff_out);
 
+esp_err_t ble_mesh_set_level(uint16_t addr, int16_t level);
+
+esp_err_t ble_mesh_get_level(uint16_t addr, int16_t *level_out);
+
 #ifdef __cplusplus
 }
 #endif

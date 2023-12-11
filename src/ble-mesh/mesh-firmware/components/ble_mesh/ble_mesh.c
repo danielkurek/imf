@@ -73,6 +73,12 @@ static struct{
     uint16_t addr;   
 } s_onoff_event_data;
 
+static EventGroupHandle_t s_level_event_group;
+static struct{
+    int16_t level;
+    uint16_t addr;   
+} s_level_event_data;
+
 // company ID who implemented BLE-mesh
 // needs to be member of Bluetooth group
 // we can use Espressif ID
@@ -154,6 +160,16 @@ static esp_ble_mesh_gen_onoff_srv_t onoff_server_2 = {
 static esp_ble_mesh_client_t onoff_client;
 ESP_BLE_MESH_MODEL_PUB_DEFINE(onoff_cli_pub, 2 + 1, ROLE_NODE);
 
+// definitions of Level model
+ESP_BLE_MESH_MODEL_PUB_DEFINE(level_srv_pub, 2 + 4, ROLE_NODE);
+esp_ble_mesh_gen_level_srv_t level_server = {
+    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP, // automatic response
+    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP, // automatic response
+};
+
+static esp_ble_mesh_client_t level_client;
+ESP_BLE_MESH_MODEL_PUB_DEFINE(level_cli_pub, 2 + 4, ROLE_NODE);
+
 // definition of Health model
 // it is used for device identification during provisioning
 // (led starts blinking when we click `Identify`)
@@ -219,6 +235,8 @@ static esp_ble_mesh_model_t root_models[] = {
     ESP_BLE_MESH_MODEL_GEN_LOCATION_SRV(&location_srv_pub, &location_server),
     ESP_BLE_MESH_MODEL_GEN_LOCATION_SETUP_SRV(&location_setup_pub, &location_setup_server),
     ESP_BLE_MESH_MODEL_GEN_LOCATION_CLI(&location_cli_pub, &location_client),
+    ESP_BLE_MESH_MODEL_GEN_LEVEL_SRV(&level_srv_pub, &level_server),
+    ESP_BLE_MESH_MODEL_GEN_LEVEL_CLI(&level_cli_pub, &level_client),
 };
 
 // additional elements that are needed for RGB server
@@ -414,6 +432,13 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
             // TODO: test if this is the right address
             s_onoff_event_data.addr = param->params->ctx.addr;
             xEventGroupSetBits(s_onoff_event_group, EVENT_GET_SUCCESS_BIT);
+        }
+        if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LEVEL_GET){
+            s_level_event_data.level = param->status_cb.level_status.present_level;
+            
+            // TODO: test if this is the right address
+            s_onoff_event_data.addr = param->params->ctx.addr;
+            xEventGroupSetBits(s_level_event_group, EVENT_GET_SUCCESS_BIT);
         }
         break;
     case ESP_BLE_MESH_GENERIC_CLIENT_SET_STATE_EVT:
@@ -786,6 +811,79 @@ esp_err_t ble_mesh_get_onoff(uint16_t addr, bool *onoff_out){
     }
 }
 
+esp_err_t ble_mesh_set_level(uint16_t addr, int16_t level){
+    esp_ble_mesh_client_common_param_t common = {0};
+    esp_ble_mesh_generic_client_set_state_t set_state = {0};
+
+    common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_LEVEL_SET_UNACK;
+
+    common.model = level_client.model;
+    common.ctx.net_idx = store.net_idx;
+    common.ctx.app_idx = store.app_idx;
+
+    LOGGER_I(TAG, "Sending Level set to 0x%04" PRIx16 " with value %" PRId16, addr, level);
+
+    common.ctx.addr = addr;
+    common.ctx.send_ttl = 3;
+    common.ctx.send_rel = true;
+    common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
+    common.msg_role = ROLE_NODE;
+
+    set_state.level_set.op_en = false;
+    set_state.level_set.level = level;
+    set_state.level_set.tid = store.tid++;
+    set_state.level_set.delay = 0;
+
+    esp_err_t err = esp_ble_mesh_generic_client_set_state(&common, &set_state);
+    if(err != ESP_OK){
+        LOGGER_E(TAG, "Could not send OnOff SET message! Err: %d", err);
+        return ESP_FAIL;
+    }
+
+    mesh_example_info_store();
+
+    return err;
+}
+
+esp_err_t ble_mesh_get_level(uint16_t addr, int16_t *level_out){
+    EventBits_t bits;
+    esp_ble_mesh_client_common_param_t common = {0};
+    esp_ble_mesh_generic_client_get_state_t get_state = {0};
+
+    common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_LEVEL_GET;
+
+    common.model = level_client.model;
+    common.ctx.net_idx = store.net_idx;
+    common.ctx.app_idx = store.app_idx;
+
+    LOGGER_I(TAG, "Sending Level get to 0x%04" PRIx16, addr);
+
+    common.ctx.addr = addr;
+    common.ctx.send_ttl = 3;
+    common.ctx.send_rel = false;
+    common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
+    common.msg_role = ROLE_NODE;
+
+    esp_ble_mesh_generic_client_get_state(&common, &get_state);
+
+    while(true){
+        bits = xEventGroupWaitBits(s_level_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
+                                            pdTRUE, pdFALSE, portMAX_DELAY);
+        if(s_level_event_data.addr != addr){
+            LOGGER_W(TAG, "Get OnOff woke up to different address! Expected:0x%04" PRIx16 " Result for: 0x%04" PRIx16, addr, s_level_event_data.addr);
+            continue;
+        }
+        
+        if(bits & EVENT_GET_SUCCESS_BIT){
+            (*level_out) = s_level_event_data.level;
+            return ESP_OK;
+        } else{
+            return ESP_FAIL;
+        }
+    }
+}
+
+
 
 // before calling this function:
 //  - init board
@@ -823,6 +921,7 @@ esp_err_t ble_mesh_init()
 
     s_location_event_group = xEventGroupCreate();
     s_onoff_event_group    = xEventGroupCreate();
+    s_level_event_group    = xEventGroupCreate();
 
     /* Initialize the Bluetooth Mesh Subsystem */
     LOGGER_V(TAG, "mesh init");
