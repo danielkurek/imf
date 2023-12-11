@@ -51,7 +51,7 @@ static const size_t options_len = sizeof(options) / sizeof(options[0]);
 // NVS handle for reading the web_config options
 static nvs_handle_t config_nvs;
 
-static SerialCommSrv serialSrv{UART_NUM_1, GPIO_NUM_10, GPIO_NUM_1};
+static SerialCommSrv serialSrv;
 
 // start configuration mode if conditions are met
 bool web_config(){
@@ -191,9 +191,25 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
 
         serialSrv.SetField(addr, field, buf);
     }
+    if(field == "addr"){
+        std::string addr_str;
+        esp_err_t err = AddrToStr(addr, addr_str);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not convert addr to string");
+            return;
+        }
+        serialSrv.SetField(addr, field, addr_str);
+    }
 }
 
 esp_err_t serial_comm_init(){
+    uint16_t primary_addr;
+    uint8_t  addresses;
+    err = ble_mesh_get_addresses(&primary_addr, &addresses);
+    if (err != ESP_OK){
+        LOGGER_E(TAG, "Could not get addresses of this node");
+    }
+    serialSrv = SerialCommSrv(UART_NUM_1, GPIO_NUM_10, GPIO_NUM_1, primary_addr);
     serialSrv.RegisterChangeCallback(serial_comm_change_callback, serial_comm_get_callback);
     serialSrv.StartTask();
 
@@ -277,6 +293,10 @@ extern "C" void app_main(void)
             LOGGER_I(TAG, "    0x%04" PRIx16, primary_addr + i);
         }
     }
+
+    // wait for bluetooth initialization to complete
+    // TODO: find better way to handle this
+    vTaskDelay(10000 / portTICK_PERIOD_MS);
 
     err = serial_comm_init();
     if (err){
