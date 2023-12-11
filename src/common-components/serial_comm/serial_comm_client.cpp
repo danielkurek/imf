@@ -38,12 +38,9 @@ SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_nu
     // return true;
 }
 
-std::string SerialCommCli::SendCmd(CmdType type, uint16_t addr, const std::string& field, const std::string& body){
+std::string SerialCommCli::SendCmd(CmdType type, const std::string& field, const std::string& body){
     std::string cmdString = GetCmdName(type);
 
-    if(type != CmdType::STATUS){
-        cmdString += " " + AddrToStr(addr);
-    }
     // maybe sanitize the parameters similar to CSV sanitization
     if(field.length() > 0){
         cmdString += " " + field;
@@ -72,12 +69,30 @@ std::string SerialCommCli::GetResponse(){
     return "";
 }
 
+std::string SerialCommCli::GetField(const std::string& field){
+    return SendCmd(CmdType::GET, field, "");
+}
+
 std::string SerialCommCli::GetField(uint16_t addr, const std::string& field){
-    return SendCmd(CmdType::GET, addr, field, "");
+    std::string addr_str;
+    esp_err_t err = AddrToStr(addr, addr_str);
+    if(err != ESP_OK){
+        return "";
+    }
+    return SendCmd(CmdType::GET, addr_str + ":" + field, "");
+}
+
+std::string SerialCommCli::PutField(const std::string& field, const std::string& value){
+    return SendCmd(CmdType::PUT, field, value);
 }
 
 std::string SerialCommCli::PutField(uint16_t addr, const std::string& field, const std::string& value){
-    return SendCmd(CmdType::PUT, addr, field, value);
+    std::string addr_str;
+    esp_err_t err = AddrToStr(addr, addr_str);
+    if(err != ESP_OK){
+        return "";
+    }
+    return SendCmd(CmdType::PUT, addr_str + ":" + field, value);
 }
 
 CommStatus SerialCommCli::GetStatus(){

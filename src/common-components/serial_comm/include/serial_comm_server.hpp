@@ -12,7 +12,7 @@ typedef void (*serial_comm_get_cb)(uint16_t addr, const std::string& field);
 
 class SerialCommSrv {
     public:
-        SerialCommSrv(const uart_port_t port, int tx_io_num, int rx_io_num);
+        SerialCommSrv(const uart_port_t port, int tx_io_num, int rx_io_num, uint16_t default_addr);
         esp_err_t StartTask(){
             if(_xHandle != NULL){
                 // delete and start the task again or do nothing
@@ -35,11 +35,13 @@ class SerialCommSrv {
         esp_err_t SendStatusResponse();
         esp_err_t SendResponse(CmdType type, uint16_t addr, const std::string& field, const std::string& body);
         esp_err_t ProcessCmd(std::string& cmd);
+        esp_err_t ProcessField(std::string& field, uint16_t& addr);
         void Task();
         static void TaskWrapper(void* param){
             static_cast<SerialCommSrv *>(param)->Task();
         }
         uart_port_t _uart_port;
+        uint16_t _default_addr;
         QueueHandle_t _uart_queue;
         CommStatus _current_status;
         TaskHandle_t _xHandle = NULL;

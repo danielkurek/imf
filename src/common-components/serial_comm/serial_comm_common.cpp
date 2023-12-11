@@ -64,12 +64,14 @@ CommStatus ParseStatus(const std::string& status) {
     return CommStatus::None;
 }
 
-std::string AddrToStr(uint16_t addr){
+esp_err_t AddrToStr(uint16_t addr, std::string& out){
     char buf[5];
-    snprintf(buf, 5, "%04" PRIx16, addr);
-    buf[4] = '\0';
-
-    return {buf};
+    int ret = snprintf(buf, 5, "%04" PRIx16, addr);
+    if(ret > 0){
+        out = std::string(buf);
+        return ESP_OK;
+    }
+    return ESP_FAIL;
 }
 
 esp_err_t StrToAddr(std::string addrStr, uint16_t *addrOut){

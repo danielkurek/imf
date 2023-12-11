@@ -10,9 +10,10 @@ static const char *TAG = "SerialSrv";
 
 #define RX_BUF_SIZE 1024
 
-SerialCommSrv::SerialCommSrv(const uart_port_t port, int tx_io_num, int rx_io_num){
+SerialCommSrv::SerialCommSrv(const uart_port_t port, int tx_io_num, int rx_io_num, uint16_t default_addr){
     // TODO: handle errors
     _uart_port = port;
+    _default_addr = default_addr;
 
     uart_config_t uart_config = {};
     uart_config.baud_rate = 115200;
@@ -138,9 +139,28 @@ void SerialCommSrv::Task(){
     free(data_buffer);
 }
 
-esp_err_t SerialCommSrv::ProcessCmd(std::string& cmd){
-    esp_err_t err;
+esp_err_t SerialCommSrv::ProcessField(std::string& field, uint16_t& addr){
+    auto pos = field.find_first_of(':');
+    if(pos != std::string::npos){
+        if(pos != 4){
+            ESP_LOGE(TAG, "While processing CMD, address is malformed");
+            return ESP_FAIL;
+        }
+        esp_err_t err = StrToAddr(field.substr(0, pos), &addr);
+        if(err != ESP_OK){
+            ESP_LOGE(TAG, "While processing CMD, could not parse the address");
+            return err;
+        }
+        field = field.substr(pos+1);
+    } else{
+        addr = _default_addr;
+    }
+    return ESP_OK;
+}
 
+// TODO: rewrite as separate functions for each command type
+
+esp_err_t SerialCommSrv::ProcessCmd(std::string& cmd){
     ESP_LOGI(TAG, "Processing cmd: %s", cmd.c_str());
 
     // size_t n = cmd.find("\0");
@@ -166,26 +186,7 @@ esp_err_t SerialCommSrv::ProcessCmd(std::string& cmd){
     ESP_LOGI(TAG, "CMD part: %s", command.c_str());
     CmdType cmd_type = ParseCmdType(command);
 
-    std::string addrStr;
-    s >> addrStr;
-    if(s.fail()){
-        if(cmd_type == CmdType::STATUS){
-            return SendStatusResponse();
-        }
-        ESP_LOGE(TAG, "While processing CMD, not enough arguments");
-        return ESP_FAIL;
-    }
-    // s did not fail
-    if(cmd_type == CmdType::STATUS){
-        ESP_LOGE(TAG, "While processing CMD, STATUS cmd has more arguments, expected 0");
-        return ESP_FAIL;
-    }
-
     uint16_t addr;
-    err = StrToAddr(addrStr, &addr);
-    if(err != ESP_OK){
-        return err;
-    }
 
     std::string field;
     s >> field;
@@ -197,6 +198,10 @@ esp_err_t SerialCommSrv::ProcessCmd(std::string& cmd){
         case CmdType::PUT:
             if(s.fail()){
                 ESP_LOGE(TAG, "While processing CMD, not enough arguments");
+                return ESP_FAIL;
+            }
+            if(ProcessField(field, addr) != ESP_OK){
+                ESP_LOGE(TAG, "While processing CMD, could not parse field");
                 return ESP_FAIL;
             }
             break;
