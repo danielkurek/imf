@@ -57,7 +57,7 @@
 #define EVENT_GET_FAIL_BIT BIT1
 
 // tag for logging
-static const char* TAG = "EXAMPLE-STA";
+static const char* TAG = "BLE-MESH";
 
 static rgb_conf_t *rgb_conf;
 
@@ -674,7 +674,7 @@ esp_err_t ble_mesh_set_loc_local(uint16_t addr, const location_local_t *loc_loca
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
 
-    LOGGER_I(TAG, "Sending Loc Local set to 0x%0" PRIx16, addr);
+    LOGGER_I(TAG, "Sending Loc Local set to 0x%04" PRIx16, addr);
 
     common.ctx.addr = addr;
     common.ctx.send_ttl = 3;
@@ -702,7 +702,7 @@ esp_err_t ble_mesh_get_loc_local(uint16_t addr, location_local_t *result){
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
 
-    LOGGER_I(TAG, "Sending Loc Local get to 0x%0" PRIx16, addr);
+    LOGGER_I(TAG, "Sending Loc Local get to 0x%04" PRIx16, addr);
 
     common.ctx.addr = addr;
     common.ctx.send_ttl = 3;
@@ -716,7 +716,7 @@ esp_err_t ble_mesh_get_loc_local(uint16_t addr, location_local_t *result){
         bits = xEventGroupWaitBits(s_location_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
                                             pdTRUE, pdFALSE, portMAX_DELAY);
         if(s_location_event_data.addr != addr){
-            LOGGER_W(TAG, "Get Location local woke up to different address! Expected:0x%0" PRIx16 " Result for: 0x%0" PRIx16, addr, s_location_event_data.addr);
+            LOGGER_W(TAG, "Get Location local woke up to different address! Expected:0x%04" PRIx16 " Result for: 0x%04" PRIx16, addr, s_location_event_data.addr);
             continue;
         }
         
