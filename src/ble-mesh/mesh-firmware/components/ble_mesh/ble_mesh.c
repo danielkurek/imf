@@ -144,17 +144,7 @@ static esp_ble_mesh_gen_onoff_srv_t onoff_server_0 = {
 // of responding to commands, we only need to wait for an event that notifies us that
 // state of server has changed
 
-ESP_BLE_MESH_MODEL_PUB_DEFINE(onoff_pub_1, 2 + 3, ROLE_NODE);
-static esp_ble_mesh_gen_onoff_srv_t onoff_server_1 = {
-    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
-    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
-};
 
-ESP_BLE_MESH_MODEL_PUB_DEFINE(onoff_pub_2, 2 + 3, ROLE_NODE);
-static esp_ble_mesh_gen_onoff_srv_t onoff_server_2 = {
-    .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
-    .rsp_ctrl.set_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP,
-};
 
 // OnOff client
 static esp_ble_mesh_client_t onoff_client;
@@ -242,11 +232,9 @@ static esp_ble_mesh_model_t root_models[] = {
 // additional elements that are needed for RGB server
 static esp_ble_mesh_model_t extend_model_0[] = {
     BLE_MESH_MODEL_RGB_ELM1_SRV(&rgb_elm1_pub, &rgb_srv_elm1),
-    ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub_1, &onoff_server_1),
 };
 static esp_ble_mesh_model_t extend_model_1[] = {
     BLE_MESH_MODEL_RGB_ELM2_SRV(&rgb_elm2_pub, &rgb_srv_elm2),
-    ESP_BLE_MESH_MODEL_GEN_ONOFF_SRV(&onoff_pub_2, &onoff_server_2),
 };
 
 // array of elements used in this node
