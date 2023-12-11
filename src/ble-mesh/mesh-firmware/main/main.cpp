@@ -266,6 +266,18 @@ extern "C" void app_main(void)
         LOGGER_E(TAG, "Bluetooth mesh init failed (err %d)", err);
     }
 
+    uint16_t primary_addr;
+    uint8_t  addresses;
+    err = ble_mesh_get_addresses(&primary_addr, &addresses);
+    if (err != ESP_OK){
+        LOGGER_E(TAG, "Could not get addresses of this node");
+    } else{
+        LOGGER_I(TAG, "Addresses of this node are: ");
+        for(uint8_t i = 0; i < addresses; i++){
+            LOGGER_I(TAG, "    0x%04" PRIx16, primary_addr + i);
+        }
+    }
+
     err = serial_comm_init();
     if (err){
         LOGGER_E(TAG, "Serial communication init failed (err %d)", err);

@@ -32,6 +32,8 @@ esp_err_t ble_mesh_set_level(uint16_t addr, int16_t level);
 
 esp_err_t ble_mesh_get_level(uint16_t addr, int16_t *level_out);
 
+esp_err_t ble_mesh_get_addresses(uint16_t *primary_addr, uint8_t *addresses);
+
 #ifdef __cplusplus
 }
 #endif

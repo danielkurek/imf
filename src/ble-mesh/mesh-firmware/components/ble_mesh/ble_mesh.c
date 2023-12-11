@@ -871,6 +871,16 @@ esp_err_t ble_mesh_get_level(uint16_t addr, int16_t *level_out){
     }
 }
 
+esp_err_t ble_mesh_get_addresses(uint16_t *primary_addr, uint8_t *addresses){
+    (*primary_addr) = esp_ble_mesh_get_primary_element_address();
+    (*addresses) = esp_ble_mesh_get_element_count();
+    
+    if(primary_addr == ESP_BLE_MESH_ADDR_UNASSIGNED){
+        return ESP_FAIL;
+    }
+    
+    return ESP_OK;
+}
 
 
 // before calling this function:
