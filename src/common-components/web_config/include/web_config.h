@@ -9,10 +9,10 @@
 extern "C"{
 #endif
 
-typedef esp_err_t *(web_config_validate_function_t) (const char *received_value);
+typedef esp_err_t (*web_config_validate_function_t) (const char *received_value);
 
 typedef struct {
-    char *key;
+    const char *key;
     nvs_type_t type;
     bool value_to_log;
     web_config_validate_function_t validate_function;

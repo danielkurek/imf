@@ -377,9 +377,9 @@ static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, const config_optio
         return httpd_resp_sendstr(req, "Cannot set key");
     }
 
-    LOGGER_I(TAG, "changed %s to %s", option->key, value);
+    LOGGER_I(TAG, "changed %s to %s", option->key, received_value);
     
-    return httpd_resp_sendstr(req, value);
+    return httpd_resp_sendstr(req, received_value);
 }
 
 static esp_err_t nvs_write_post_handler_i16(httpd_req_t *req, const config_option_t *option, char *received_value){
@@ -452,7 +452,7 @@ static esp_err_t nvs_write_post_handler(httpd_req_t *req){
     }
 
     if(option->validate_function != NULL){
-        err = validate_function(data->scratch_buf);
+        err = option->validate_function(data->scratch_buf);
         if(err != ESP_OK){
             httpd_resp_set_status(req, HTTPD_500);
             return httpd_resp_sendstr(req, "Did not pass validation");
