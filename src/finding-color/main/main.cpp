@@ -40,7 +40,7 @@ size_t random_number(size_t max){
 
 void new_color(){
     current_color_index = random_number(colors.size());
-    this_device->setRgb(colors[current_color_index]);
+    Device::this_device->setRgb(colors[current_color_index]);
 }
 
 bool colors_equal(const rgb_t *c1, const rgb_t *c2){

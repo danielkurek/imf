@@ -21,6 +21,8 @@ namespace imf{
         Station
     };
 
+    class IMF;
+
     class Device{
         public:
             Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr);
@@ -32,10 +34,18 @@ namespace imf{
             const uint16_t ble_mesh_addr;
             static esp_err_t setRgbAll(rgb_t rgb);
             static void setDM(std::shared_ptr<DistanceMeter> dm) { _dm = dm; }
+            // if the ble-mesh address is not saved. this will wait for initialization of ble-mesh device and fetch the address
+            // this should happen only on first boot
+            static esp_err_t initLocalDevice(IMF *imf);
+            static std::shared_ptr<Device> this_device;
         private:
+            Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr, bool _local_commands);
+            static std::string _getMAC();
+            bool _local_commands;
             std::shared_ptr<DistancePoint> _point;
             static std::shared_ptr<SerialCommCli> _serial;
             static std::shared_ptr<DistanceMeter> _dm;
+            static constexpr int _maxRetries = 15;
     };
 
     class IMF{
@@ -61,7 +71,7 @@ namespace imf{
             std::vector<config_option_t> _options;
             esp_event_loop_handle_t _event_loop_hdl;
             update_function_t _update_cb;
-            uint32_t _next_id = 0;
+            uint32_t _next_id = 1; // 0 is reserved for local device
             nvs_handle_t _options_handle;
 
     };

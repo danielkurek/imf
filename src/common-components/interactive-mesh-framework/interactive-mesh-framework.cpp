@@ -18,9 +18,10 @@ static esp_timer_handle_t update_timer;
 
 std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>(UART_NUM_1, GPIO_NUM_14, GPIO_NUM_17);
 std::shared_ptr<DistanceMeter> Device::_dm = nullptr;
+std::shared_ptr<Device> Device::this_device = nullptr;
 
 Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr)
-    : id(_id), type(_type), ble_mesh_addr(_ble_mesh_addr){
+    : id(_id), type(_type), ble_mesh_addr(_ble_mesh_addr), _local_commands(false){
     if(_type == DeviceType::Station){
         if(_dm != nullptr){
             uint32_t id = _dm->addPoint(_wifi_mac_str, _wifi_channel);
@@ -35,6 +36,59 @@ Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_
     }
 }
 
+Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr, bool local_commands)
+    : Device(_id, _type, _wifi_mac_str, _wifi_channel, _ble_mesh_addr) {
+    _local_commands = local_commands;
+}
+
+esp_err_t Device::initLocalDevice(IMF *imf){
+    uint16_t ble_mesh_addr;
+    bool valid_addr = false;
+    uint16_t wifi_channel = 1;
+    std::string addr;
+    esp_err_t err;
+
+    if(imf != nullptr){
+        // save MAC and ble-mesh addr
+        nvs_handle_t nvs_handle = imf->getOptionsHandle();
+        esp_err_t err = nvs_get_u16(nvs_handle, "ble_mesh/addr", &ble_mesh_addr);
+        if(err == ESP_OK){
+            valid_addr = true;
+        }
+        err = nvs_get_u16(nvs_handle, "softAP/channel", &wifi_channel);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not get softAP/channel! Err: %d", err);
+        }
+    }
+    if(!valid_addr){
+        for(int i = 0; i < _maxRetries; i++){
+            addr = _serial->GetField("addr");
+            if(addr.length() > 0 && addr != "FAIL"){
+                err = StrToAddr(addr, &ble_mesh_addr);
+                if(err == ESP_OK){
+                    valid_addr = true;
+                    break;
+                }
+            }
+            vTaskDelay(1000 / portTICK_PERIOD_MS);
+        }
+    }
+    if(!valid_addr){
+        return ESP_FAIL;
+    } 
+
+    if(valid_addr && imf != nullptr){
+        nvs_handle_t nvs_handle = imf->getOptionsHandle();
+        esp_err_t err = nvs_set_u16(nvs_handle, "ble_mesh/addr", ble_mesh_addr);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not save local ble_mesh/addr! Err: %d", err);
+        }
+    }
+    // TODO: get device type
+    this_device = std::make_shared<Device>(Device(0, DeviceType::Mobile, _getMAC(), 1, ble_mesh_addr, !valid_addr));
+    return ESP_OK;
+}
+
 esp_err_t Device::setRgb(rgb_t rgb){
     size_t buf_len = 12+1;
     char buf[buf_len];
@@ -44,7 +98,12 @@ esp_err_t Device::setRgb(rgb_t rgb){
     }
 
     std::string rgb_value {buf};
-    std::string response = _serial->PutField(ble_mesh_addr, "rgb", rgb_value);
+    std::string response;
+    if(_local_commands){
+        response = _serial->PutField("rgb", rgb_value);
+    } else{
+        response = _serial->PutField(ble_mesh_addr, "rgb", rgb_value);
+    }
     ESP_LOGI(TAG, "setRgb response %s", response.c_str());
     return ESP_OK;
 }
@@ -64,7 +123,12 @@ esp_err_t Device::setRgbAll(rgb_t rgb){
 
 rgb_t Device::getRgb(){
     rgb_t rgb;
-    std::string rgb_val = _serial->GetField(ble_mesh_addr, "rgb");
+    std::string rgb_val;
+    if(_local_commands){
+        rgb_val = _serial->GetField("rgb");
+    } else {
+        rgb_val = _serial->GetField(ble_mesh_addr, "rgb");
+    }
     esp_err_t err = str_to_rgb(rgb_val.c_str(), &rgb);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to convert RGB string to value: %s", rgb_val.c_str());
@@ -78,6 +142,18 @@ esp_err_t Device::measureDistance(uint32_t *distance_cm){
         return UINT32_MAX;
     }
     return _point->measureDistance(distance_cm);
+}
+
+std::string Device::_getMAC(){
+    uint8_t mac_addr[8]; // only 6 bytes will be used
+    esp_read_mac(mac_addr, ESP_MAC_WIFI_SOFTAP);
+    
+    char macstr[2*6 + 5 + 1];
+    int ret = snprintf(macstr, MAX_SSID_LEN, MACSTR, MAC2STR(mac_addr));
+    if(ret > 0){
+        return {macstr};
+    }
+    return "";
 }
 
 static esp_err_t color_validate(const char* value){
@@ -132,6 +208,8 @@ IMF::IMF(){
 }
 
 esp_err_t IMF::start() { 
+    Device::initLocalDevice(this);
+    _devices.emplace(0, Device::this_device);
     _dm->startTask();
     return ESP_OK;
 }
