@@ -96,12 +96,12 @@ std::string SerialCommCli::PutField(uint16_t addr, const std::string& field, con
 }
 
 CommStatus SerialCommCli::GetStatus(){
-    std::string result = SendCmd(CmdType::STATUS, 0, "", "");
+    std::string result = SendCmd(CmdType::STATUS, "", "");
     return ParseStatus(result);
 }
 
 std::string SerialCommCli::SendStatus(CommStatus status){
-    return SendCmd(CmdType::STATUS, 0, GetStatusName(status), "");
+    return SendCmd(CmdType::STATUS, GetStatusName(status), "");
 }
 
 // #endif //CONFIG_SERIAL_COMM_CLIENT
