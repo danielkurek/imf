@@ -74,7 +74,7 @@ esp_err_t AddrToStr(uint16_t addr, std::string& out){
     return ESP_FAIL;
 }
 
-esp_err_t StrToAddr(std::string addrStr, uint16_t *addrOut){
+esp_err_t StrToAddr(const std::string& addrStr, uint16_t *addrOut){
     int ret = sscanf(addrStr.c_str(), "%04" SCNx16, addrOut);
 
     if(ret == 1){
