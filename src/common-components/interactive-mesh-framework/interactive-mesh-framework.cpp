@@ -20,8 +20,8 @@ std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>
 std::shared_ptr<DistanceMeter> Device::_dm = nullptr;
 std::shared_ptr<Device> Device::this_device = nullptr;
 
-Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr)
-    : id(_id), type(_type), ble_mesh_addr(_ble_mesh_addr), _local_commands(false){
+Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr, bool local_commands)
+    : id(_id), type(_type), ble_mesh_addr(_ble_mesh_addr), _local_commands(local_commands){
     if(_type == DeviceType::Station){
         if(_dm != nullptr){
             uint32_t id = _dm->addPoint(_wifi_mac_str, _wifi_channel);
@@ -36,9 +36,8 @@ Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_
     }
 }
 
-Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr, bool local_commands)
-    : Device(_id, _type, _wifi_mac_str, _wifi_channel, _ble_mesh_addr) {
-    _local_commands = local_commands;
+Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr)
+    : Device(_id, _type, _wifi_mac_str, _wifi_channel, _ble_mesh_addr, false) {
 }
 
 esp_err_t Device::initLocalDevice(IMF *imf){
@@ -53,6 +52,7 @@ esp_err_t Device::initLocalDevice(IMF *imf){
         nvs_handle_t nvs_handle = imf->getOptionsHandle();
         esp_err_t err = nvs_get_u16(nvs_handle, "ble_mesh/addr", &ble_mesh_addr);
         if(err == ESP_OK){
+            LOGGER_I(TAG, "Using ble-mesh address stored in nvs for local device");
             valid_addr = true;
         }
         err = nvs_get_u16(nvs_handle, "softAP/channel", &wifi_channel);
@@ -66,6 +66,8 @@ esp_err_t Device::initLocalDevice(IMF *imf){
             if(addr.length() > 0 && addr != "FAIL"){
                 err = StrToAddr(addr, &ble_mesh_addr);
                 if(err == ESP_OK){
+                    LOGGER_I(TAG, "Using ble-mesh address obtained from ble-mesh device: %s", addr.c_str());
+                    LOGGER_I(TAG, "%" PRIu16, ble_mesh_addr);
                     valid_addr = true;
                     break;
                 }
@@ -74,6 +76,7 @@ esp_err_t Device::initLocalDevice(IMF *imf){
         }
     }
     if(!valid_addr){
+        LOGGER_E(TAG, "Could not get valid ble-mesh address for local device");
         return ESP_FAIL;
     } 
 
@@ -85,12 +88,12 @@ esp_err_t Device::initLocalDevice(IMF *imf){
         }
     }
     // TODO: get device type
-    this_device = std::make_shared<Device>(Device(0, DeviceType::Mobile, _getMAC(), 1, ble_mesh_addr, !valid_addr));
+    this_device = std::shared_ptr<Device>(new Device(0, DeviceType::Mobile, _getMAC(), 1, ble_mesh_addr, !valid_addr));
     return ESP_OK;
 }
 
 esp_err_t Device::setRgb(rgb_t rgb){
-    size_t buf_len = 12+1;
+    size_t buf_len = 6+1;
     char buf[buf_len];
     esp_err_t err = rgb_to_str(rgb, buf_len, buf);
     if(err != ESP_OK){
@@ -121,20 +124,20 @@ esp_err_t Device::setRgbAll(rgb_t rgb){
     return ESP_OK;
 }
 
-rgb_t Device::getRgb(){
-    rgb_t rgb;
+esp_err_t Device::getRgb(rgb_t *rgb_out){
     std::string rgb_val;
     if(_local_commands){
         rgb_val = _serial->GetField("rgb");
     } else {
         rgb_val = _serial->GetField(ble_mesh_addr, "rgb");
     }
-    esp_err_t err = str_to_rgb(rgb_val.c_str(), &rgb);
+    esp_err_t err = str_to_rgb(rgb_val.c_str(), rgb_out);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to convert RGB string to value: %s", rgb_val.c_str());
+        return ESP_FAIL;
     }
 
-    return rgb;
+    return ESP_OK;
 }
 
 esp_err_t Device::measureDistance(uint32_t *distance_cm){

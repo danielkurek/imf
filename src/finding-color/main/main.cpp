@@ -39,7 +39,23 @@ size_t random_number(size_t max){
 }
 
 void new_color(){
+    if(colors.size() == 0){
+        LOGGER_E(TAG, "No colors to choose from!");
+        return;
+    }
     current_color_index = random_number(colors.size());
+    LOGGER_I(TAG, "Choosing index=%d as new color", current_color_index);
+    char rgb_str[6+1];
+    esp_err_t err = rgb_to_str(colors[current_color_index], 6+1, rgb_str);
+    if(err != ESP_OK){
+        LOGGER_E(TAG, "Could not convert new color to string! Err: %d", err);
+    } else{
+        LOGGER_I(TAG, "Setting new color to %s", rgb_str);
+    }
+    if(Device::this_device == nullptr){
+        LOGGER_E(TAG, "Local device is not initialized, could not set RGB");
+        return;
+    }
     Device::this_device->setRgb(colors[current_color_index]);
 }
 
@@ -135,16 +151,19 @@ extern "C" void app_main(void)
     uint32_t id = s_imf.addDevice(DeviceType::Station, "34:b4:72:6a:77:c1", 1, 0xc000);
     auto device = s_imf.getDevice(id);
     if(device != nullptr){
-        rgb_t color = device->getRgb();
-        bool add_color = true;
-        for(auto &&_color : colors){
-            if(_color.red == color.red && _color.green == color.green && _color.blue == color.blue){
-                add_color = false;
-                break;
+        rgb_t color;
+        esp_err_t err = device->getRgb(&color);
+        if(err == ESP_OK){
+            bool add_color = true;
+            for(auto &&_color : colors){
+                if(_color.red == color.red && _color.green == color.green && _color.blue == color.blue){
+                    add_color = false;
+                    break;
+                }
             }
-        }
-        if(add_color){
-            colors.push_back(color);
+            if(add_color){
+                colors.push_back(color);
+            }
         }
     }
     

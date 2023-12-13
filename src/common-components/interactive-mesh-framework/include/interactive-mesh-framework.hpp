@@ -27,7 +27,7 @@ namespace imf{
         public:
             Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr);
             esp_err_t setRgb(rgb_t rgb);
-            rgb_t getRgb();
+            esp_err_t getRgb(rgb_t *rgb_out);
             esp_err_t measureDistance(uint32_t *distance_cm);
             const uint32_t id;
             const DeviceType type;
