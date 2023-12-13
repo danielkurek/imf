@@ -76,7 +76,12 @@ void check_color(){
     if(closest_device == nullptr){
         return;
     }
-    rgb_t remote_color = closest_device->getRgb();
+    rgb_t remote_color;
+    esp_err_t err = closest_device->getRgb(&remote_color);
+    if(err != ESP_OK){
+        LOGGER_E(TAG, "Could not get RGB of closest device 0x%04" PRIx16, closest_device->ble_mesh_addr);
+        return;
+    }
     if(colors_equal(&remote_color, &colors[current_color_index])){
         new_color();
     }
