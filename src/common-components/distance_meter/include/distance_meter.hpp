@@ -96,6 +96,7 @@ class DistanceMeter{
         uint32_t addPoint(uint8_t mac[6], uint8_t channel);
         uint32_t addPoint(std::string macstr, uint8_t channel);
         std::shared_ptr<DistancePoint> getPoint(uint32_t id);
+        esp_err_t getDistance(uint32_t id, uint32_t *distance_cm);
         // esp_err_t removePoint(uint8_t mac[6]);
         void startTask();
         // nearest point in last x amount of seconds

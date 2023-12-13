@@ -174,6 +174,15 @@ std::shared_ptr<DistancePoint> DistanceMeter::getPoint(uint32_t id){
     return nullptr;
 }
 
+esp_err_t DistanceMeter::getDistance(uint32_t id, uint32_t *distance_cm){
+    auto search = _measurements.find(id);
+    if(search != _measurements.end()){
+        (*distance_cm) = search->second->distance_cm;
+        return ESP_OK;
+    }
+    return ESP_FAIL;
+}
+
 // esp_err_t DistanceMeter::removePoint(uint8_t[6] mac){
 //     for(auto it = _points.begin(); it != _points.end(); it++){
 //         const uint8_t[6] other_mac = *it->getMac();

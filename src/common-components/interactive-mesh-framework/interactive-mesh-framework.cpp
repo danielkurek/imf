@@ -7,6 +7,7 @@
 #include "wifi_connect.h"
 #include "esp_timer.h"
 #include <vector>
+#include "location_common.h"
 
 #define EVENT_LOOP_QUEUE_SIZE 16
 
@@ -41,7 +42,7 @@ Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_
 }
 
 esp_err_t Device::initLocalDevice(IMF *imf){
-    uint16_t ble_mesh_addr;
+    uint16_t ble_mesh_addr = 0x0000;
     bool valid_addr = false;
     uint16_t wifi_channel = 1;
     std::string addr;
@@ -140,11 +141,83 @@ esp_err_t Device::getRgb(rgb_t *rgb_out){
     return ESP_OK;
 }
 
+esp_err_t Device::setLocation(const location_local_t *location){
+    char buf[SIMPLE_LOC_STR_LEN];
+    esp_err_t err = simple_loc_to_str(location, SIMPLE_LOC_STR_LEN, buf);
+    if(err != ESP_OK){
+        return err;
+    }
+
+    std::string loc_value {buf};
+    std::string response;
+    if(_local_commands){
+        response = _serial->PutField("loc", loc_value);
+    } else{
+        response = _serial->PutField(ble_mesh_addr, "loc", loc_value);
+    }
+    ESP_LOGI(TAG, "set loc response %s", response.c_str());
+    return ESP_OK;
+}
+
+esp_err_t Device::getLocation(location_local_t *location_out){
+    std::string loc_val;
+    if(_local_commands){
+        loc_val = _serial->GetField("loc");
+    } else {
+        loc_val = _serial->GetField(ble_mesh_addr, "loc");
+    }
+    esp_err_t err = simple_str_to_loc(loc_val.c_str(), location_out);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed to convert simple Location response to value: %s", loc_val.c_str());
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
+}
+
+esp_err_t Device::setLevel(int16_t level){
+    char buf[5+1];
+    int ret = snprintf(buf, 5+1, "%04" PRIx16, level);
+    if(ret <= 0){
+        return ESP_FAIL;
+    }
+
+    std::string level_value {buf};
+    std::string response;
+    if(_local_commands){
+        response = _serial->PutField("level", level_value);
+    } else{
+        response = _serial->PutField(ble_mesh_addr, "level", level_value);
+    }
+    ESP_LOGI(TAG, "set level response %s", response.c_str());
+    return ESP_OK;
+}
+
+esp_err_t Device::getLevel(int16_t *level_out){
+    std::string level_val;
+    if(_local_commands){
+        level_val = _serial->GetField("level");
+    } else {
+        level_val = _serial->GetField(ble_mesh_addr, "level");
+    }
+    int ret = sscanf(level_val.c_str(), "%04" SCNx16, level_out);
+    if(ret != 1){
+        ESP_LOGE(TAG, "Failed to convert Level response to value: %s", level_val.c_str());
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
+}
+
 esp_err_t Device::measureDistance(uint32_t *distance_cm){
     if(type == DeviceType::Mobile || _point == nullptr){
         return UINT32_MAX;
     }
     return _point->measureDistance(distance_cm);
+}
+
+esp_err_t Device::distance(uint32_t *distance_cm){
+    return _dm->getDistance(_point->getID(), distance_cm);
 }
 
 std::string Device::_getMAC(){
