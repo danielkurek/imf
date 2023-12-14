@@ -30,6 +30,7 @@
 
 #include "serial_comm_server.hpp"
 #include "location_common.h"
+#include <memory>
 
 // tag for logging
 static const char* TAG = "MESH-FMW";
@@ -51,7 +52,7 @@ static const size_t options_len = sizeof(options) / sizeof(options[0]);
 // NVS handle for reading the web_config options
 static nvs_handle_t config_nvs;
 
-static SerialCommSrv serialSrv;
+static std::unique_ptr<SerialCommSrv> serialSrv;
 
 // start configuration mode if conditions are met
 bool web_config(){
@@ -144,7 +145,7 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, addr);
             return;
         }
-        serialSrv.SetField(addr, field, buf);
+        serialSrv->SetField(addr, field, buf);
     }
     if(field == "loc"){
         location_local_t loc_local;
@@ -159,7 +160,7 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, addr);
             return;
         }
-        serialSrv.SetField(addr, field, buf);
+        serialSrv->SetField(addr, field, buf);
     }
     if(field == "onoff"){
         bool onoff;
@@ -169,9 +170,9 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             return;
         }
         if(onoff){
-            serialSrv.SetField(addr, field, "ON");
+            serialSrv->SetField(addr, field, "ON");
         } else{
-            serialSrv.SetField(addr, field, "OFF");
+            serialSrv->SetField(addr, field, "OFF");
         }
     }
     if(field == "level"){
@@ -189,7 +190,7 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             return;
         }
 
-        serialSrv.SetField(addr, field, buf);
+        serialSrv->SetField(addr, field, buf);
     }
     if(field == "addr"){
         std::string addr_str;
@@ -198,20 +199,20 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             LOGGER_E(TAG, "Could not convert addr to string");
             return;
         }
-        serialSrv.SetField(addr, field, addr_str);
+        serialSrv->SetField(addr, field, addr_str);
     }
 }
 
 esp_err_t serial_comm_init(){
     uint16_t primary_addr;
     uint8_t  addresses;
-    err = ble_mesh_get_addresses(&primary_addr, &addresses);
+    esp_err_t err = ble_mesh_get_addresses(&primary_addr, &addresses);
     if (err != ESP_OK){
         LOGGER_E(TAG, "Could not get addresses of this node");
     }
-    serialSrv = SerialCommSrv(UART_NUM_1, GPIO_NUM_10, GPIO_NUM_1, primary_addr);
-    serialSrv.RegisterChangeCallback(serial_comm_change_callback, serial_comm_get_callback);
-    serialSrv.StartTask();
+    serialSrv = std::make_unique<SerialCommSrv>(UART_NUM_1, GPIO_NUM_10, GPIO_NUM_1, primary_addr);
+    serialSrv->RegisterChangeCallback(serial_comm_change_callback, serial_comm_get_callback);
+    serialSrv->StartTask();
 
     return ESP_OK;
 } 
