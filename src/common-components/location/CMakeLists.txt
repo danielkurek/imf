@@ -1,4 +1,4 @@
-idf_component_register(SRCS "location_common.c" ""
+idf_component_register(SRCS "location_topology.cpp" "location_common.c"
                     INCLUDE_DIRS "include"
-                    REQUIRES ""
+                    REQUIRES interactive-mesh-framework graphviz
                     PRIV_REQUIRES "")
