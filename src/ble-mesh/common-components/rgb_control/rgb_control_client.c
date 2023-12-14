@@ -1,7 +1,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "rgb_control_client.h"
-#include "hsl.h"
+#include "color/hsl.h"
 
 
 #define RGB_GET_BIT BIT0

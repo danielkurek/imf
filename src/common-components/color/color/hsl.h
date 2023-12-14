@@ -1,7 +1,7 @@
 #ifndef HSL_H_
 #define HSL_H_
 
-#include "color.h"
+#include "color/color.h"
 
 #ifdef __cplusplus
 extern "C"{

@@ -7,13 +7,14 @@
 #ifdef __cplusplus
 extern "C"{
 #endif
+
 typedef struct{
     uint8_t red;
     uint8_t green;
     uint8_t blue;
 } rgb_t;
 
-typedef struct {
+typedef struct{
     uint16_t lightness;
     uint16_t hue;
     uint16_t saturation;

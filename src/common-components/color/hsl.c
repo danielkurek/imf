@@ -1,5 +1,5 @@
-#include "hsl.h"
-#include "hsl_github.h"
+#include "color/hsl.h"
+#include "color/hsl_github.h"
 
 rgb_t hsl_to_rgb(hsl_t hsl){
     float h = ((float) hsl.hue) / UINT16_MAX;

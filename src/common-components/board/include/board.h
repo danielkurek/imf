@@ -1,7 +1,7 @@
 #ifndef BOARD_H_
 #define BOARD_H_
 
-#include "color.h"
+#include "color/color.h"
 #include "driver/gpio.h"
 #include "esp_timer.h"
 #include "led_strip.h"

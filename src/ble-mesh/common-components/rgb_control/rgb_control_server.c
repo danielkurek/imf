@@ -1,5 +1,5 @@
 #include "rgb_control_server.h"
-#include "hsl.h"
+#include "color/hsl.h"
 
 static const char* TAG = "RGB_server";
 

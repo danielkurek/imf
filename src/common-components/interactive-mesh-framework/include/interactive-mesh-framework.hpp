@@ -5,7 +5,7 @@
 #include "web_config.h"
 #include "serial_comm_client.hpp"
 #include "serial_comm_server.hpp"
-#include "color.h"
+#include "color/color.h"
 #include "board.h"
 #include "logger.h"
 #include "location_defs.h"

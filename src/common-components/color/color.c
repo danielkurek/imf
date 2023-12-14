@@ -1,5 +1,5 @@
 #include <stdio.h>
-#include "color.h"
+#include "color/color.h"
 #include <inttypes.h>
 
 esp_err_t rgb_to_str(rgb_t color, size_t buf_len, char buf[]){

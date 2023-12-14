@@ -43,8 +43,8 @@
 
 #include "driver/gpio.h"
 
-#include "color.h"
-#include "hsl.h"
+#include "color/color.h"
+#include "color/hsl.h"
 
 #include "logger.h"
 

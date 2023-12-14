@@ -1,7 +1,7 @@
 #ifndef BLE_MESH_H_
 #define BLE_MESH_H_
 
-#include "color.h"
+#include "color/color.h"
 #include <inttypes.h>
 #include "board.h"
 #include "rgb_control_client.h"

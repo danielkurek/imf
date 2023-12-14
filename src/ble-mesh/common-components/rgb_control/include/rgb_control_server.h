@@ -4,7 +4,7 @@
 #include "esp_ble_mesh_defs.h"
 #include "esp_ble_mesh_common_api.h"
 #include "esp_ble_mesh_lighting_model_api.h"
-#include "color.h"
+#include "color/color.h"
 
 #define BLE_MESH_MODEL_RGB_STATE_DEFINE(_name) \
     static esp_ble_mesh_light_hsl_state_t _name = { \

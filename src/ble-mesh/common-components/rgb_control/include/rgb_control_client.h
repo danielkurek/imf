@@ -2,7 +2,7 @@
 #define BLE_MESH_RGB_CONTROL_CLIENT_H_
 
 #include "esp_ble_mesh_lighting_model_api.h"
-#include "color.h"
+#include "color/color.h"
 
 #define BLE_MESH_RGB_CLI_PUB_DEFINE(_name, _role) \
     ESP_BLE_MESH_MODEL_PUB_DEFINE(_name, 2 + 30, _role);
