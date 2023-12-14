@@ -11,3 +11,6 @@ set(with_zlib OFF)
 add_subdirectory(graphviz)
 
 target_link_libraries(${COMPONENT_LIB} INTERFACE common gvc neatogen cgraph gvplugin_core)
+
+target_sources(${COMPONENT_LIB} INTERFACE "neato_esp/neato_esp.c")
+target_include_directories(${COMPONENT_LIB} INTERFACE "neato_esp")
