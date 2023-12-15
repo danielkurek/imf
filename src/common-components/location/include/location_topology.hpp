@@ -30,6 +30,7 @@ class LocationTopology{
         std::unordered_map<uint64_t, Agedge_t*> _edges;
         esp_err_t uint32ToStr(uint32_t num, size_t buf_len, char  *buf);
         esp_err_t locationToPosStr(const location_local_t *location, size_t buf_len, char *buf);
+        esp_err_t posStrToLocation(const char* pos_str, location_local_t *location);
         void initGraph();
         void removeNodeEdges(uint32_t id);
         void removeNode(uint32_t id);
@@ -38,7 +39,7 @@ class LocationTopology{
         void addEdge(uint32_t source, uint32_t target, uint32_t distance);
         void updateGraph();
         void updateNodePositions();
-        void setNodePositions();
+        void saveNodePositions();
         void task();
         void singleRun();
         static void taskWrapper(void* param){

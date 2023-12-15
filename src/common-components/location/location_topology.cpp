@@ -6,10 +6,18 @@ using namespace imf;
 
 static const char* TAG = "LOC_TOP";
 
+// TODO: verify that methods does not modify these
+// agget - does not modify or free the char*
+static char graph_name[] = "g";
+static char mode_name[] = "mode";
+static char pos_name[] = "pos";
+static char notranslate_name[] = "notranslate";
+static char len_name[] = "len";
+
 // pair will be number "xy" (concatenated)
 static inline uint64_t make_pair(uint32_t x, uint32_t y){
     uint64_t pair = y;
-    pair |= x << 32;
+    pair |= (uint64_t) x << 32;
     return pair;
 }
 
@@ -36,10 +44,10 @@ LocationTopology::~LocationTopology(){
 }
 
 void LocationTopology::initGraph(){
-    _g = agopen("g", Agundirected, 0);
-    agset(_g, "mode", "sgd");
-    agset(_g, "notranslate", "true");
-    agset(_g, "inputscale", "72");
+    _g = agopen(graph_name, Agundirected, 0);
+    agsafeset(_g, mode_name, "sgd", "");
+    agsafeset(_g, notranslate_name, "true", "");
+    // agsafeset(_g, "inputscale", "72", "");
     addNode(_this_device->id);
 }
 
@@ -85,6 +93,17 @@ esp_err_t LocationTopology::locationToPosStr(const location_local_t *location, s
     return ESP_FAIL;
 }
 
+esp_err_t LocationTopology::posStrToLocation(const char* pos_str, location_local_t *location){
+    float x, y;
+    int ret = sscanf(pos_str, "%f,%f", &x, &y);
+    if(ret != 2){    
+        return ESP_FAIL;
+    }
+    location->local_north = x * 10;
+    location->local_east  = y * 10;
+    return ESP_OK;
+}
+
 esp_err_t LocationTopology::updateNodePosition(uint32_t id){
     if(!_nodes.contains(id)){
         return ESP_FAIL;
@@ -113,7 +132,7 @@ esp_err_t LocationTopology::updateNodePosition(uint32_t id){
         return err;
     }
     // TODO: check return code
-    agset(_nodes[id], "pos", pos_str);
+    agsafeset(_nodes[id], pos_name, pos_str, "");
     return ESP_OK;
 }
 
@@ -143,10 +162,10 @@ void LocationTopology::addEdge(uint32_t source, uint32_t target, uint32_t distan
     uint32ToStr(distance, 10+1, distance_str);
     auto iter = _edges.find(edge);
     if(iter != _edges.end()){
-        agset(iter->second, "len", distance_str);
+        agsafeset(iter->second, len_name, distance_str, "");
     }
     Agedge_t *e = agedge(_g, _nodes[source], _nodes[target], 0, 1);
-    agset(e, "len", distance_str);
+    agsafeset(e, len_name, distance_str, "");
     _edges.emplace(edge, e);
 }
 
@@ -174,29 +193,47 @@ void LocationTopology::updateNodePositions(){
     }
 }
 
-void LocationTopology::setNodePositions(){
-
+void LocationTopology::saveNodePositions(){
+    for(const auto &iter : _nodes){
+        char *pos_str = agget(iter.second, pos_name);
+        if(pos_str == 0){
+            LOGGER_E(TAG, "Could not get position argument for node with id %" PRIu32, iter.first);
+            continue;
+        }
+        location_local_t location {};
+        posStrToLocation(pos_str, &location);
+        if(iter.first == _this_device->id){
+            _this_device->setLocation(&location);
+        } else{
+            auto search = _stations.find(iter.first);
+            if(search == _stations.end()){
+                LOGGER_E(TAG, "Could not find station with id %" PRIu32, iter.first);
+                continue;
+            }
+            search->second->setLocation(&location);
+        }
+    }
 }
 
 void LocationTopology::singleRun(){
     updateGraph();
     neato_esp_layout(_gvc, _g);
     neato_esp_render(_gvc, _g, stdout);
-    setNodePositions();
+    saveNodePositions();
 }
 
 void LocationTopology::task(){
     while(true){
         singleRun();
         uint32_t rnd = esp_random() / 1000000; // 0-4294
-        vTaskDelay(1000 + rnd);
+        vTaskDelay(1000 + rnd); // random delay 1000 - 5294 ticks
     }
 }
 
 esp_err_t LocationTopology::start(){
-    return xTaskCreate(taskWrapper, "LocationTopology", 1024*8, this, configMAX_PRIORITIES-1, &_xHandle);
+    return xTaskCreate(taskWrapper, "LocationTopology", 1024*24, this, configMAX_PRIORITIES-1, &_xHandle);
 }
 
 void LocationTopology::stop(){
-    return vTaskDelete(_xHandle);
+    vTaskDelete(_xHandle);
 }
