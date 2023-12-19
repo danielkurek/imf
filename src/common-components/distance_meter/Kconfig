@@ -1,0 +1,9 @@
+menu "Distance Meter"
+    config DISTANCE_FILTER_MAX_SIZE_DEFAULT
+        int "Max distance filter size"
+        range 0 65535
+        default 8
+        help
+            Specify the maximum number of measurements from which the distance will be computed (can be overriden in code)
+    
+endmenu

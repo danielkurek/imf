@@ -14,6 +14,7 @@
 
 #include <set>
 #include <unordered_map>
+#include <deque>
 
 #define MACSTR_SCN "%02" SCNx8 ":%02" SCNx8 ":%02" SCNx8 ":%02" SCNx8 ":%02" SCNx8 ":%02" SCNx8
 #define STR2MAC(a) &(a)[0], &(a)[1], &(a)[2], &(a)[3], &(a)[4], &(a)[5]
@@ -52,16 +53,20 @@ typedef struct{
 
 class DistancePoint {
     public:
+        DistancePoint(uint32_t id, const uint8_t mac[6], std::string macstr, uint8_t channel, size_t filter_max_size)
+            : _id(id), _macstr(macstr), _channel(channel), _filter_max_size(filter_max_size){
+            memcpy(_mac, mac, 6);
+        }
+        DistancePoint(uint32_t id, const uint8_t mac[6], std::string macstr, uint8_t channel) 
+            : DistancePoint(id, mac, macstr, channel, CONFIG_DISTANCE_FILTER_MAX_SIZE_DEFAULT){
+                
+            }
         DistancePoint(uint32_t id, const uint8_t mac[6], uint8_t channel) 
-            : _id(id), _channel(channel){
+            : _id(id), _channel(channel), _filter_max_size(CONFIG_DISTANCE_FILTER_MAX_SIZE_DEFAULT){
                 memcpy(_mac, mac, 6);
                 char buffer[17+1];
                 sprintf(buffer, MACSTR, MAC2STR(_mac));
                 _macstr = std::string(buffer);
-            }
-        DistancePoint(uint32_t id, const uint8_t mac[6], std::string macstr, uint8_t channel) 
-            : _id(id), _macstr(macstr), _channel(channel){
-                memcpy(_mac, mac, 6);
             }
         
         // default event loop needs to be created before calling this function
@@ -80,10 +85,14 @@ class DistancePoint {
         static const int FTM_FAILURE_BIT = BIT1;
         static EventGroupHandle_t _s_ftm_event_group;
         static wifi_event_ftm_report_t _s_ftm_report;
+        uint32_t filterDistance(uint32_t new_measurement);
         uint32_t _id;
         uint8_t _mac[6];
         std::string _macstr;
         uint8_t _channel;
+        size_t _filter_max_size;
+        std::deque<uint32_t> _filter_data;
+        uint64_t _filter_sum = 0;
 };
 
 class DistanceMeter{

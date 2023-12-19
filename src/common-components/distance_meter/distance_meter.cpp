@@ -49,6 +49,17 @@ void DistancePoint::event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
+uint32_t DistancePoint::filterDistance(uint32_t new_measurement){
+    while(_filter_data.size() >= _filter_max_size){
+        _filter_sum -= _filter_data.front();
+        _filter_data.pop_front();
+    }
+    _filter_data.push_back(new_measurement);
+    _filter_sum += new_measurement;
+
+    return _filter_sum / _filter_data.size();
+}
+
 esp_err_t DistancePoint::measureDistance(uint32_t *distance_cm){
     wifi_ftm_initiator_cfg_t ftmi_cfg {};
     memcpy(ftmi_cfg.resp_mac, _mac, 6);
@@ -57,10 +68,10 @@ esp_err_t DistancePoint::measureDistance(uint32_t *distance_cm){
     ftmi_cfg.burst_period = 2;
 
     ftm_result_t ftm_report = measureRawDistance(&ftmi_cfg);
-    // TODO: filter data
 
     if(ftm_report.status == FTM_STATUS_SUCCESS){
-        (*distance_cm) = ftm_report.dist_est;
+        (*distance_cm) = filterDistance(ftm_report.dist_est);
+        
         return ESP_OK;
     }
     return ESP_FAIL;
