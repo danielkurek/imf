@@ -11,6 +11,7 @@
 #include "driver/uart.h"
 
 #include <vector>
+#include <memory>
 
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 #define CONFIG_BUTTON GPIO_NUM_9
@@ -22,7 +23,7 @@ static const char *TAG = "APP";
 
 using namespace imf;
 
-static IMF s_imf;
+static std::unique_ptr<IMF> s_imf;
 static std::shared_ptr<Device> closest_device;
 static TickType_t closest_timestamp_ms;
 
@@ -32,6 +33,12 @@ static size_t current_color_index;
 constexpr uint32_t closest_time_limit = 10000;
 
 constexpr int16_t color_cmp_threshold = 10;
+
+typedef struct {
+    std::string mac;
+    uint16_t ble_addr;
+    uint16_t wifi_channel;
+} device_conf_t;
 
 size_t random_number(size_t max){
     uint32_t rnd = esp_random();
@@ -123,7 +130,7 @@ extern "C" void event_handler(void* event_handler_arg, esp_event_base_t event_ba
                     if(dm_nearest_dev->new_point_id == UINT32_MAX){
                         closest_device = nullptr;
                     } else{
-                        closest_device = s_imf.getDevice(dm_nearest_dev->new_point_id);
+                        closest_device = s_imf->getDevice(dm_nearest_dev->new_point_id);
                     }
                     closest_timestamp_ms = dm_nearest_dev->timestamp_ms;
                 }
@@ -134,49 +141,81 @@ extern "C" void event_handler(void* event_handler_arg, esp_event_base_t event_ba
     }
 }
 
+// start configuration mode if conditions are met
+bool web_config(){
+    gpio_config_t config;
+
+    config.pin_bit_mask = 1ull << CONFIG_BUTTON;
+    config.mode = GPIO_MODE_INPUT;
+    config.pull_up_en = GPIO_PULLUP_ENABLE;
+
+    gpio_config(&config);
+
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    if(gpio_get_level(CONFIG_BUTTON) == 0){
+        LOGGER_I(TAG, "Booting to web config");
+        s_imf->startWebConfig();
+        return true;
+    }
+    return false;
+}
 
 extern "C" void app_main(void)
 {
     ESP_LOGI(TAG, "Startup!");
     esp_err_t err;
-    
-    ESP_LOGI(TAG, "NVS flash init...");
-    err = nvs_flash_init();
-    if (err == ESP_ERR_NVS_NO_FREE_PAGES) {
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
+
+    if(web_config()){
+        return;
     }
-    ESP_ERROR_CHECK(err);
+
 
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     ESP_LOGI(TAG, "init IMF");
 
+    s_imf = std::make_unique<IMF>();
+    if(!s_imf){
+        ESP_LOGE(TAG, "Could not init IMF!");
+        return;
+    }
+
     ESP_LOGI(TAG, "IMF add devices");
-    uint32_t id = s_imf.addDevice(DeviceType::Station, "34:b4:72:6a:77:c1", 1, 0xc000);
-    auto device = s_imf.getDevice(id);
-    if(device != nullptr){
-        rgb_t color;
-        esp_err_t err = device->getRgb(&color);
-        if(err == ESP_OK){
-            bool add_color = true;
-            for(auto &&_color : colors){
-                if(_color.red == color.red && _color.green == color.green && _color.blue == color.blue){
-                    add_color = false;
-                    break;
+    const device_conf_t devices_confs[] = {
+        {"34:b4:72:69:cb:9d", 0xc000, 1},
+        {"34:b4:72:69:e6:13", 0xc001, 1},
+        {"34:b4:72:6a:76:ed", 0xc002, 1},
+        {"34:b4:72:6a:77:c1", 0xc003, 1},
+        {"34:b4:72:6a:84:59", 0xc004, 1},
+    };
+    const size_t devices_len = sizeof(devices_confs) / sizeof(devices_confs[0]);
+    for(size_t i = 0; i < devices_len; i++){
+        const device_conf_t *d_conf = &devices_confs[i];
+        uint32_t id = s_imf->addDevice(DeviceType::Station, d_conf->mac, d_conf->wifi_channel, d_conf->ble_addr);
+        std::shared_ptr<Device> device = s_imf->getDevice(id);
+        if(device != nullptr){
+            rgb_t color;
+            esp_err_t err = device->getRgb(&color);
+            if(err == ESP_OK){
+                bool add_color = true;
+                for(auto &&_color : colors){
+                    if(_color.red == color.red && _color.green == color.green && _color.blue == color.blue){
+                        add_color = false;
+                        break;
+                    }
                 }
-            }
-            if(add_color){
-                colors.push_back(color);
+                if(add_color){
+                    colors.push_back(color);
+                }
             }
         }
     }
-    
     ESP_LOGI(TAG, "IMF register callbacks");
-    s_imf.registerCallbacks(button_cb, event_handler, NULL, update_cb);
-
-    new_color();
+    s_imf->registerCallbacks(button_cb, event_handler, NULL, update_cb);
 
     ESP_LOGI(TAG, "IMF start");
-    s_imf.start();
+    s_imf->start();
+    
+    new_color();
 }

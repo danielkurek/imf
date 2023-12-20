@@ -75,7 +75,7 @@ esp_err_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t *comm
 
     while(true){
         bits = xEventGroupWaitBits(s_rgb_event_group, RGB_GET_BIT | RGB_FAIL_BIT,
-                                        pdTRUE, pdFALSE, portMAX_DELAY);
+                                        pdTRUE, pdFALSE, 500 / portTICK_PERIOD_MS);
         // check rgb_event_cb_param.ctx.addr or rgb_event_cb_param.ctx.recv_dst
         // compare it to common->ctx.addr
         ESP_LOGI(TAG, "rgb_event_cb_param.ctx.addr=%d | rgb_event_cb_param.ctx.recv_dst=%d | common->ctx.addr=%d", rgb_event_cb_param.ctx.addr, rgb_event_cb_param.ctx.recv_dst, common->ctx.addr);

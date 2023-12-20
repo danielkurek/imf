@@ -23,11 +23,14 @@ static logger_conf_t conf;
 static QueueHandle_t uart_queue;
 
 void logger_init(esp_log_level_t level){
+    static bool initialized = false;
+    if(initialized) return;
     conf.level = level;
     uint8_t rnd = (uint8_t) esp_random();
     
     // A-Z (65-90)
     conf.rnd_char = 'A' + rnd % ('Z' - 'A');
+    initialized = true;
 }
 
 char logger_get_current_rnd_letter(){
@@ -35,6 +38,9 @@ char logger_get_current_rnd_letter(){
 }
 
 bool logger_init_storage(){
+    static bool initialized = false;
+    if(initialized) return true;
+
     esp_vfs_littlefs_conf_t storage_conf = {
       .base_path = "/logs",
       .partition_label = "logs",
@@ -68,6 +74,8 @@ bool logger_init_storage(){
         }
     }
 
+    initialized = true;
+
     return true;
 }
 
@@ -76,6 +84,11 @@ void logger_output_to_default(){
 }
 
 bool logger_output_to_file(const char* filename, long int protect_start_bytes){
+    if(conf.log_file != NULL){
+        logger_sync_file();
+        fclose(conf.log_file);
+        conf.log_file = NULL;
+    }
     struct stat st;
     if (stat(filename, &st) == 0) {
         // File exists

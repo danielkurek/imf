@@ -52,7 +52,7 @@ std::string SerialCommCli::SendCmd(CmdType type, const std::string& field, const
     }
 
     // length() + 1 because of \0 at the end
-    ESP_LOGI(TAG, "Sending cmd");
+    ESP_LOGI(TAG, "Sending cmd: %s", cmdString.c_str());
     uart_write_bytes(_uart_port, cmdString.c_str(), cmdString.length()+1);
     ESP_LOGI(TAG, "Awaiting response...");
     return GetResponse();
@@ -60,7 +60,7 @@ std::string SerialCommCli::SendCmd(CmdType type, const std::string& field, const
 
 std::string SerialCommCli::GetResponse(){
     uint8_t buf[rx_buffer_len];
-    int len = uart_read_bytes(_uart_port, buf, rx_buffer_len, 500 / portTICK_PERIOD_MS);
+    int len = uart_read_bytes(_uart_port, buf, rx_buffer_len, 800 / portTICK_PERIOD_MS);
     if(len > 0){
         buf[len] = '\0';
         std::string response{(char*)buf};

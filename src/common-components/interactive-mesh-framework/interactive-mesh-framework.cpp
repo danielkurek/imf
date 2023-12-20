@@ -8,8 +8,11 @@
 #include "esp_timer.h"
 #include <vector>
 #include "location_common.h"
+#include "esp_check.h"
 
 #define EVENT_LOOP_QUEUE_SIZE 16
+
+#define DEFAULT_COLOR_OPT "color"
 
 static const char* TAG = "IMF";
 
@@ -89,7 +92,27 @@ esp_err_t Device::initLocalDevice(IMF *imf){
         }
     }
     // TODO: get device type
-    this_device = std::shared_ptr<Device>(new Device(0, DeviceType::Mobile, _getMAC(), 1, ble_mesh_addr, !valid_addr));
+    this_device = std::shared_ptr<Device>(new Device(0, DeviceType::Mobile, _getMAC(), 1, ble_mesh_addr, !valid_addr));\
+    
+    // set default color
+    if(imf != nullptr){
+        LOGGER_I(TAG, "Setting default color for this device");
+        nvs_handle_t nvs_handle = imf->getOptionsHandle();
+        char rgb_str[RGB_STR_LEN];
+        size_t rgb_str_len;
+        esp_err_t err = nvs_get_str(nvs_handle, DEFAULT_COLOR_OPT, rgb_str, &rgb_str_len);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not get default color! Err: %d", err);
+        } else{
+            rgb_t color;
+            err = str_to_rgb(rgb_str, &color);
+            if(err != ESP_OK){
+                LOGGER_E(TAG, "Could not get convert default color! Color: %s", rgb_str);
+            } else{
+                this_device->setRgb(color);
+            }
+        }
+    }
     return ESP_OK;
 }
 
@@ -268,11 +291,19 @@ IMF::IMF(){
 
     _options = {};
     _options.emplace_back((config_option_t){
-        .key = "color",
+        .key = DEFAULT_COLOR_OPT,
         .type = NVS_TYPE_STR,
         .value_to_log = true,
         .validate_function = color_validate,
     });
+
+    ESP_LOGI(TAG, "NVS flash init...");
+    esp_err_t err = nvs_flash_init();
+    if (err == ESP_ERR_NVS_NO_FREE_PAGES) {
+        ESP_ERROR_CHECK(nvs_flash_erase());
+        err = nvs_flash_init();
+    }
+    ESP_ERROR_CHECK(err);
 
     if(nvs_open("config", NVS_READWRITE, &_options_handle) != ESP_OK){
         ESP_LOGI(TAG, "Error opening NVS!");
@@ -293,8 +324,8 @@ esp_err_t IMF::start() {
 void IMF::_update_timer_cb(){
     static TickType_t _last_update = 0;
     TickType_t now = xTaskGetTickCount();
-    TickType_t diff = pdTICKS_TO_MS(now) - pdTICKS_TO_MS(_last_update);
-    if(_update_cb != NULL){
+    if(_update_cb != nullptr){
+        TickType_t diff = pdTICKS_TO_MS(now) - pdTICKS_TO_MS(_last_update);
         _update_cb(diff);
     }
     _last_update = now;
@@ -308,13 +339,15 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
         ESP_LOGE(TAG, "Cannot register board button callback");
         return err;
     }
-
+    ESP_LOGE(TAG, "Here1");
     err = _dm->registerEventHandle(event_handler, handler_args);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Cannot board register DM event handle");
         return err;
     }
+    ESP_LOGE(TAG, "Here2");
     if(update_cb != NULL){
+        ESP_LOGE(TAG, "Here3");
         esp_timer_create_args_t args = {
             .callback = _update_timer_cb_wrapper,
             .arg = this,
@@ -324,7 +357,7 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
         };
         
         _update_timer_cb();
-
+        ESP_LOGE(TAG, "Here4");
         err = esp_timer_create(&args, &(update_timer));
         if(err != ESP_OK){
             ESP_LOGE(TAG, "Failed initializing update timer! %s", esp_err_to_name(err));
@@ -332,12 +365,13 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
         }
         
         _update_cb = update_cb;
-
+        ESP_LOGE(TAG, "Here5");
         err = esp_timer_start_periodic(update_timer, 200 * 1000); // every 200 ms
         if(err != ESP_OK){
             ESP_LOGE(TAG, "Failed to start update timer! %s", esp_err_to_name(err));
             return err;
         }
+        ESP_LOGE(TAG, "Here6");
     }
     return err;
 }

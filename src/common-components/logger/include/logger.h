@@ -6,7 +6,7 @@
 #include <stdlib.h>
 #include <esp_log.h>
 #include <stdbool.h>
-#include <driver/uart.h>
+#include "driver/uart.h"
 
 #ifdef __cplusplus
 extern "C"{

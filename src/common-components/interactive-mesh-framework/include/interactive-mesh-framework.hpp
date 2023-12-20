@@ -9,6 +9,7 @@
 #include "board.h"
 #include "logger.h"
 #include "location_defs.h"
+#include "nvs_flash.h"
 
 #include <vector>
 #include <map>
@@ -76,7 +77,7 @@ namespace imf{
             std::shared_ptr<DistanceMeter> _dm;
             std::vector<config_option_t> _options;
             esp_event_loop_handle_t _event_loop_hdl;
-            update_function_t _update_cb;
+            update_function_t _update_cb = nullptr;
             uint32_t _next_id = 1; // 0 is reserved for local device
             nvs_handle_t _options_handle;
 

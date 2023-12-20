@@ -609,7 +609,7 @@ esp_err_t ble_mesh_set_rgb(uint16_t addr, rgb_t color, bool ack){
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
 
-    LOGGER_I(TAG, "Sending RGB set to %d", addr);
+    LOGGER_I(TAG, "Sending RGB set to 0x%04" PRIx16, addr);
 
     common.ctx.addr = addr;
     common.ctx.send_ttl = 3;
@@ -647,7 +647,7 @@ esp_err_t ble_mesh_get_rgb(uint16_t addr, rgb_t *color_out){
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
 
-    LOGGER_I(TAG, "Sending RGB set to %d", addr);
+    LOGGER_I(TAG, "Sending RGB get to 0x%04" PRIx16, addr);
 
     common.ctx.addr = addr;
     common.ctx.send_ttl = 3;

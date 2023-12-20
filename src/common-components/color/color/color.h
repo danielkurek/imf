@@ -20,6 +20,8 @@ typedef struct{
     uint16_t saturation;
 } hsl_t;
 
+#define RGB_STR_LEN 6+1
+
 esp_err_t rgb_to_str(rgb_t color, size_t buf_len, char buf[]);
 esp_err_t str_to_rgb(const char *buf, rgb_t *color);
 
