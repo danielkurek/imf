@@ -166,20 +166,19 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Startup!");
     esp_err_t err;
 
-    if(web_config()){
-        return;
-    }
-
-
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-    ESP_LOGI(TAG, "init IMF");
-
     s_imf = std::make_unique<IMF>();
     if(!s_imf){
         ESP_LOGE(TAG, "Could not init IMF!");
         return;
     }
+
+    if(web_config()){
+        return;
+    }
+
+    ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    ESP_LOGI(TAG, "init IMF");
 
     ESP_LOGI(TAG, "IMF add devices");
     const device_conf_t devices_confs[] = {
@@ -211,6 +210,18 @@ extern "C" void app_main(void)
             }
         }
     }
+    std::string colors_str;
+    bool first = false;
+    for(auto && color : colors){
+        char rgb_str[RGB_STR_LEN];
+        rgb_to_str(color, RGB_STR_LEN, rgb_str);
+        if(first){
+            colors_str += std::string(rgb_str);
+            first = false;
+        } else
+            colors_str += "," + std::string(rgb_str);
+    }
+    ESP_LOGI(TAG, "Using colors: %s", colors_str.c_str());
     ESP_LOGI(TAG, "IMF register callbacks");
     s_imf->registerCallbacks(button_cb, event_handler, NULL, update_cb);
 

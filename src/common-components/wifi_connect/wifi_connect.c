@@ -12,6 +12,8 @@ static const char *TAG = "WiCON";
 static esp_netif_t *s_sta_netif = NULL;
 static SemaphoreHandle_t s_semph_get_ip_addrs = NULL;
 
+static bool s_wifi_running = false;
+
 #define WIFI_CONNECT_NETIF_DESC_STA "wifi_connect_netif_sta"
 
 #if CONFIG_WIFI_CONNECT_SCAN_METHOD_FAST
@@ -109,6 +111,8 @@ static void handler_on_sta_got_ip(void *arg, esp_event_base_t event_base,
 
 void wifi_start(void)
 {
+    if(s_wifi_running) return;
+
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
@@ -122,11 +126,15 @@ void wifi_start(void)
     ESP_ERROR_CHECK(esp_wifi_set_storage(WIFI_STORAGE_RAM));
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
     ESP_ERROR_CHECK(esp_wifi_start());
+    
+    s_wifi_running = true;
 }
 
 
 void wifi_stop(void)
 {
+    if(s_wifi_running == false) return;
+
     esp_err_t err = esp_wifi_stop();
     if (err == ESP_ERR_WIFI_NOT_INIT) {
         return;
@@ -136,6 +144,8 @@ void wifi_stop(void)
     ESP_ERROR_CHECK(esp_wifi_clear_default_wifi_driver_and_handlers(s_sta_netif));
     esp_netif_destroy(s_sta_netif);
     s_sta_netif = NULL;
+    
+    s_wifi_running = false;
 }
 
 

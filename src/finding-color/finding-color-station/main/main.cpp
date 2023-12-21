@@ -64,6 +64,12 @@ extern "C" void app_main(void)
 {
     ESP_LOGI(TAG, "Startup!");
     esp_err_t err;
+    
+    s_imf = std::make_unique<IMF>();
+    if(!s_imf){
+        ESP_LOGE(TAG, "Could not init IMF!");
+        return;
+    }
 
     if(web_config()){
         return;
@@ -73,12 +79,6 @@ extern "C" void app_main(void)
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 
     ESP_LOGI(TAG, "init IMF");
-
-    s_imf = std::make_unique<IMF>();
-    if(!s_imf){
-        ESP_LOGE(TAG, "Could not init IMF!");
-        return;
-    }
 
     ESP_LOGI(TAG, "IMF add devices");
     const device_conf_t devices_confs[] = {
