@@ -314,9 +314,27 @@ IMF::IMF(){
     wifi_start();
 }
 
+esp_err_t IMF::_wait_for_ble_mesh(uint32_t max_tries){
+    auto serial = Device::getSerialCli();
+    uint16_t ble_mesh_addr;
+    std::string addr;
+    for(uint32_t i = 0; i < max_tries; i++){
+        addr = serial->GetField("addr");
+        if(addr.length() > 0 && addr != "FAIL"){
+            esp_err_t err = StrToAddr(addr, &ble_mesh_addr);
+            if(err == ESP_OK){
+                return ESP_OK;
+            }
+        }
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+    return ESP_FAIL;
+}
+
 esp_err_t IMF::start() { 
     Device::initLocalDevice(this);
     _devices.emplace(0, Device::this_device);
+    _wait_for_ble_mesh(20);
     _dm->startTask();
 #ifdef CONFIG_IMF_STATION_DEVICE 
     wifi_init_ap_default();
