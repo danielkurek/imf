@@ -318,6 +318,9 @@ esp_err_t IMF::start() {
     Device::initLocalDevice(this);
     _devices.emplace(0, Device::this_device);
     _dm->startTask();
+#ifdef CONFIG_IMF_STATION_DEVICE 
+    wifi_init_ap_default();
+#endif
     return ESP_OK;
 }
 
@@ -333,19 +336,21 @@ void IMF::_update_timer_cb(){
 
 esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args, update_function_t update_cb) 
 { 
-    esp_err_t err;
-    err = board_buttons_release_register_callback(btn_cb);
-    if(err != ESP_OK){
-        ESP_LOGE(TAG, "Cannot register board button callback");
-        return err;
+    esp_err_t err = ESP_OK;
+    if(btn_cb != NULL){
+        err = board_buttons_release_register_callback(btn_cb);
+        if(err != ESP_OK){
+            ESP_LOGE(TAG, "Cannot register board button callback");
+            return err;
+        }
     }
-    ESP_LOGE(TAG, "Here1");
-    err = _dm->registerEventHandle(event_handler, handler_args);
-    if(err != ESP_OK){
-        ESP_LOGE(TAG, "Cannot board register DM event handle");
-        return err;
+    if(event_handler != NULL){
+        err = _dm->registerEventHandle(event_handler, handler_args);
+        if(err != ESP_OK){
+            ESP_LOGE(TAG, "Cannot board register DM event handle");
+            return err;
+        }
     }
-    ESP_LOGE(TAG, "Here2");
     if(update_cb != NULL){
         ESP_LOGE(TAG, "Here3");
         esp_timer_create_args_t args = {
@@ -357,7 +362,6 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
         };
         
         _update_timer_cb();
-        ESP_LOGE(TAG, "Here4");
         err = esp_timer_create(&args, &(update_timer));
         if(err != ESP_OK){
             ESP_LOGE(TAG, "Failed initializing update timer! %s", esp_err_to_name(err));
@@ -365,13 +369,11 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
         }
         
         _update_cb = update_cb;
-        ESP_LOGE(TAG, "Here5");
         err = esp_timer_start_periodic(update_timer, 200 * 1000); // every 200 ms
         if(err != ESP_OK){
             ESP_LOGE(TAG, "Failed to start update timer! %s", esp_err_to_name(err));
             return err;
         }
-        ESP_LOGE(TAG, "Here6");
     }
     return err;
 }
