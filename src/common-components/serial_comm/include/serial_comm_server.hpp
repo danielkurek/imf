@@ -34,6 +34,7 @@ class SerialCommSrv {
         esp_err_t SendPutResponse(uint16_t addr, const std::string& field, const std::string& body);
         esp_err_t SendStatusResponse();
         esp_err_t SendResponse(CmdType type, uint16_t addr, const std::string& field, const std::string& body);
+        esp_err_t ProcessInput(const std::string& input);
         esp_err_t ProcessCmd(std::string& cmd);
         esp_err_t ProcessField(std::string& field, uint16_t& addr);
         void Task();

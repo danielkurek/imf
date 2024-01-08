@@ -50,10 +50,9 @@ std::string SerialCommCli::SendCmd(CmdType type, const std::string& field, const
     if(body.length() > 0){
         cmdString += " " + body;
     }
-
-    // length() + 1 because of \0 at the end
+    cmdString += "\n";
     ESP_LOGI(TAG, "Sending cmd: %s", cmdString.c_str());
-    uart_write_bytes(_uart_port, cmdString.c_str(), cmdString.length()+1);
+    uart_write_bytes(_uart_port, cmdString.c_str(), cmdString.length());
     ESP_LOGI(TAG, "Awaiting response...");
     return GetResponse();
 }

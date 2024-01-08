@@ -10,9 +10,9 @@ There are 3 command types:
 - `PUT (<addr>:)<field> <value>`
 - `STATUS`
 
-Each command must end with null byte `\0`.
+Each command must end with new line (`\n`).
 
-Currently to keep things simple there is no support for escaping. So you cannot have field or its value with spaces or `\0` char.
+Currently to keep things simple there is no support for escaping. So you cannot have field or its value with spaces, `\n` char or null byte `\0`.
 
 - `(<addr>:)` is an optional parameter `uint16_t` type encoded as hex string with leading zeros (4 characters)
 - `<field>` is a string, cannot contain `:`

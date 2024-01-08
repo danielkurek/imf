@@ -85,27 +85,29 @@ esp_err_t SerialCommSrv::SendGetResponse(uint16_t addr, const std::string& field
     }
     
     if(err != ESP_OK){
-        const std::string rsp = "FAIL";
+        const std::string rsp = "FAIL\n";
         ESP_LOGI(TAG, "Sending GET response: %s", rsp.c_str());
-        uart_write_bytes(_uart_port, rsp.c_str(), rsp.length() + 1);
+        uart_write_bytes(_uart_port, rsp.c_str(), rsp.length());
         
         return ESP_FAIL;
     }
-    uart_write_bytes(_uart_port, value.c_str(), value.length()+1);
+    value += "\n";
+    uart_write_bytes(_uart_port, value.c_str(), value.length());
     ESP_LOGI(TAG, "Sending GET response: %s", value.c_str());
     return ESP_OK;
 }
 
 esp_err_t SerialCommSrv::SendPutResponse(uint16_t addr, const std::string& field, const std::string& body){
     SetField(addr, field, body);
-    uart_write_bytes(_uart_port, body.c_str(), body.length()+1);
-    ESP_LOGI(TAG, "Sending PUT response: %s", body.c_str());
+    std::string response = body + "\n";
+    uart_write_bytes(_uart_port, response.c_str(), response.length());
+    ESP_LOGI(TAG, "Sending PUT response: %s", response.c_str());
     return ESP_OK;
 }
 
 esp_err_t SerialCommSrv::SendStatusResponse(){
-    const std::string status = GetStatusName(_current_status);
-    uart_write_bytes(_uart_port, status.c_str(), status.length()+1);
+    const std::string status = GetStatusName(_current_status) + "\n";
+    uart_write_bytes(_uart_port, status.c_str(), status.length());
     ESP_LOGI(TAG, "Sending STATUS response: %s", status.c_str());
     return ESP_OK;
 }
@@ -131,12 +133,38 @@ void SerialCommSrv::Task(){
         if(rxBytes > 0){
             data_buffer[rxBytes] = 0;
             ESP_LOGI(TAG, "Received: %s", data_buffer);
-            std::string cmd {(char*) data_buffer};
-            ProcessCmd(cmd);
+            std::string input {(char*) data_buffer};
+            ProcessInput(input);
         }
     }
 
     free(data_buffer);
+}
+
+// Split input on '\n' char and pass it to ProcessCmd (without the '\n')
+esp_err_t SerialCommSrv::ProcessInput(const std::string& input){
+    std::string::size_type start_pos = 0;
+    std::string::size_type end_pos = input.find_first_of('\n');
+    esp_err_t ret = ESP_OK;
+    while(true){
+        std::string::size_type count = end_pos - start_pos;
+        if(end_pos == input.npos){
+            count = input.size() - start_pos;
+        }
+        std::string cmd = input.substr(start_pos, count);
+        esp_err_t err = ProcessCmd(cmd);
+        if(err != ESP_OK){
+            ret = err;
+        }
+
+        if(end_pos == input.npos || end_pos == input.size()-1){
+            break;
+        }
+
+        start_pos = end_pos + 1; // skip '\n' char
+        end_pos = input.find_first_of('\n');
+    }
+    return ret;
 }
 
 esp_err_t SerialCommSrv::ProcessField(std::string& field, uint16_t& addr){
