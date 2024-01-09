@@ -138,6 +138,7 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
         err = ble_mesh_get_rgb(addr, &color);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Could not get RGB value for 0x%04" PRIx16, addr);
+            return;
         }
         size_t buf_len = 6+1;
         char buf[buf_len];
@@ -153,6 +154,7 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
         err = ble_mesh_get_loc_local(addr, &loc_local);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Could not get local location value for 0x%04" PRIx16, addr);
+            return;
         }
         size_t buf_len = 10+1;
         char buf[buf_len];
