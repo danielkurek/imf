@@ -41,6 +41,7 @@ namespace imf{
             const uint16_t ble_mesh_addr;
             static esp_err_t setRgbAll(rgb_t rgb);
             static void setDM(std::shared_ptr<DistanceMeter> dm) { _dm = dm; }
+            static std::shared_ptr<SerialCommCli> getSerialCli() { return _serial; }
             // if the ble-mesh address is not saved. this will wait for initialization of ble-mesh device and fetch the address
             // this should happen only on first boot
             static esp_err_t initLocalDevice(IMF *imf);

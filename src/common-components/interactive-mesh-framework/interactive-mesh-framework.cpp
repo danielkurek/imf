@@ -13,6 +13,7 @@
 #define EVENT_LOOP_QUEUE_SIZE 16
 
 #define DEFAULT_COLOR_OPT "color"
+#define BLE_MESH_ADDR_OPT "ble_mesh/addr"
 
 static const char* TAG = "IMF";
 
@@ -54,10 +55,19 @@ esp_err_t Device::initLocalDevice(IMF *imf){
     if(imf != nullptr){
         // save MAC and ble-mesh addr
         nvs_handle_t nvs_handle = imf->getOptionsHandle();
-        esp_err_t err = nvs_get_u16(nvs_handle, "ble_mesh/addr", &ble_mesh_addr);
+        char addr_str[ADDR_STR_LEN];
+        size_t addr_str_len = sizeof(addr_str);
+        err = nvs_get_str(nvs_handle, BLE_MESH_ADDR_OPT, addr_str, &addr_str_len);
         if(err == ESP_OK){
-            LOGGER_I(TAG, "Using ble-mesh address stored in nvs for local device");
-            valid_addr = true;
+            LOGGER_I(TAG, "Using ble-mesh address stored in nvs for local device: %s", addr_str);
+            err = StrToAddr(addr_str, &ble_mesh_addr);
+            if(err == ESP_OK){
+                valid_addr = true;
+            } else{
+                LOGGER_E(TAG, "Stored ble-mesh address is not valid!");
+            }
+        } else{
+            LOGGER_E(TAG, "Could not get ble-mesh addr from NVS! Err: %d", err);
         }
         err = nvs_get_u16(nvs_handle, "softAP/channel", &wifi_channel);
         if(err != ESP_OK){
@@ -86,9 +96,14 @@ esp_err_t Device::initLocalDevice(IMF *imf){
 
     if(valid_addr && imf != nullptr){
         nvs_handle_t nvs_handle = imf->getOptionsHandle();
-        esp_err_t err = nvs_set_u16(nvs_handle, "ble_mesh/addr", ble_mesh_addr);
+        err = AddrToStr(ble_mesh_addr, addr);
         if(err != ESP_OK){
-            LOGGER_E(TAG, "Could not save local ble_mesh/addr! Err: %d", err);
+            LOGGER_E(TAG, "Could not convert addr to str!");
+        } else{
+            err = nvs_set_str(nvs_handle, BLE_MESH_ADDR_OPT, addr.c_str());
+            if(err != ESP_OK){
+                LOGGER_E(TAG, "Could not save local ble_mesh/addr! Err: %d", err);
+            }
         }
     }
     // TODO: get device type
@@ -99,8 +114,8 @@ esp_err_t Device::initLocalDevice(IMF *imf){
         LOGGER_I(TAG, "Setting default color for this device");
         nvs_handle_t nvs_handle = imf->getOptionsHandle();
         char rgb_str[RGB_STR_LEN];
-        size_t rgb_str_len;
-        esp_err_t err = nvs_get_str(nvs_handle, DEFAULT_COLOR_OPT, rgb_str, &rgb_str_len);
+        size_t rgb_str_len = RGB_STR_LEN;
+        err = nvs_get_str(nvs_handle, DEFAULT_COLOR_OPT, rgb_str, &rgb_str_len);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Could not get default color! Err: %d", err);
         } else{
@@ -255,9 +270,14 @@ std::string Device::_getMAC(){
     return "";
 }
 
-static esp_err_t color_validate(const char* value){
+static esp_err_t color_validate(const char *value){
     rgb_t color;
     return str_to_rgb(value, &color);
+}
+
+static esp_err_t ble_mesh_addr_validate(const char *value){
+    uint16_t addr;
+    return StrToAddr(value, &addr);
 }
 
 IMF::IMF(){
@@ -295,6 +315,12 @@ IMF::IMF(){
         .type = NVS_TYPE_STR,
         .value_to_log = true,
         .validate_function = color_validate,
+    });
+    _options.emplace_back((config_option_t){
+        .key = BLE_MESH_ADDR_OPT,
+        .type = NVS_TYPE_STR,
+        .value_to_log = true,
+        .validate_function = ble_mesh_addr_validate,
     });
 
     ESP_LOGI(TAG, "NVS flash init...");
