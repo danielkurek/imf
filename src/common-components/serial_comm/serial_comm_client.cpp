@@ -30,7 +30,7 @@ SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_nu
     }
 
     const int uart_buffer_size = (1024 * 2);
-    if(uart_driver_install(port, uart_buffer_size, uart_buffer_size, 10, &_uart_queue, 0) != ESP_OK){
+    if(uart_driver_install(port, uart_buffer_size, 0, 10, &_uart_queue, 0) != ESP_OK){
         ESP_LOGE(TAG, "cannot install UART driver");
         // return false;
     }
@@ -53,6 +53,8 @@ std::string SerialCommCli::SendCmd(CmdType type, const std::string& field, const
     cmdString += "\n";
     ESP_LOGI(TAG, "Sending cmd: %s", cmdString.c_str());
     uart_write_bytes(_uart_port, cmdString.c_str(), cmdString.length());
+    ESP_LOGI(TAG, "Waiting for TX done...");
+    uart_wait_tx_done(_uart_port, 1000 / portTICK_PERIOD_MS);
     ESP_LOGI(TAG, "Awaiting response...");
     return GetResponse();
 }
@@ -62,9 +64,20 @@ std::string SerialCommCli::GetResponse(){
     int len = uart_read_bytes(_uart_port, buf, rx_buffer_len, 800 / portTICK_PERIOD_MS);
     if(len > 0){
         buf[len] = '\0';
-        std::string response{(char*)buf};
+
+        // skip previous timeouted responses
+        size_t start = 0;
+        for(size_t i = 0; i < len-1; i++){
+            if(buf[i] == '\n'){
+                start = i+1;
+            }
+        }
+
+        ESP_LOGI(TAG, "Response (len=%d, start=%d): %s", len, start, buf+start);
+        std::string response{(char*)buf+start};
         return response;
     }
+    ESP_LOGW(TAG, "Could not get a response...");
     return "";
 }
 
