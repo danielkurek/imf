@@ -56,14 +56,14 @@ esp_err_t SerialCommSrv::GetField(uint16_t addr, const std::string& field, std::
     return ESP_OK;
 }
 
-esp_err_t SerialCommSrv::SetField(uint16_t addr, const std::string& field, const std::string& value){
+esp_err_t SerialCommSrv::SetField(uint16_t addr, const std::string& field, const std::string& value, bool do_callback){
     auto iter = fields.find(addr);
     if(iter == fields.end()){
         fields[addr] = {};
     }
     fields[addr][field] = value;
 
-    if(_change_callback != nullptr){
+    if(do_callback && _change_callback != nullptr){
         _change_callback(addr, field, value);
     }
 

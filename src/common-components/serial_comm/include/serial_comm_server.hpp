@@ -23,7 +23,7 @@ class SerialCommSrv {
             return ESP_OK;
         }
         esp_err_t GetField(uint16_t addr, const std::string& field, std::string& out);
-        esp_err_t SetField(uint16_t addr, const std::string& field, const std::string& value);
+        esp_err_t SetField(uint16_t addr, const std::string& field, const std::string& value, bool do_callback = true);
         esp_err_t SetStatus(CommStatus status);
         void RegisterChangeCallback(serial_comm_change_cb change_cb, serial_comm_get_cb get_cb){
             _change_callback = change_cb;

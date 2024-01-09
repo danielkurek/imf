@@ -132,6 +132,7 @@ void serial_comm_change_callback(uint16_t addr, const std::string& field, const 
 
 void serial_comm_get_callback(uint16_t addr, const std::string& field){
     esp_err_t err;
+    LOGGER_I(TAG, "Serial comm Get callback! Addr=0x%04" PRIx16 " Field=%s", addr, field.c_str());
     if(field == "rgb"){
         rgb_t color;
         err = ble_mesh_get_rgb(addr, &color);
@@ -145,7 +146,7 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, addr);
             return;
         }
-        serialSrv->SetField(addr, field, buf);
+        serialSrv->SetField(addr, field, buf, false);
     }
     if(field == "loc"){
         location_local_t loc_local;
@@ -160,7 +161,7 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, addr);
             return;
         }
-        serialSrv->SetField(addr, field, buf);
+        serialSrv->SetField(addr, field, buf, false);
     }
     if(field == "onoff"){
         bool onoff;
@@ -170,9 +171,9 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             return;
         }
         if(onoff){
-            serialSrv->SetField(addr, field, "ON");
+            serialSrv->SetField(addr, field, "ON", false);
         } else{
-            serialSrv->SetField(addr, field, "OFF");
+            serialSrv->SetField(addr, field, "OFF", false);
         }
     }
     if(field == "level"){
@@ -190,7 +191,7 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             return;
         }
 
-        serialSrv->SetField(addr, field, buf);
+        serialSrv->SetField(addr, field, buf, false);
     }
     if(field == "addr"){
         std::string addr_str;
@@ -199,7 +200,7 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             LOGGER_E(TAG, "Could not convert addr to string");
             return;
         }
-        serialSrv->SetField(addr, field, addr_str);
+        serialSrv->SetField(addr, field, addr_str, false);
     }
 }
 
