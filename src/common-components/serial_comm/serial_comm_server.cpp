@@ -174,7 +174,7 @@ esp_err_t SerialCommSrv::ProcessField(std::string& field, uint16_t& addr){
             ESP_LOGE(TAG, "While processing CMD, address is malformed");
             return ESP_FAIL;
         }
-        esp_err_t err = StrToAddr(field.substr(0, pos), &addr);
+        esp_err_t err = StrToAddr(field.substr(0, pos).c_str(), &addr);
         if(err != ESP_OK){
             ESP_LOGE(TAG, "While processing CMD, could not parse the address");
             return err;

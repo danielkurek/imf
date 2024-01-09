@@ -68,10 +68,10 @@ esp_err_t Device::initLocalDevice(IMF *imf){
         for(int i = 0; i < _maxRetries; i++){
             addr = _serial->GetField("addr");
             if(addr.length() > 0 && addr != "FAIL"){
-                err = StrToAddr(addr, &ble_mesh_addr);
+                err = StrToAddr(addr.c_str(), &ble_mesh_addr);
                 if(err == ESP_OK){
                     LOGGER_I(TAG, "Using ble-mesh address obtained from ble-mesh device: %s", addr.c_str());
-                    LOGGER_I(TAG, "%" PRIu16, ble_mesh_addr);
+                    LOGGER_I(TAG, "0x%04" PRIx16, ble_mesh_addr);
                     valid_addr = true;
                     break;
                 }
@@ -320,10 +320,13 @@ esp_err_t IMF::_wait_for_ble_mesh(uint32_t max_tries){
     std::string addr;
     for(uint32_t i = 0; i < max_tries; i++){
         addr = serial->GetField("addr");
+        LOGGER_I(TAG, "Wait4Mesh: Response for addr: %s", addr.c_str());
         if(addr.length() > 0 && addr != "FAIL"){
-            esp_err_t err = StrToAddr(addr, &ble_mesh_addr);
+            esp_err_t err = StrToAddr(addr.c_str(), &ble_mesh_addr);
             if(err == ESP_OK){
                 return ESP_OK;
+            } else{
+                LOGGER_E(TAG, "Cannot parse Addr while waiting for ble_mesh! AddrStr=%s", addr.c_str());
             }
         }
         vTaskDelay(1000 / portTICK_PERIOD_MS);

@@ -4,6 +4,8 @@
 #include <string>
 #include "esp_err.h"
 
+#define ADDR_STR_LEN (4+1)
+
 enum class CmdType{
     None = 0,
     GET,
@@ -28,6 +30,6 @@ CommStatus ParseStatus(const std::string& status);
 
 esp_err_t AddrToStr(uint16_t addr, std::string& out);
 
-esp_err_t StrToAddr(const std::string& addrStr, uint16_t *addrOut);
+esp_err_t StrToAddr(const char *addrStr, uint16_t *addrOut);
 
 #endif

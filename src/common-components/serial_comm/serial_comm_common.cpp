@@ -65,8 +65,8 @@ CommStatus ParseStatus(const std::string& status) {
 }
 
 esp_err_t AddrToStr(uint16_t addr, std::string& out){
-    char buf[5];
-    int ret = snprintf(buf, 5, "%04" PRIx16, addr);
+    char buf[ADDR_STR_LEN];
+    int ret = snprintf(buf, ADDR_STR_LEN, "%04" PRIx16, addr);
     if(ret > 0){
         out = std::string(buf);
         return ESP_OK;
@@ -74,11 +74,14 @@ esp_err_t AddrToStr(uint16_t addr, std::string& out){
     return ESP_FAIL;
 }
 
-esp_err_t StrToAddr(const std::string& addrStr, uint16_t *addrOut){
-    int ret = sscanf(addrStr.c_str(), "%04" SCNx16, addrOut);
-
-    if(ret == 1){
-        return ESP_OK;
-    }
-    return ESP_FAIL;
+esp_err_t StrToAddr(const char *addrStr, uint16_t *addrOut){
+    errno = 0;
+    char *end;
+    unsigned long int result = strtoul(addrStr, &end, 16);
+    if(addrStr == end) return ESP_FAIL;
+    if(errno == ERANGE) return ESP_FAIL;
+    if(result > UINT16_MAX) return ESP_FAIL;
+    
+    (*addrOut) = (uint16_t) result;
+    return ESP_OK;
 }
