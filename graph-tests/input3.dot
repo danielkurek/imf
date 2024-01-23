@@ -1,0 +1,39 @@
+graph {
+    normalize=true
+
+    A -- B [len=2.82]
+    A -- C [len=3.6]
+    A -- D [len=2.23]
+    A -- E [len=2.23]
+
+    B -- E [len=4.12]
+    B -- F [len=4.12]
+    B -- J [len=3.16]
+    B -- M [len=3.6]
+    
+    C -- D [len=4]
+    C -- I [len=3.6]
+    C -- K [len=3]
+    C -- J [len=3.6]
+
+    D -- E [len=3.16]
+    D -- G [len=3.6]
+    D -- H [len=3]
+    D -- I [len=3.6]
+
+    E -- F [len=2]
+    E -- G [len=2.23]
+
+    G -- H [len=2]
+
+    J -- K [len=3.16]
+    J -- L [len=3.16]
+    J -- M [len=3]
+
+    K -- L [len=2.82]
+
+    M -- N [len=2.23]
+
+    A[pos="-3,6!"]
+}
+
