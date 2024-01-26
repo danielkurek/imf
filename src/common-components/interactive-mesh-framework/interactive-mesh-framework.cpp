@@ -305,9 +305,10 @@ IMF::IMF(){
         return;
     }
 
-    // DistanceMeter init
-    _dm = std::make_shared<DistanceMeter>(false, _event_loop_hdl);
-    Device::setDM(_dm);
+    if (esp_event_loop_create_default() != ESP_OK){
+        ESP_LOGE(TAG, "create default event loop failed");
+        return;
+    }
 
     _options = {};
     _options.emplace_back((config_option_t){
@@ -338,6 +339,10 @@ IMF::IMF(){
 
     // init wifi
     wifi_start();
+
+    // DistanceMeter init
+    _dm = std::make_shared<DistanceMeter>(false, _event_loop_hdl);
+    Device::setDM(_dm);
 }
 
 esp_err_t IMF::_wait_for_ble_mesh(uint32_t max_tries){

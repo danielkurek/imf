@@ -857,7 +857,12 @@ void web_config_start()
 
     ESP_ERROR_CHECK( ret );
     ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    ret = esp_event_loop_create_default();
+    // ESP_ERR_INVALID_STATE = event loop is already created
+    if(ret != ESP_OK && ret != ESP_ERR_INVALID_STATE){
+        ESP_LOGE(TAG, "Could not create default event loop! err %d", ret);
+        abort();
+    }
     esp_netif_create_default_wifi_ap();
 
     ESP_ERROR_CHECK(wifi_initialize());
