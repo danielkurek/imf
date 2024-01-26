@@ -75,6 +75,7 @@ namespace imf{
                 static_cast<IMF *>(param)->_update_timer_cb();
             }
             void _update_timer_cb();
+            esp_err_t _wait_for_ble_mesh(uint32_t max_tries);
             std::shared_ptr<DistanceMeter> _dm;
             std::vector<config_option_t> _options;
             esp_event_loop_handle_t _event_loop_hdl;

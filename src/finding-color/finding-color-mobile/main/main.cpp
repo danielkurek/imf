@@ -211,7 +211,7 @@ extern "C" void app_main(void)
         }
     }
     std::string colors_str;
-    bool first = false;
+    bool first = true;
     for(auto && color : colors){
         char rgb_str[RGB_STR_LEN];
         rgb_to_str(color, RGB_STR_LEN, rgb_str);
