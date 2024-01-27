@@ -44,9 +44,11 @@ extern "C" void button_cb(uint8_t button_num){
 bool web_config(){
     gpio_config_t config;
 
-    config.pin_bit_mask = 1ull << CONFIG_BUTTON;
-    config.mode = GPIO_MODE_INPUT;
-    config.pull_up_en = GPIO_PULLUP_ENABLE;
+    config.intr_type    = GPIO_INTR_DISABLE;
+    config.mode         = GPIO_MODE_INPUT;
+    config.pin_bit_mask = (1ull << CONFIG_BUTTON);
+    config.pull_down_en = GPIO_PULLDOWN_DISABLE;
+    config.pull_up_en   = GPIO_PULLUP_ENABLE;
 
     gpio_config(&config);
 
