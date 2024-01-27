@@ -65,6 +65,11 @@ std::string SerialCommCli::GetResponse(){
     if(len > 0){
         buf[len] = '\0';
 
+        // remove trailing new line
+        if(len-1 > 0 && buf[len-1] == '\n'){
+            buf[len-1] = '\0';
+        }
+
         // skip previous timeouted responses
         size_t start = 0;
         for(size_t i = 0; i < len-1; i++){
