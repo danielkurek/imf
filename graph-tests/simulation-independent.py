@@ -151,7 +151,7 @@ independent_iterations = 100
 max_iter_layout = 2
 save_layout_each_iter = False
 save_final_layout = True
-input_files = ["../input3.dot"]
+input_files = ["../input2.dot", "../input3.dot" ]
 modes = ["major", "KK", "sgd", "hier", "ipsep"]
 
 for input_file in input_files:
