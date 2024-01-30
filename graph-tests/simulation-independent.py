@@ -26,7 +26,7 @@ def load_input(filename):
 
 def layout_test(input_file, output_extension="png", modes=["sgd"], position_all_nodes=False, 
                 independent_iterations=30, max_iter_layout=2, save_layout_each_iter=True, 
-                save_final_layout=True, seed=None):
+                save_final_layout=True, correct_position_scale=False, seed=None):
     output_file_prefix = Path(input_file).stem
     for mode in modes:
         print(f"================{mode}================")
@@ -45,7 +45,14 @@ def layout_test(input_file, output_extension="png", modes=["sgd"], position_all_
             nodes[name] = G.get_node(name)
         
         for fixed_node,pos in fixed_nodes.items():
-            nodes[fixed_node].attr["pos"] = pos
+            if correct_position_scale:
+                nodes[fixed_node].attr["pos"] = pos
+            else:
+                x,y = convert_pos(pos)
+                if x is None or y is None:
+                    print(f"Error: cannot parse position \"{pos}\" of fixed node {fixed_node}! {x=};{y=}")
+                    continue
+                nodes[fixed_node].attr["pos"] = f"{x*72},{y*72}!"
 
         edges = list()
         
@@ -123,7 +130,16 @@ def layout_test(input_file, output_extension="png", modes=["sgd"], position_all_
                         continue
                     
                     # set updated position
-                    G.get_node(node).attr["pos"] = pos
+                    if correct_position_scale:
+                        x,y = convert_pos(pos)
+                        if x is None or y is None:
+                            print(f"Could not set position for node {node} during positioning of {node_to_position}!! {pos=} {mode=} {i=}")
+                            continue
+                        x /= 72
+                        y /= 72
+                        G.get_node(node).attr["pos"] = f"{x},{y}{"!" if node in fixed_nodes else ""}"
+                    else:
+                        G.get_node(node).attr["pos"] = pos
                     print(f"new position: {node=} {pos=}")
 
             print("-----------------------")
@@ -145,23 +161,30 @@ def layout_test(input_file, output_extension="png", modes=["sgd"], position_all_
             G.draw(f"{output_file_prefix}-independent-mode={mode}-final.{output_extension}")
 
 
-seed = 99203
+input_files = ["../input2.dot", "../input3.dot" ]
+modes = ["major", "KK", "sgd", "hier", "ipsep"]
+output_extension = "svg"
 position_all_nodes = False
 independent_iterations = 100
 max_iter_layout = 2
 save_layout_each_iter = False
 save_final_layout = True
-input_files = ["../input2.dot", "../input3.dot" ]
-modes = ["major", "KK", "sgd", "hier", "ipsep"]
+correct_position_scale = False
+seed = 99203
 
 for input_file in input_files:
+    print("========================================")
+    print(f"{input_file=}")
+    print("========================================")
+    print("\n\n\n")
     layout_test(
         input_file=input_file,
-        output_extension="png",
+        output_extension=output_extension,
         modes=modes,
         position_all_nodes=position_all_nodes,
         independent_iterations=independent_iterations,
         max_iter_layout=max_iter_layout,
         save_layout_each_iter=save_layout_each_iter,
         save_final_layout=save_final_layout,
+        correct_position_scale=correct_position_scale,
         seed=seed)
