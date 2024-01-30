@@ -25,8 +25,9 @@ def load_input(filename):
     return nodes, edges, fixed_nodes
 
 def layout_test(input_file, output_extension="png", modes=["sgd"], position_all_nodes=False, 
-                independent_iterations=30, max_iter_layout=2, save_layout_each_iter=True, 
-                save_final_layout=True, correct_position_scale=False, seed=None):
+                fixed_nodes_positioning=False, independent_iterations=30, max_iter_layout=2, 
+                save_layout_each_iter=True, save_final_layout=True, correct_position_scale=False, 
+                seed=None):
     output_file_prefix = Path(input_file).stem
     for mode in modes:
         print(f"================{mode}================")
@@ -124,7 +125,7 @@ def layout_test(input_file, output_extension="png", modes=["sgd"], position_all_
                     if "nan" in pos:
                         print(f"Skipping setting position to {node=} because contains nan {pos=}")
                         continue
-                    if node in fixed_nodes:
+                    if not fixed_nodes_positioning and node in fixed_nodes:
                         continue
                     if not position_all_nodes and node != node_to_position:
                         continue
@@ -165,6 +166,7 @@ input_files = ["../input2.dot", "../input3.dot" ]
 modes = ["major", "KK", "sgd", "hier", "ipsep"]
 output_extension = "svg"
 position_all_nodes = False
+fixed_nodes_positioning = True
 independent_iterations = 100
 max_iter_layout = 2
 save_layout_each_iter = False
@@ -182,6 +184,7 @@ for input_file in input_files:
         output_extension=output_extension,
         modes=modes,
         position_all_nodes=position_all_nodes,
+        fixed_nodes_positioning=fixed_nodes_positioning,
         independent_iterations=independent_iterations,
         max_iter_layout=max_iter_layout,
         save_layout_each_iter=save_layout_each_iter,
