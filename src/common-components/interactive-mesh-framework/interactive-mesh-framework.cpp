@@ -255,7 +255,11 @@ esp_err_t Device::measureDistance(uint32_t *distance_cm){
 }
 
 esp_err_t Device::distance(uint32_t *distance_cm){
-    return _dm->getDistance(_point->getID(), distance_cm);
+    distance_measurement_t dm;
+    esp_err_t err = _point->getDistanceFromLog(dm);
+    if(err != ESP_OK) return err;
+    (*distance_cm) = dm.distance_cm;
+    return ESP_OK;
 }
 
 std::string Device::_getMAC(){

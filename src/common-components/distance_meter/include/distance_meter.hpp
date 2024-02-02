@@ -78,6 +78,8 @@ class DistancePoint {
         const std::string getMacStr() { return _macstr; }
         uint8_t getChannel() { return _channel; }
         uint16_t getID() { return _id; }
+        esp_err_t getDistanceFromLog(distance_measurement_t &measurement, size_t offset = 0);
+        static constexpr size_t log_size = 5;
     private:
         static void event_handler(void* arg, esp_event_base_t event_base, 
             int32_t event_id, void* event_data);
@@ -93,6 +95,8 @@ class DistancePoint {
         size_t _filter_max_size;
         std::deque<uint32_t> _filter_data;
         uint64_t _filter_sum = 0;
+        int _latest_log = -1;
+        distance_measurement_t _distance_log[log_size];
 };
 
 class DistanceMeter{
@@ -105,8 +109,6 @@ class DistanceMeter{
         uint32_t addPoint(uint8_t mac[6], uint8_t channel);
         uint32_t addPoint(std::string macstr, uint8_t channel);
         std::shared_ptr<DistancePoint> getPoint(uint32_t id);
-        esp_err_t getDistance(uint32_t id, uint32_t *distance_cm);
-        // esp_err_t removePoint(uint8_t mac[6]);
         void startTask();
         // nearest point in last x amount of seconds
         std::shared_ptr<DistancePoint> nearestPoint();

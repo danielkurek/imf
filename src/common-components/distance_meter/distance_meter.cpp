@@ -71,7 +71,16 @@ esp_err_t DistancePoint::measureDistance(uint32_t *distance_cm){
 
     if(ftm_report.status == FTM_STATUS_SUCCESS){
         (*distance_cm) = filterDistance(ftm_report.dist_est);
-        
+
+        // allow _latest_log = -1 but not anything other
+        if(_latest_log + 1 < 0) _latest_log = 0;
+        size_t next_log = _latest_log + 1;
+        if(next_log >= log_size){
+            next_log = 0;
+        }
+        _distance_log[next_log].timestamp = xTaskGetTickCount();
+        _distance_log[next_log].distance_cm = *distance_cm;
+        _latest_log = next_log;
         return ESP_OK;
     }
     return ESP_FAIL;
@@ -110,6 +119,15 @@ ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cf
         return ftm_result;
     }
     return {};
+}
+
+esp_err_t DistancePoint::getDistanceFromLog(distance_measurement_t &measurement, size_t offset){
+    if(_latest_log == -1) return ESP_FAIL;
+    if(offset >= log_size) return ESP_FAIL;
+    size_t index = (_latest_log + offset) % log_size;
+    measurement.timestamp = _distance_log[index].timestamp;
+    measurement.distance_cm = _distance_log[index].distance_cm;
+    return ESP_OK;
 }
 
 DistanceMeter::DistanceMeter(bool wifi_initialized) : _points() {
@@ -185,34 +203,6 @@ std::shared_ptr<DistancePoint> DistanceMeter::getPoint(uint32_t id){
     return nullptr;
 }
 
-esp_err_t DistanceMeter::getDistance(uint32_t id, uint32_t *distance_cm){
-    auto search = _measurements.find(id);
-    if(search != _measurements.end()){
-        (*distance_cm) = search->second->distance_cm;
-        return ESP_OK;
-    }
-    return ESP_FAIL;
-}
-
-// esp_err_t DistanceMeter::removePoint(uint8_t[6] mac){
-//     for(auto it = _points.begin(); it != _points.end(); it++){
-//         const uint8_t[6] other_mac = *it->getMac();
-//         bool equal = true;
-//         for(int i = 0; i < 6; i++){
-//             if(mac[i] != other_mac[i]){
-//                 equal = false;
-//                 break;
-//             }
-//         }
-
-//         if(equal){
-//             _points.erase(it);
-//             return ESP_OK;
-//         }
-//     }
-//     return ESP_FAIL;
-// }
-
 void DistanceMeter::startTask(){
     if(_xHandle != NULL){
         // delete and start the task again or do nothing
@@ -222,10 +212,10 @@ void DistanceMeter::startTask(){
     xTaskCreate(taskWrapper, "DistanceMeter", 1024*8, this, configMAX_PRIORITIES, &_xHandle);
 }
 
-static uint32_t nearestDeviceDistanceFunction(std::shared_ptr<distance_measurement_t> measurement, TickType_t now){
-    TickType_t time_diff = (pdTICKS_TO_MS(now) - pdTICKS_TO_MS(measurement->timestamp));
+static uint32_t nearestDeviceDistanceFunction(const distance_measurement_t& measurement, TickType_t now){
+    TickType_t time_diff = (pdTICKS_TO_MS(now) - pdTICKS_TO_MS(measurement.timestamp));
     // in 10s travel by 3m = 300 cm in 10000 ms
-    return measurement->distance_cm + (time_diff * (300 / 10000));
+    return measurement.distance_cm + (time_diff * (300 / 10000));
 }
 
 std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
@@ -235,7 +225,12 @@ std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
     // TickType_t best_time;
     uint32_t best_dist = UINT32_MAX;
     bool first = true;
-    for(const auto& [id, measurement] : _measurements){
+    distance_measurement_t measurement;
+    esp_err_t err;
+    for(const auto& [id, point] : _points){
+        err = point->getDistanceFromLog(measurement);
+        if(err != ESP_OK) continue;
+
         uint32_t transformed_distance = nearestDeviceDistanceFunction(measurement, now);
         if(first || transformed_distance < best_dist){
             first = false;
@@ -314,15 +309,6 @@ void DistanceMeter::task(){
             err = point->measureDistance(&distance_cm);
             bool valid = err == ESP_OK;
             uint32_t point_id = point->getID();
-            if(valid){
-                auto search = _measurements.find(point_id);
-                if(search != _measurements.end()){
-                    _measurements[point_id]->distance_cm = distance_cm;
-                    _measurements[point_id]->timestamp = now;
-                } else{
-                    _measurements.emplace(point_id, std::make_shared<distance_measurement_t>(distance_cm, now));
-                }
-            }
             dm_measurement_data_t event_data;
             event_data.point_id = point_id;
             event_data.distance_cm = distance_cm;
@@ -342,8 +328,15 @@ void DistanceMeter::task(){
         }
 
         // check if this device is in near proximity
-        auto nearest_distance = nearestDeviceDistanceFunction(_measurements[nearest_point->getID()], now);
-        if(nearest_distance >= _distance_threshold_cm){
+        distance_measurement_t measurement;
+        err = nearest_point->getDistanceFromLog(measurement);
+        if(err == ESP_OK){
+            auto nearest_distance = nearestDeviceDistanceFunction(measurement, now);
+            if(nearest_distance >= _distance_threshold_cm){
+                nearest_point = nullptr;
+            }   
+        } else{
+            // fault happened -> reset nearest_point
             nearest_point = nullptr;
         }
 
