@@ -26,6 +26,8 @@ static inline void extract_pair(uint64_t pair, uint32_t *x, uint32_t *y){
     (*y) = pair & UINT32_MAX;
 }
 
+LocationTopology::LocationTopology(const std::string& mode, std::shared_ptr<Device> this_device, std::vector<std::shared_ptr<Device>> stations, uint16_t max_iters_per_step)
+    : _mode(mode), _this_device(this_device), _max_iters_per_step(max_iters_per_step){
     for(size_t i = 0; i < stations.size(); i++){
         _stations.emplace(stations[i]->id, stations[i]);
     }
@@ -43,6 +45,7 @@ LocationTopology::~LocationTopology(){
 
 void LocationTopology::initGraph(){
     _g = agopen(graph_name, Agundirected, 0);
+    agsafeset(_g, mode_name, _mode.c_str(), "");
     agsafeset(_g, notranslate_name, "true", "");
     addNode(_this_device->id);
 }

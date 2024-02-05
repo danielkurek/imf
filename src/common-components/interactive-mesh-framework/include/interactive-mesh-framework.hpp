@@ -15,6 +15,14 @@
 #include <map>
 #include <memory>
 
+// need forward declaration because of circular dependency
+namespace imf{
+    class IMF;
+    class Device;
+}
+
+#include "location_topology.hpp"
+
 namespace imf{
     typedef void (*update_function_t)(TickType_t diff_ms);
 
@@ -22,9 +30,6 @@ namespace imf{
         Mobile,
         Station
     };
-
-    class IMF;
-
     class Device{
         public:
             Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr);
@@ -69,6 +74,8 @@ namespace imf{
             nvs_handle_t getOptionsHandle() { return _options_handle; }
             void startWebConfig();
             void stopWebConfig();
+            esp_err_t startLocationTopology();
+            void stopLocationTopology();
         private:
             std::map<uint32_t, std::shared_ptr<Device>> _devices;
             static void _update_timer_cb_wrapper(void *param){
@@ -76,13 +83,14 @@ namespace imf{
             }
             void _update_timer_cb();
             esp_err_t _wait_for_ble_mesh(uint32_t max_tries);
+            void _init_topology();
             std::shared_ptr<DistanceMeter> _dm;
             std::vector<config_option_t> _options;
             esp_event_loop_handle_t _event_loop_hdl;
             update_function_t _update_cb = nullptr;
             uint32_t _next_id = 1; // 0 is reserved for local device
             nvs_handle_t _options_handle;
-
+            std::shared_ptr<LocationTopology> _topology;
     };
 }
 
