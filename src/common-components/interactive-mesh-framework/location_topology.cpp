@@ -26,8 +26,6 @@ static inline void extract_pair(uint64_t pair, uint32_t *x, uint32_t *y){
     (*y) = pair & UINT32_MAX;
 }
 
-LocationTopology::LocationTopology(std::shared_ptr<Device> this_device, std::vector<std::shared_ptr<Device>> stations, uint16_t max_iters_per_step)
-    : _this_device(this_device), _max_iters_per_step(max_iters_per_step){
     for(size_t i = 0; i < stations.size(); i++){
         _stations.emplace(stations[i]->id, stations[i]);
     }
@@ -45,9 +43,7 @@ LocationTopology::~LocationTopology(){
 
 void LocationTopology::initGraph(){
     _g = agopen(graph_name, Agundirected, 0);
-    agsafeset(_g, mode_name, "sgd", "");
     agsafeset(_g, notranslate_name, "true", "");
-    // agsafeset(_g, "inputscale", "72", "");
     addNode(_this_device->id);
 }
 
@@ -174,7 +170,6 @@ void LocationTopology::updateGraph(){
         auto id = iter->first;
         auto device = iter->second;
         uint32_t distance_cm;
-        esp_err_t err = device->distance(&distance_cm);
         if(err != ESP_OK){
             removeNode(id);
             continue;
@@ -231,7 +226,6 @@ void LocationTopology::task(){
 }
 
 esp_err_t LocationTopology::start(){
-    return xTaskCreate(taskWrapper, "LocationTopology", 1024*24, this, configMAX_PRIORITIES-1, &_xHandle);
 }
 
 void LocationTopology::stop(){
