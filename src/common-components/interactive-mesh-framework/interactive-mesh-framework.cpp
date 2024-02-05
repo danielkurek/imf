@@ -369,10 +369,24 @@ esp_err_t IMF::_wait_for_ble_mesh(uint32_t max_tries){
     return ESP_FAIL;
 }
 
+void IMF::_init_topology(){
+    std::vector<std::shared_ptr<Device>> stations;
+    for(auto it = _devices.begin(); it != _devices.end(); ++it){
+        std::shared_ptr<Device> device = it->second;
+        if(device->type == DeviceType::Station){
+            stations.push_back(device);
+        }
+    }
+    _topology = std::make_shared<LocationTopology>("major", Device::this_device, stations, 2);
+}
+
 esp_err_t IMF::start() { 
+    _wait_for_ble_mesh(20);
+
     Device::initLocalDevice(this);
     _devices.emplace(0, Device::this_device);
-    _wait_for_ble_mesh(20);
+    _init_topology();
+    
     _dm->startTask();
 #ifdef CONFIG_IMF_STATION_DEVICE 
     wifi_init_ap_default();
@@ -476,4 +490,16 @@ void IMF::startWebConfig(){
 
 void IMF::stopWebConfig(){
     web_config_stop();
+}
+
+esp_err_t IMF::startLocationTopology(){
+    if(_topology){
+        return _topology->start();
+    }
+    return ESP_FAIL;
+}
+void IMF::stopLocationTopology(){
+    if(_topology){
+        _topology->stop();
+    }
 }
