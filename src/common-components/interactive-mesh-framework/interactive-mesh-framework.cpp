@@ -179,9 +179,9 @@ esp_err_t Device::getRgb(rgb_t *rgb_out){
     return ESP_OK;
 }
 
-esp_err_t Device::setLocation(const location_local_t *location){
+esp_err_t Device::setLocation(const location_local_t &location){
     char buf[SIMPLE_LOC_STR_LEN];
-    esp_err_t err = simple_loc_to_str(location, SIMPLE_LOC_STR_LEN, buf);
+    esp_err_t err = simple_loc_to_str(&location, SIMPLE_LOC_STR_LEN, buf);
     if(err != ESP_OK){
         return err;
     }
@@ -197,14 +197,14 @@ esp_err_t Device::setLocation(const location_local_t *location){
     return ESP_OK;
 }
 
-esp_err_t Device::getLocation(location_local_t *location_out){
+esp_err_t Device::getLocation(location_local_t &location_out){
     std::string loc_val;
     if(_local_commands){
         loc_val = _serial->GetField("loc");
     } else {
         loc_val = _serial->GetField(ble_mesh_addr, "loc");
     }
-    esp_err_t err = simple_str_to_loc(loc_val.c_str(), location_out);
+    esp_err_t err = simple_str_to_loc(loc_val.c_str(), &location_out);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to convert simple Location response to value: %s", loc_val.c_str());
         return ESP_FAIL;
@@ -254,7 +254,7 @@ esp_err_t Device::measureDistance(uint32_t *distance_cm){
     return _point->measureDistance(distance_cm);
 }
 
-esp_err_t Device::distance(uint32_t *distance_cm){
+esp_err_t Device::lastDistance(uint32_t *distance_cm){
     distance_measurement_t dm;
     esp_err_t err = _point->getDistanceFromLog(dm);
     if(err != ESP_OK) return err;

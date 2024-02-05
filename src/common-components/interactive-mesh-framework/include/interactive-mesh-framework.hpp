@@ -35,12 +35,12 @@ namespace imf{
             Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr);
             esp_err_t setRgb(rgb_t rgb);
             esp_err_t getRgb(rgb_t *rgb_out);
-            esp_err_t setLocation(const location_local_t *location);
-            esp_err_t getLocation(location_local_t *location_out);
+            esp_err_t setLocation(const location_local_t &location);
+            esp_err_t getLocation(location_local_t &location_out);
             esp_err_t setLevel(int16_t level);
             esp_err_t getLevel(int16_t *level_out);
             esp_err_t measureDistance(uint32_t *distance_cm);
-            esp_err_t distance(uint32_t *distance_cm);
+            esp_err_t lastDistance(uint32_t *distance_cm);
             const uint32_t id;
             const DeviceType type;
             const uint16_t ble_mesh_addr;
