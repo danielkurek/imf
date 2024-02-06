@@ -1,6 +1,8 @@
 #include "location_topology.hpp"
 #include "neato_esp.h"
 #include "esp_random.h"
+#include <string>
+#include <math.h>
 
 using namespace imf;
 
@@ -91,22 +93,32 @@ esp_err_t LocationTopology::uint32ToStr(uint32_t num, size_t buf_len, char  *buf
     return ESP_FAIL;
 }
 
-esp_err_t LocationTopology::locationToPosStr(const location_local_t *location, size_t buf_len, char *buf){
-    int ret = snprintf(buf, buf_len, "%" PRId16 ",%" PRId16, location->local_north, location->local_east);
+void LocationTopology::locationToPos(const location_local_t &location, float &x, float &y){
+    x = (float) location.local_north / 10;
+    y = (float) location.local_east  / 10;
+}
+void LocationTopology::posToLocation(const float x, const float y, location_local_t &location){
+    location.local_north = x * 10;
+    location.local_east  = y * 10;
+}
+
+esp_err_t LocationTopology::locationToPosStr(const location_local_t &location, size_t buf_len, char *buf){
+    float x, y;
+    locationToPos(location, x, y);
+    int ret = snprintf(buf, buf_len, "%f,%f", x,y);
     if(ret > 0){
         return ESP_OK;
     }
     return ESP_FAIL;
 }
 
-esp_err_t LocationTopology::posStrToLocation(const char* pos_str, location_local_t *location){
+esp_err_t LocationTopology::posStrToLocation(const char* pos_str, location_local_t &location){
     float x, y;
     int ret = sscanf(pos_str, "%f,%f", &x, &y);
-    if(ret != 2){    
+    if(ret != 2){
         return ESP_FAIL;
     }
-    location->local_north = x * 10;
-    location->local_east  = y * 10;
+    posToLocation(x, y, location);
     return ESP_OK;
 }
 
@@ -129,7 +141,9 @@ esp_err_t LocationTopology::nodeDistance(uint32_t id1, uint32_t id2, float &resu
         return err;
     }
 
-    result = loc_distance(&loc1, &loc2);
+    float dist_north = loc1.local_north + loc2.local_north;
+    float dist_east = loc1.local_east + loc2.local_east;
+    result = sqrt(pow(dist_north, 2) + pow(dist_north, 2));
     return ESP_OK;
 }
 
@@ -184,7 +198,7 @@ void LocationTopology::addNode(uint32_t id){
     updateNodePosition(id);
 }
 
-void LocationTopology::addEdge(uint32_t source, uint32_t target, uint32_t distance){
+void LocationTopology::addEdge(uint32_t source, uint32_t target, float distance){
     if(!_nodes.contains(source) || !_nodes.contains(target)){
         return;
     }
@@ -194,14 +208,13 @@ void LocationTopology::addEdge(uint32_t source, uint32_t target, uint32_t distan
     } else{
         edge = make_pair(target, source);
     }
-    char distance_str[10+1];
-    uint32ToStr(distance, 10+1, distance_str);
+    std::string dist_str = std::to_string(distance);
     auto iter = _edges.find(edge);
     if(iter != _edges.end()){
-        agsafeset(iter->second, len_name, distance_str, "");
+        agsafeset(iter->second, len_name, dist_str.c_str(), "");
     }
     Agedge_t *e = agedge(_g, _nodes[source], _nodes[target], 0, 1);
-    agsafeset(e, len_name, distance_str, "");
+    agsafeset(e, len_name, dist_str.c_str(), "");
     _edges.emplace(edge, e);
 }
 
@@ -227,8 +240,8 @@ void LocationTopology::updateGraph(){
     }
     for(const auto &neighbor_id : neighbor_nodes){
         for(const auto &other_id : unknown_dist_nodes){
-            uint32_t distance_cm;
-            esp_err_t err = nodeDistance(neighbor_id, other_id, distance_cm);
+            uint32_t distance;
+            esp_err_t err = nodeDistance(neighbor_id, other_id, distance);
             if(err != ESP_OK){
                 // remove something?
                 continue;
@@ -237,7 +250,7 @@ void LocationTopology::updateGraph(){
             addNode(neighbor_id);
             addNode(other_id);
 
-            addEdge(neighbor_id, other_id, distance_cm);
+            addEdge(neighbor_id, other_id, distance);
         }
     }
 }
@@ -260,7 +273,7 @@ void LocationTopology::saveNodePosition(uint32_t node_id){
         return;
     }
     location_local_t location {};
-    posStrToLocation(pos_str, &location);
+    posStrToLocation(pos_str, location);
     auto device = getDevice(iter->first);
     if(device){
         device->setLocation(location);
