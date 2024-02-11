@@ -37,8 +37,8 @@ namespace imf{
             std::unordered_map<uint32_t, Agnode_t*> _nodes;
             std::unordered_map<uint64_t, Agedge_t*> _edges;
             esp_err_t uint32ToStr(uint32_t num, size_t buf_len, char  *buf);
-            esp_err_t locationToPos(const location_local_t &location, float &x, float &y);
-            esp_err_t posToLocation(const float x, const float y, location_local_t &location);
+            void locationToPos(const location_local_t &location, float &x, float &y);
+            void posToLocation(const float x, const float y, location_local_t &location);
             esp_err_t locationToPosStr(const location_local_t &location, size_t buf_len, char *buf);
             esp_err_t posStrToLocation(const char* pos_str, location_local_t &location);
             esp_err_t nodeDistance(uint32_t id1, uint32_t id2, float &distance);

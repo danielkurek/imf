@@ -143,7 +143,7 @@ esp_err_t LocationTopology::nodeDistance(uint32_t id1, uint32_t id2, float &resu
 
     float dist_north = loc1.local_north + loc2.local_north;
     float dist_east = loc1.local_east + loc2.local_east;
-    result = sqrt(pow(dist_north, 2) + pow(dist_north, 2));
+    result = sqrt(pow(dist_north, 2) + pow(dist_east, 2));
     return ESP_OK;
 }
 
@@ -174,7 +174,7 @@ esp_err_t LocationTopology::updateNodePosition(uint32_t id){
         return err;
     }
     char pos_str[(7*2)+1+1];
-    err = locationToPosStr(&location, (7*2)+1+1, pos_str);
+    err = locationToPosStr(location, (7*2)+1+1, pos_str);
     if(err != ESP_OK){
         LOGGER_E(TAG, "Could not convert location to position string for node %" PRIu32, id);
         return err;
@@ -227,11 +227,11 @@ void LocationTopology::updateGraph(){
         uint32_t distance_cm;
         esp_err_t err = device->lastDistance(&distance_cm);
         if(err != ESP_OK){
-            unknown_dist_nodes.emplace(id);
+            unknown_dist_nodes.push_back(id);
             removeNodeEdges(id);
             continue;
         }
-        neighbor_nodes.emplace(id);
+        neighbor_nodes.push_back(id);
         auto find = _nodes.find(id);
         if(find == _nodes.end()){
             addNode(id);
@@ -240,7 +240,7 @@ void LocationTopology::updateGraph(){
     }
     for(const auto &neighbor_id : neighbor_nodes){
         for(const auto &other_id : unknown_dist_nodes){
-            uint32_t distance;
+            float distance;
             esp_err_t err = nodeDistance(neighbor_id, other_id, distance);
             if(err != ESP_OK){
                 // remove something?
