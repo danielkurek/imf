@@ -15,6 +15,8 @@
 #define DEFAULT_COLOR_OPT "color"
 #define BLE_MESH_ADDR_OPT "ble_mesh/addr"
 
+#define UPDATE_TIME 2000 * 1000 // every 2s
+
 static const char* TAG = "IMF";
 
 using namespace imf;
@@ -34,6 +36,7 @@ Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_
                 _point = _dm->getPoint(id);
             }
         } else{
+            ESP_LOGW(TAG, "Adding device without DM");
             uint8_t wifi_mac[6];
             sscanf(_wifi_mac_str.c_str(), MACSTR_SCN, STR2MAC(wifi_mac));
             _point = std::make_shared<DistancePoint>(UINT32_MAX, wifi_mac, _wifi_mac_str, _wifi_channel);
@@ -231,14 +234,14 @@ esp_err_t Device::setLevel(int16_t level){
     return ESP_OK;
 }
 
-esp_err_t Device::getLevel(int16_t *level_out){
+esp_err_t Device::getLevel(int16_t &level_out){
     std::string level_val;
     if(_local_commands){
         level_val = _serial->GetField("level");
     } else {
         level_val = _serial->GetField(ble_mesh_addr, "level");
     }
-    int ret = sscanf(level_val.c_str(), "%04" SCNx16, level_out);
+    int ret = sscanf(level_val.c_str(), "%04" SCNx16, &level_out);
     if(ret != 1){
         ESP_LOGE(TAG, "Failed to convert Level response to value: %s", level_val.c_str());
         return ESP_FAIL;
@@ -422,7 +425,6 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
         }
     }
     if(update_cb != NULL){
-        ESP_LOGE(TAG, "Here3");
         esp_timer_create_args_t args = {
             .callback = _update_timer_cb_wrapper,
             .arg = this,
@@ -439,7 +441,7 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
         }
         
         _update_cb = update_cb;
-        err = esp_timer_start_periodic(update_timer, 200 * 1000); // every 200 ms
+        err = esp_timer_start_periodic(update_timer, UPDATE_TIME);
         if(err != ESP_OK){
             ESP_LOGE(TAG, "Failed to start update timer! %s", esp_err_to_name(err));
             return err;
