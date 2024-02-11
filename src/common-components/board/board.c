@@ -69,6 +69,11 @@ esp_err_t board_set_rgb(rgb_conf_t *conf, rgb_t new_color){
     return update_led(conf);
 }
 
+esp_err_t board_set_onoff(rgb_conf_t *conf, bool onoff){
+    conf->on_off = onoff;
+    return update_led(conf);
+}
+
 esp_err_t board_start_blinking(rgb_conf_t *conf, uint64_t period_us){
     return esp_timer_start_periodic(conf->timer, period_us);
 }

@@ -41,6 +41,8 @@ esp_err_t board_led_init(rgb_conf_t *conf);
 
 esp_err_t board_set_rgb(rgb_conf_t *conf, rgb_t new_color);
 
+esp_err_t board_set_onoff(rgb_conf_t *conf, bool onoff);
+
 esp_err_t board_start_blinking(rgb_conf_t *conf, uint64_t period_us);
 
 esp_err_t board_stop_blinking(rgb_conf_t *conf);

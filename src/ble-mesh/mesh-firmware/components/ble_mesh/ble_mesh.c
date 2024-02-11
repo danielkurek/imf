@@ -312,37 +312,6 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
      */
 }
 
-// helper function that is called when the OnOff state is changed
-static void example_change_led_state(esp_ble_mesh_model_t *model,
-                                     esp_ble_mesh_msg_ctx_t *ctx, uint8_t onoff)
-{
-    uint16_t primary_addr = esp_ble_mesh_get_primary_element_address();
-    uint8_t elem_count = esp_ble_mesh_get_element_count();
-    uint8_t i;
-
-    if (ESP_BLE_MESH_ADDR_IS_UNICAST(ctx->recv_dst)) {
-        if(onoff == 0){
-            board_set_rgb(&internal_rgb_conf, WHITE);
-        } else{
-            board_set_rgb(&internal_rgb_conf, NONE);
-        }
-    } else if (ESP_BLE_MESH_ADDR_IS_GROUP(ctx->recv_dst)) {
-        if (esp_ble_mesh_is_model_subscribed_to_group(model, ctx->recv_dst)) {
-            if(onoff == 0){
-                board_set_rgb(&internal_rgb_conf, NONE);
-            } else{
-                board_set_rgb(&internal_rgb_conf, WHITE);
-            }
-        }
-    } else if (ctx->recv_dst == 0xFFFF) {
-        if(onoff == 0){
-            board_set_rgb(&internal_rgb_conf, NONE);
-        } else{
-            board_set_rgb(&internal_rgb_conf, WHITE);
-        }
-    }
-}
-
 static void change_local_loc_state(esp_ble_mesh_state_change_gen_loc_local_set_t loc_local){
 
 }
@@ -364,7 +333,7 @@ static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_ev
         if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET ||
             param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK) {
             LOGGER_I(TAG, "onoff 0x%02x", param->value.state_change.onoff_set.onoff);
-            example_change_led_state(param->model, &param->ctx, param->value.state_change.onoff_set.onoff);
+            board_set_onoff(&internal_rgb_conf, param->value.state_change.onoff_set.onoff);
         }
         if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET ||
             param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET_UNACK) {
@@ -733,13 +702,13 @@ esp_err_t ble_mesh_set_onoff(uint16_t addr, bool onoff){
     esp_ble_mesh_client_common_param_t common = {0};
     esp_ble_mesh_generic_client_set_state_t set_state = {0};
 
-    common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET_UNACK;
+    common.opcode = ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK;
 
     common.model = onoff_client.model;
     common.ctx.net_idx = store.net_idx;
     common.ctx.app_idx = store.app_idx;
 
-    LOGGER_I(TAG, "Sending Loc Local set to 0x%04" PRIx16, addr);
+    LOGGER_I(TAG, "Sending OnOff set to 0x%04" PRIx16, addr);
 
     common.ctx.addr = addr;
     common.ctx.send_ttl = 3;
