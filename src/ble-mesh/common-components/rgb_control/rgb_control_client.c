@@ -31,7 +31,11 @@ static void ble_mesh_light_client_cb(esp_ble_mesh_light_client_cb_event_t event,
             ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_SET_STATE_EVT");
             break;
         case ESP_BLE_MESH_LIGHT_CLIENT_PUBLISH_EVT:
+            // this event can happen when GET command is sent to group address
             ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_PUBLISH_EVT");
+            rgb_event_cb_param.ctx = param->params->ctx;
+            rgb_event_cb_param.hsl_status = param->status_cb.hsl_status;
+            xEventGroupSetBits(s_rgb_event_group, RGB_GET_BIT);
             break;
         case ESP_BLE_MESH_LIGHT_CLIENT_TIMEOUT_EVT:
             ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_TIMEOUT_EVT");
@@ -74,11 +78,13 @@ esp_err_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t *comm
     }
 
     while(true){
+        // clear bits so that timeout of xEventGroupWaitBits does not have bits set from previous event
+        xEventGroupClearBits(s_rgb_event_group, RGB_GET_BIT | RGB_FAIL_BIT);
         bits = xEventGroupWaitBits(s_rgb_event_group, RGB_GET_BIT | RGB_FAIL_BIT,
                                         pdTRUE, pdFALSE, 500 / portTICK_PERIOD_MS);
         // check rgb_event_cb_param.ctx.addr or rgb_event_cb_param.ctx.recv_dst
         // compare it to common->ctx.addr
-        ESP_LOGI(TAG, "rgb_event_cb_param.ctx.addr=%d | rgb_event_cb_param.ctx.recv_dst=%d | common->ctx.addr=%d", rgb_event_cb_param.ctx.addr, rgb_event_cb_param.ctx.recv_dst, common->ctx.addr);
+        ESP_LOGI(TAG, "rgb_event_cb_param.ctx.addr=0x%04" PRIx16 " | rgb_event_cb_param.ctx.recv_dst=0x%04" PRIx16 " | common->ctx.addr=0x%04" PRIx16, rgb_event_cb_param.ctx.addr, rgb_event_cb_param.ctx.recv_dst, common->ctx.addr);
         hsl_t hsl = {
             .hue = rgb_event_cb_param.hsl_status.hsl_hue,
             .saturation = rgb_event_cb_param.hsl_status.hsl_saturation,
@@ -91,6 +97,7 @@ esp_err_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t *comm
             ESP_LOGI(TAG, "Success GET");
             return ESP_OK;
         } else {
+            ESP_LOGI(TAG, "Failed GET");
             return ESP_FAIL;
         }
     }
