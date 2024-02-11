@@ -7,7 +7,6 @@
 static const char *TAG = "SerialCli";
 
 SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_num){
-    // TODO: handle errors
     _uart_port = port;
 
     uart_config_t uart_config = {};
@@ -21,18 +20,18 @@ SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_nu
     
     if(uart_param_config(port, &uart_config) != ESP_OK){
         ESP_LOGE(TAG, "cannot set UART params");
-        // return false;
+        abort();
     }
 
     if(uart_set_pin(port, tx_io_num, rx_io_num, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK){
         ESP_LOGE(TAG, "cannot set UART pins");
-        // return false;
+        abort();
     }
 
     const int uart_buffer_size = (1024 * 2);
     if(uart_driver_install(port, uart_buffer_size, 0, 10, &_uart_queue, 0) != ESP_OK){
         ESP_LOGE(TAG, "cannot install UART driver");
-        // return false;
+        abort();
     }
     
     // return true;
@@ -45,7 +44,7 @@ std::string SerialCommCli::SendCmd(CmdType type, const std::string& field, const
     if(field.length() > 0){
         cmdString += " " + field;
     } else if(body.length() > 0){
-        // error: field is not specified
+        return "FAIL";
     }
     if(body.length() > 0){
         cmdString += " " + body;

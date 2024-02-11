@@ -11,7 +11,6 @@ static const char *TAG = "SerialSrv";
 #define RX_BUF_SIZE 1024
 
 SerialCommSrv::SerialCommSrv(const uart_port_t port, int tx_io_num, int rx_io_num, uint16_t default_addr){
-    // TODO: handle errors
     _uart_port = port;
     _default_addr = default_addr;
 
@@ -26,18 +25,18 @@ SerialCommSrv::SerialCommSrv(const uart_port_t port, int tx_io_num, int rx_io_nu
     
     if(uart_param_config(port, &uart_config) != ESP_OK){
         ESP_LOGE(TAG, "cannot set UART params");
-        // return false;
+        abort();
     }
 
     if(uart_set_pin(port, tx_io_num, rx_io_num, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK){
         ESP_LOGE(TAG, "cannot set UART pins");
-        // return false;
+        abort();
     }
 
     const int uart_buffer_size = (1024 * 2);
     if(uart_driver_install(port, uart_buffer_size, uart_buffer_size, 10, &_uart_queue, 0) != ESP_OK){
         ESP_LOGE(TAG, "cannot install UART driver");
-        // return false;
+        abort();
     }
     
     // return true;
