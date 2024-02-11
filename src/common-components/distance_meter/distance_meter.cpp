@@ -94,7 +94,8 @@ ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cf
         ESP_LOGE(TAG, "Failed to start FTM session");
         return {};
     }
-
+    // clear bits so that timeout of xEventGroupWaitBits does not have bits set from previous event
+    xEventGroupClearBits(_s_ftm_event_group, FTM_REPORT_BIT | FTM_FAILURE_BIT);
     bits = xEventGroupWaitBits(_s_ftm_event_group, FTM_REPORT_BIT | FTM_FAILURE_BIT,
                                            pdTRUE, pdFALSE, portMAX_DELAY);
     if (bits & FTM_REPORT_BIT) {

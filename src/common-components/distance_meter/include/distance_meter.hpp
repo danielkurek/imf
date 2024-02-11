@@ -121,7 +121,6 @@ class DistanceMeter{
         }
         void task();
         std::unordered_map<uint32_t, std::shared_ptr<DistancePoint>> _points;
-        std::unordered_map<uint32_t, std::shared_ptr<distance_measurement_t>> _measurements;
         std::unordered_map<std::string, uint32_t> _points_mac_id;
         esp_event_loop_handle_t _event_loop_hdl;
         const uint32_t time_threshold = 10000 * (1000 / configTICK_RATE_HZ);
