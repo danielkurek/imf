@@ -15,6 +15,11 @@ menu "Interactive Mesh Framework"
         config IMF_STATION_DEVICE
             bool "Station"
     endchoice
-
+    
+    config IMF_DEBUG_STATIC_DEVICES
+        bool "Devices debugging - static values"
+        default false
+        help
+            Devices will be only local and will not utilize BLE-Mesh. Special constructor is available to set initial values
     
 endmenu

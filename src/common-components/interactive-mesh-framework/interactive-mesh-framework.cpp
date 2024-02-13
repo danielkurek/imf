@@ -48,7 +48,21 @@ Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_
     : Device(_id, _type, _wifi_mac_str, _wifi_channel, _ble_mesh_addr, false) {
 }
 
+#if CONFIG_IMF_DEBUG_STATIC_DEVICES
+Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr, 
+    rgb_t rgb, location_local_t location, int16_t level, uint32_t distance_cm)
+    : id(_id), type(_type), ble_mesh_addr(_ble_mesh_addr), _local_commands(false){
+    setRgb(rgb);
+    setLocation(location);
+    setLevel(level);
+    debug_distance_cm = distance_cm;
+}
+#endif
+
 esp_err_t Device::initLocalDevice(IMF *imf){
+    if(Device::this_device){
+        return ESP_FAIL;
+    }
     uint16_t ble_mesh_addr = 0x0000;
     bool valid_addr = false;
     uint16_t wifi_channel = 1;
@@ -110,7 +124,7 @@ esp_err_t Device::initLocalDevice(IMF *imf){
         }
     }
     // TODO: get device type
-    this_device = std::shared_ptr<Device>(new Device(0, DeviceType::Mobile, _getMAC(), 1, ble_mesh_addr, !valid_addr));\
+    this_device = std::shared_ptr<Device>(new Device(0, DeviceType::Mobile, _getMAC(), 1, ble_mesh_addr, !valid_addr));
     
     // set default color
     if(imf != nullptr){
@@ -134,6 +148,18 @@ esp_err_t Device::initLocalDevice(IMF *imf){
     return ESP_OK;
 }
 
+#if CONFIG_IMF_DEBUG_STATIC_DEVICES
+esp_err_t Device::setRgb(rgb_t rgb){
+    char rgb_str[RGB_STR_LEN];
+    if(ESP_OK == rgb_to_str(rgb, RGB_STR_LEN, rgb_str)){
+        ESP_LOGI(TAG, "setRgb device=%" PRIu32 ": %s", id, rgb_str);
+    } else {
+        ESP_LOGI(TAG, "setRgb device=%" PRIu32 ": Could not convert", id);
+    }
+    debug_rgb = rgb;
+    return ESP_OK;
+}
+#else
 esp_err_t Device::setRgb(rgb_t rgb){
     size_t buf_len = 6+1;
     char buf[buf_len];
@@ -152,6 +178,7 @@ esp_err_t Device::setRgb(rgb_t rgb){
     ESP_LOGI(TAG, "setRgb response %s", response.c_str());
     return ESP_OK;
 }
+#endif
 
 esp_err_t Device::setRgbAll(rgb_t rgb){
     size_t buf_len = 12+1;
@@ -166,6 +193,14 @@ esp_err_t Device::setRgbAll(rgb_t rgb){
     return ESP_OK;
 }
 
+#if CONFIG_IMF_DEBUG_STATIC_DEVICES
+esp_err_t Device::getRgb(rgb_t *rgb_out){
+    rgb_out->red = debug_rgb.red;
+    rgb_out->green = debug_rgb.green;
+    rgb_out->blue = debug_rgb.blue;
+    return ESP_OK;
+}
+#else
 esp_err_t Device::getRgb(rgb_t *rgb_out){
     std::string rgb_val;
     if(_local_commands){
@@ -181,7 +216,21 @@ esp_err_t Device::getRgb(rgb_t *rgb_out){
 
     return ESP_OK;
 }
+#endif
 
+#if CONFIG_IMF_DEBUG_STATIC_DEVICES
+esp_err_t Device::setLocation(const location_local_t &location){
+    char buf[SIMPLE_LOC_STR_LEN];
+    if(ESP_OK == simple_loc_to_str(&location, SIMPLE_LOC_STR_LEN, buf)){
+        ESP_LOGI(TAG, "setLocation device=%" PRIu32 ": %s", id, buf);
+    } else{
+        ESP_LOGI(TAG, "setLocation device=%" PRIu32 ": could not convert location to str", id);
+    }
+    
+    debug_location = location;
+    return ESP_OK;
+}
+#else
 esp_err_t Device::setLocation(const location_local_t &location){
     char buf[SIMPLE_LOC_STR_LEN];
     esp_err_t err = simple_loc_to_str(&location, SIMPLE_LOC_STR_LEN, buf);
@@ -199,7 +248,14 @@ esp_err_t Device::setLocation(const location_local_t &location){
     ESP_LOGI(TAG, "set loc response %s", response.c_str());
     return ESP_OK;
 }
+#endif
 
+#if CONFIG_IMF_DEBUG_STATIC_DEVICES
+esp_err_t Device::getLocation(location_local_t &location_out){
+    location_out = debug_location;
+    return ESP_OK;
+}
+#else
 esp_err_t Device::getLocation(location_local_t &location_out){
     std::string loc_val;
     if(_local_commands){
@@ -215,7 +271,15 @@ esp_err_t Device::getLocation(location_local_t &location_out){
 
     return ESP_OK;
 }
+#endif
 
+#if CONFIG_IMF_DEBUG_STATIC_DEVICES
+esp_err_t Device::setLevel(int16_t level){
+    ESP_LOGI(TAG, "setLevel device=%" PRIu32": %" PRId16, id, level);
+    debug_level = level;
+    return ESP_OK;
+}
+#else
 esp_err_t Device::setLevel(int16_t level){
     char buf[5+1];
     int ret = snprintf(buf, 5+1, "%04" PRIx16, level);
@@ -233,7 +297,14 @@ esp_err_t Device::setLevel(int16_t level){
     ESP_LOGI(TAG, "set level response %s", response.c_str());
     return ESP_OK;
 }
+#endif
 
+#if CONFIG_IMF_DEBUG_STATIC_DEVICES
+esp_err_t Device::getLevel(int16_t &level_out){
+    level_out = debug_level;
+    return ESP_OK;
+}
+#else
 esp_err_t Device::getLevel(int16_t &level_out){
     std::string level_val;
     if(_local_commands){
@@ -249,14 +320,31 @@ esp_err_t Device::getLevel(int16_t &level_out){
 
     return ESP_OK;
 }
+#endif
 
+#if CONFIG_IMF_DEBUG_STATIC_DEVICES
+esp_err_t Device::measureDistance(uint32_t *distance_cm){
+    if(type == DeviceType::Mobile){
+        return ESP_FAIL;
+    }
+    *distance_cm = debug_distance_cm;
+    return ESP_OK;
+}
+#else
 esp_err_t Device::measureDistance(uint32_t *distance_cm){
     if(type == DeviceType::Mobile || _point == nullptr){
-        return UINT32_MAX;
+        return ESP_FAIL;
     }
     return _point->measureDistance(distance_cm);
 }
+#endif
 
+#if CONFIG_IMF_DEBUG_STATIC_DEVICES
+esp_err_t Device::lastDistance(uint32_t *distance_cm){
+    (*distance_cm) = debug_distance_cm;
+    return ESP_OK;
+}
+#else
 esp_err_t Device::lastDistance(uint32_t *distance_cm){
     distance_measurement_t dm;
     esp_err_t err = _point->getDistanceFromLog(dm);
@@ -264,6 +352,7 @@ esp_err_t Device::lastDistance(uint32_t *distance_cm){
     (*distance_cm) = dm.distance_cm;
     return ESP_OK;
 }
+#endif
 
 std::string Device::_getMAC(){
     uint8_t mac_addr[8]; // only 6 bytes will be used

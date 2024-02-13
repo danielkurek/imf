@@ -13,6 +13,7 @@ static const char* TAG = "LOC_TOP";
 static char graph_name[] = "g";
 static char mode_name[] = "mode";
 static char pos_name[] = "pos";
+static char pin_name[] = "pin";
 static char notranslate_name[] = "notranslate";
 static char len_name[] = "len";
 static char inputscale_name[] = "inputscale";
@@ -94,12 +95,12 @@ esp_err_t LocationTopology::uint32ToStr(uint32_t num, size_t buf_len, char  *buf
 }
 
 void LocationTopology::locationToPos(const location_local_t &location, float &x, float &y){
-    x = (float) location.local_north / 10;
-    y = (float) location.local_east  / 10;
+    x = ((float) location.local_north * 72)/ 10;
+    y = ((float) location.local_east  * 72)/ 10;
 }
 void LocationTopology::posToLocation(const float x, const float y, location_local_t &location){
-    location.local_north = x * 10;
-    location.local_east  = y * 10;
+    location.local_north = (x / 72) * 10;
+    location.local_east  = (y / 72) * 10;
 }
 
 esp_err_t LocationTopology::locationToPosStr(const location_local_t &location, size_t buf_len, char *buf){
@@ -181,6 +182,9 @@ esp_err_t LocationTopology::updateNodePosition(uint32_t id){
     }
     // TODO: check return code
     agsafeset(_nodes[id], pos_name, pos_str, "");
+    if(id != _this_device->id){
+        agsafeset(_nodes[id], pin_name, "true", "");
+    }
 
     // TODO: update all edges
     return ESP_OK;
