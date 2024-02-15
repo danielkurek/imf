@@ -315,5 +315,7 @@ esp_err_t LocationTopology::start(){
 }
 
 void LocationTopology::stop(){
-    vTaskDelete(_xHandle);
+    if(_xHandle != NULL){
+        vTaskDelete(_xHandle);
+    }
 }
