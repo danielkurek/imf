@@ -35,7 +35,7 @@ void location_testing(void *param){
     topology.start();
     while(1){
         vTaskDelay(10000 / portTICK_PERIOD_MS);
-        location_local_t location;
+        location_local_t location {0,0,0,0,0};
         esp_err_t err;
         err = Device::this_device->getLocation(location);
         if(err != ESP_OK){

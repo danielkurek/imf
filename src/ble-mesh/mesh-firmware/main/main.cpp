@@ -78,7 +78,7 @@ void serial_comm_change_callback(uint16_t addr, const std::string& field, const 
         ble_mesh_set_rgb(addr, color, false);
     }
     if(field == "loc"){
-        location_local_t loc_local;
+        location_local_t loc_local {0,0,0,0,0};
         esp_err_t err = simple_str_to_loc(value.c_str(), &loc_local);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Invalid Location value: %s", value.c_str());
@@ -132,7 +132,7 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
         serialSrv->SetField(addr, field, buf, false);
     }
     if(field == "loc"){
-        location_local_t loc_local;
+        location_local_t loc_local {0,0,0,0,0};
         err = ble_mesh_get_loc_local(addr, &loc_local);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Could not get local location value for 0x%04" PRIx16, addr);

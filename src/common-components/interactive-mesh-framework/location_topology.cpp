@@ -130,7 +130,8 @@ esp_err_t LocationTopology::nodeDistance(uint32_t id1, uint32_t id2, float &resu
     if(!device1 || !device2) return ESP_FAIL;
 
     esp_err_t err;
-    location_local_t loc1,loc2;
+    location_local_t loc1 {0,0,0,0,0};
+    location_local_t loc2 {0,0,0,0,0};
     err = device1->getLocation(loc1);
     if(err != ESP_OK){
         LOGGER_E(TAG, "Could not get location for device with id %" PRIu32, id1);
@@ -168,7 +169,7 @@ esp_err_t LocationTopology::updateNodePosition(uint32_t id){
     if(!device){
         return ESP_FAIL;
     }
-    location_local_t location;
+    location_local_t location {0,0,0,0,0};
     err = device->getLocation(location);
     if(err != ESP_OK){
         LOGGER_E(TAG, "Could not get location for node %" PRIu32, id);
@@ -276,7 +277,7 @@ void LocationTopology::saveNodePosition(uint32_t node_id){
         LOGGER_E(TAG, "Could not get position argument for node with id %" PRIu32, iter->first);
         return;
     }
-    location_local_t location {};
+    location_local_t location {0,0,0,0,0};
     posStrToLocation(pos_str, location);
     auto device = getDevice(iter->first);
     if(device){
