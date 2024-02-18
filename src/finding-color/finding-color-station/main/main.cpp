@@ -25,6 +25,13 @@ using namespace imf;
 
 static std::unique_ptr<IMF> s_imf;
 
+static const std::vector<button_gpio_config_t> buttons = {
+    {.gpio_num = GPIO_NUM_46, .active_level = 1},
+    {.gpio_num = GPIO_NUM_47, .active_level = 1},
+    {.gpio_num = GPIO_NUM_48, .active_level = 1},
+    {.gpio_num = GPIO_NUM_45, .active_level = 1},
+};
+
 typedef struct {
     std::string mac;
     uint16_t ble_addr;
@@ -67,7 +74,7 @@ extern "C" void app_main(void)
     ESP_LOGI(TAG, "Startup!");
     esp_err_t err;
     
-    s_imf = std::make_unique<IMF>();
+    s_imf = std::make_unique<IMF>(buttons);
     if(!s_imf){
         ESP_LOGE(TAG, "Could not init IMF!");
         return;

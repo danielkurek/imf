@@ -51,7 +51,8 @@ void event_handler(void* event_handler_arg, esp_event_base_t event_base,
 
 void testapp(void* param){
     ESP_LOGI(TAG, "Testapp start");
-    IMF imf;
+    static const std::vector<button_gpio_config_t> buttons {};
+    IMF imf{buttons};
     
     ESP_LOGI(TAG, "imf add device");
     uint32_t id = imf.addDevice(DeviceType::Station, "34:b4:72:6a:77:c1", 1, 0xffff);

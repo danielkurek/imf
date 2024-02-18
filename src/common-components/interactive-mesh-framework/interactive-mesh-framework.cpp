@@ -376,7 +376,7 @@ static esp_err_t ble_mesh_addr_validate(const char *value){
     return StrToAddr(value, &addr);
 }
 
-IMF::IMF(){
+IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
     // Init custom Logger
     logger_init(ESP_LOG_INFO);
     logger_output_to_default();
@@ -385,7 +385,7 @@ IMF::IMF(){
     logger_output_to_file("/logs/log.txt", 2000);
 
     // Init board helper functions
-    board_init();
+    board_init(buttons.size(), &buttons[0]);
 
     // event loop init
     esp_event_loop_args_t loop_args{

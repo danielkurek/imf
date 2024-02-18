@@ -73,7 +73,7 @@ namespace imf{
 
     class IMF{
         public:
-            IMF();
+            IMF(const std::vector<button_gpio_config_t> &buttons);
             esp_err_t start();
             esp_err_t registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args, update_function_t update_func);
             uint32_t addDevice(DeviceType type, std::string wifi_mac_str, uint8_t wifi_channel, uint16_t ble_mesh_addr);

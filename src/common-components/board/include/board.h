@@ -51,7 +51,7 @@ esp_err_t board_button_task();
 
 esp_err_t board_buttons_release_register_callback(board_button_callback_t callback);
 
-esp_err_t board_init();
+esp_err_t board_init(size_t buttons_len, const button_gpio_config_t *buttons);
 
 #ifdef __cplusplus
 }

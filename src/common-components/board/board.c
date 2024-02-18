@@ -23,26 +23,8 @@ rgb_conf_t internal_rgb_conf = {
     .on_off = 1,
 };
 
-static button_conf_t buttons[] = {
-    {
-        .pin = GPIO_NUM_46,
-        .button_num = 0,
-    },
-    {
-        .pin = GPIO_NUM_47,
-        .button_num = 1,
-    },
-    {
-        .pin = GPIO_NUM_48,
-        .button_num = 2,
-    },
-    {
-        .pin = GPIO_NUM_45,
-        .button_num = 3,
-    }
-};
-
-static size_t buttons_len = sizeof(buttons) / sizeof(buttons[0]);
+static button_conf_t *s_buttons;
+static size_t s_buttons_len;
 
 esp_err_t update_led(rgb_conf_t *conf){
     if(!conf->on_off){
@@ -126,8 +108,8 @@ esp_err_t board_led_init(rgb_conf_t *conf){
 }
 
 esp_err_t board_buttons_release_register_callback(board_button_callback_t callback){
-    for(size_t i = 0; i < buttons_len; i++){
-        buttons[i].callback = callback;
+    for(size_t i = 0; i < s_buttons_len; i++){
+        s_buttons[i].callback = callback;
     }
     return ESP_OK;
 }
@@ -145,31 +127,42 @@ static void button_cb(void* button_handle, void* user_data){
     (button->callback)(button->button_num);
 }
 
-static esp_err_t board_buttons_init(){
+static esp_err_t board_buttons_init(size_t buttons_len, const button_gpio_config_t *buttons){
     esp_err_t ret = ESP_OK;
+    s_buttons = (button_conf_t*) malloc(buttons_len * sizeof(button_conf_t));
+    if(!s_buttons){
+        s_buttons_len = 0;
+        ESP_LOGE(TAG, "Could not allocate buttons array");
+        return ESP_FAIL;
+    }
+    s_buttons_len = buttons_len;
+
     for(size_t i = 0; i < buttons_len; i++){
         button_config_t button_config = {
             .type = BUTTON_TYPE_GPIO,
             .gpio_button_config = {
-                .gpio_num = buttons[i].pin,
-                .active_level = 1
+                .gpio_num = buttons[i].gpio_num,
+                .active_level = buttons[i].active_level
             }
         };
-
-        buttons[i].handle = iot_button_create(&button_config);
-        if(buttons[i].handle == NULL){
+        s_buttons[i].pin = buttons[i].gpio_num;
+        s_buttons[i].button_num = i;
+        s_buttons[i].handle = iot_button_create(&button_config);
+        s_buttons[i].callback = NULL;
+        if(s_buttons[i].handle == NULL){
             return ESP_FAIL;
         }
 
-        esp_err_t err = iot_button_register_cb(buttons[i].handle, BUTTON_PRESS_UP, button_cb, &buttons[i]);
+        esp_err_t err = iot_button_register_cb(s_buttons[i].handle, BUTTON_PRESS_UP, button_cb, &(s_buttons[i]));
         if(ret == ESP_OK && err != ESP_OK){
+            ESP_LOGE(TAG, "Could not register iotButton callback");
             ret = err;
         }
     }
     return ret;
 }
 
-esp_err_t board_init(){
+esp_err_t board_init(size_t buttons_len, const button_gpio_config_t *buttons){
     esp_err_t ret_err = ESP_OK;
     esp_err_t err;
     err = board_led_init(&internal_rgb_conf);
@@ -178,7 +171,7 @@ esp_err_t board_init(){
         ret_err = err;
     }
 
-    err = board_buttons_init();
+    err = board_buttons_init(buttons_len, buttons);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Could not init buttons");
         ret_err = err;

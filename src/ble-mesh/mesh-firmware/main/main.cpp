@@ -38,42 +38,24 @@ static const char* TAG = "MESH-FMW";
 // GPIO pin that the button is connected to
 #define CONFIG_BUTTON GPIO_NUM_1
 
-// custom web_config options
-static config_option_t options[] = {
-    {
-        "rgb/client/addr", // key
-        NVS_TYPE_U16, // type
-        true, //value_to_log
-    }
-};
-
-static const size_t options_len = sizeof(options) / sizeof(options[0]);
 
 // NVS handle for reading the web_config options
 static nvs_handle_t config_nvs;
 
 static std::unique_ptr<SerialCommSrv> serialSrv;
 
-// start configuration mode if conditions are met
-bool web_config(){
-    gpio_config_t config;
+static button_gpio_config_t buttons[] = {
+    {
+        .gpio_num = GPIO_NUM_0,
+        .active_level = 0,
+    },
+    {
+        .gpio_num = GPIO_NUM_1,
+        .active_level = 0,
+    },
+};
 
-    config.pin_bit_mask = 1ull << CONFIG_BUTTON;
-    config.mode = GPIO_MODE_INPUT;
-    config.pull_up_en = GPIO_PULLUP_ENABLE;
-
-    gpio_config(&config);
-
-    vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-    if(gpio_get_level(CONFIG_BUTTON) == 0){
-        LOGGER_I(TAG, "Booting to web config");
-        web_config_set_custom_options(options_len, options);
-        web_config_start();
-        return true;
-    }
-    return false;
-}
+static size_t buttons_len = sizeof(buttons) / sizeof(buttons[0]);
 
 // initialize custom logging library for persistent logs
 void log_init(){
@@ -258,7 +240,7 @@ extern "C" void app_main(void)
 
     LOGGER_I(TAG, "Initializing...");
 
-    err = board_init();
+    err = board_init(buttons_len, buttons);
     if(err != ESP_OK){
         LOGGER_E(TAG, "Error occurred during board init! %d", err);
     }
