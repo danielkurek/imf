@@ -394,7 +394,7 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
             s_level_event_data.level = param->status_cb.level_status.present_level;
             
             // TODO: test if this is the right address
-            s_onoff_event_data.addr = param->params->ctx.addr;
+            s_level_event_data.addr = param->params->ctx.addr;
             xEventGroupSetBits(s_level_event_group, EVENT_GET_SUCCESS_BIT);
         }
         break;
