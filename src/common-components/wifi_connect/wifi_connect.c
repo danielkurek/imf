@@ -240,7 +240,7 @@ esp_err_t wifi_init_ap(wifi_config_t wifi_config)
     if(err != ESP_OK){
         return err;
     }
-    err = esp_wifi_set_mode(WIFI_MODE_AP);
+    err = esp_wifi_set_mode(WIFI_MODE_APSTA);
     if(err != ESP_OK){
         return err;
     }
