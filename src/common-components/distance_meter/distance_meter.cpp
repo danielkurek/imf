@@ -205,12 +205,17 @@ std::shared_ptr<DistancePoint> DistanceMeter::getPoint(uint32_t id){
 }
 
 void DistanceMeter::startTask(){
-    if(_xHandle != NULL){
-        // delete and start the task again or do nothing
-        vTaskDelete(_xHandle);
-    }
+    stopTask();
     // STACK_SIZE=1024*2???
-    xTaskCreate(taskWrapper, "DistanceMeter", 1024*8, this, configMAX_PRIORITIES, &_xHandle);
+    ESP_LOGI(TAG, "Starting DistanceMeter task");
+    xTaskCreatePinnedToCore(taskWrapper, "DistanceMeter", 1024*8, this, tskIDLE_PRIORITY+1, &_xHandle, 1);
+}
+
+void DistanceMeter::stopTask(){
+    if(_xHandle != NULL){
+        vTaskDelete(_xHandle);
+        _xHandle = NULL;
+    }
 }
 
 static uint32_t nearestDeviceDistanceFunction(const distance_measurement_t& measurement, TickType_t now){

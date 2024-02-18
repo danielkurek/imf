@@ -327,7 +327,7 @@ void LocationTopology::task(){
 }
 
 esp_err_t LocationTopology::start(){
-    return xTaskCreate(taskWrapper, "LocationTopology", 1024*24, this, tskIDLE_PRIORITY, &_xHandle);
+    return xTaskCreatePinnedToCore(taskWrapper, "LocationTopology", 1024*24, this, tskIDLE_PRIORITY+2, &_xHandle, 1);
 }
 
 void LocationTopology::stop(){

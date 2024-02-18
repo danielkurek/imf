@@ -17,9 +17,10 @@ class SerialCommSrv {
             if(_xHandle != NULL){
                 // delete and start the task again or do nothing
                 vTaskDelete(_xHandle);
+                _xHandle = NULL;
             }
             // STACK_SIZE=1024*2???
-            xTaskCreate(TaskWrapper, "SerialCommSrv", 1024*8, this, configMAX_PRIORITIES, &_xHandle);
+            xTaskCreate(TaskWrapper, "SerialCommSrv", 1024*8, this, tskIDLE_PRIORITY+1, &_xHandle);
             return ESP_OK;
         }
         esp_err_t GetField(uint16_t addr, const std::string& field, std::string& out);
