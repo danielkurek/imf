@@ -1,4 +1,6 @@
 menu "Interactive Mesh Framework"
+    
+    orsource "$IDF_PATH/examples/common_components/env_caps/$IDF_TARGET/Kconfig.env_caps"
 
     choice IMF_ROLE
         prompt "Mesh Role"
@@ -22,4 +24,19 @@ menu "Interactive Mesh Framework"
         help
             Devices will be only local and will not utilize BLE-Mesh. Special constructor is available to set initial values
     
+    config IMF_SERIAL_TX_GPIO
+        int "Serial TX GPIO number"
+        range ENV_GPIO_RANGE_MIN ENV_GPIO_OUT_RANGE_MAX
+        default 14
+        help
+            GPIO number (IOxx) to transmit information to bluetooth module.
+            Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used.
+    
+    config IMF_SERIAL_RX_GPIO
+        int "Serial RX GPIO number"
+        range ENV_GPIO_RANGE_MIN ENV_GPIO_OUT_RANGE_MAX
+        default 17
+        help
+            GPIO number (IOxx) to receive information from bluetooth module.
+            Some GPIOs are used for other purposes (flash connections, etc.) and cannot be used.
 endmenu

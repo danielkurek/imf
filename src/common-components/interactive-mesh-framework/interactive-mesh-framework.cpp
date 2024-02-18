@@ -15,6 +15,10 @@
 #define DEFAULT_COLOR_OPT "color"
 #define BLE_MESH_ADDR_OPT "ble_mesh/addr"
 
+// can be configured via menuconfig (idf.py menuconfig)
+#define SERIAL_TX_GPIO CONFIG_IMF_SERIAL_TX_GPIO
+#define SERIAL_RX_GPIO CONFIG_IMF_SERIAL_RX_GPIO
+
 #define UPDATE_TIME 2000 * 1000 // every 2s
 
 static const char* TAG = "IMF";
@@ -23,7 +27,7 @@ using namespace imf;
 
 static esp_timer_handle_t update_timer;
 
-std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>(UART_NUM_1, GPIO_NUM_14, GPIO_NUM_17);
+std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>(UART_NUM_1, SERIAL_TX_GPIO, SERIAL_RX_GPIO);
 std::shared_ptr<DistanceMeter> Device::_dm = nullptr;
 std::shared_ptr<Device> Device::this_device = nullptr;
 
