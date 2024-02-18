@@ -145,7 +145,7 @@ esp_err_t SerialCommSrv::ProcessInput(const std::string& input){
     std::string::size_type start_pos = 0;
     std::string::size_type end_pos = input.find_first_of('\n');
     esp_err_t ret = ESP_OK;
-    while(true){
+    while(end_pos == input.npos || end_pos < input.size()){
         std::string::size_type count = end_pos - start_pos;
         if(end_pos == input.npos){
             count = input.size() - start_pos;
@@ -156,12 +156,15 @@ esp_err_t SerialCommSrv::ProcessInput(const std::string& input){
             ret = err;
         }
 
-        if(end_pos == input.npos || end_pos == input.size()-1){
+        if(end_pos == input.npos || end_pos >= input.size()-1){
             break;
         }
 
         start_pos = end_pos + 1; // skip '\n' char
-        end_pos = input.find_first_of('\n');
+        if(start_pos >= input.size()){
+            break;
+        }
+        end_pos = input.find_first_of('\n', start_pos);
     }
     return ret;
 }
