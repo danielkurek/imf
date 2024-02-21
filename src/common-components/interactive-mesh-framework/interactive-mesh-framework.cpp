@@ -365,6 +365,7 @@ esp_err_t Device::lastDistance(uint32_t &distance_cm){
 #else
 esp_err_t Device::lastDistance(uint32_t &distance_cm){
     distance_measurement_t dm;
+    if(!_point) return ESP_FAIL;
     esp_err_t err = _point->getDistanceFromLog(dm);
     if(err != ESP_OK) return err;
     distance_cm = dm.distance_cm;
@@ -485,7 +486,7 @@ void IMF::_init_topology(){
     std::vector<std::shared_ptr<Device>> stations;
     for(auto it = _devices.begin(); it != _devices.end(); ++it){
         std::shared_ptr<Device> device = it->second;
-        if(device->type == DeviceType::Station){
+        if(device && device->type == DeviceType::Station){
             stations.push_back(device);
         }
     }
