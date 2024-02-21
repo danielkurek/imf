@@ -303,6 +303,20 @@ esp_err_t Device::setLevel(int16_t level){
 }
 #endif
 
+esp_err_t Device::setLevelAll(int16_t level){
+    char buf[5+1];
+    int ret = snprintf(buf, 5+1, "%04" PRIx16, level);
+    if(ret <= 0){
+        return ESP_FAIL;
+    }
+
+    std::string level_value {buf};
+    std::string response;
+    response = _serial->PutField(0xffff, "level", level_value);
+    ESP_LOGI(TAG, "set level response %s", response.c_str());
+    return ESP_OK;
+}
+
 #if CONFIG_IMF_DEBUG_STATIC_DEVICES
 esp_err_t Device::getLevel(int16_t &level_out){
     level_out = debug_level;

@@ -55,6 +55,7 @@ namespace imf{
             int16_t debug_level;
             #endif
             static esp_err_t setRgbAll(rgb_t rgb);
+            static esp_err_t setLevelAll(int16_t level);
             static void setDM(std::shared_ptr<DistanceMeter> dm) { _dm = dm; }
             static std::shared_ptr<SerialCommCli> getSerialCli() { return _serial; }
             // if the ble-mesh address is not saved. this will wait for initialization of ble-mesh device and fetch the address
