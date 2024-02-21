@@ -60,7 +60,7 @@ uint32_t DistancePoint::filterDistance(uint32_t new_measurement){
     return _filter_sum / _filter_data.size();
 }
 
-esp_err_t DistancePoint::measureDistance(uint32_t *distance_cm){
+esp_err_t DistancePoint::measureDistance(uint32_t &distance_cm){
     wifi_ftm_initiator_cfg_t ftmi_cfg {};
     memcpy(ftmi_cfg.resp_mac, _mac, 6);
     ftmi_cfg.channel = _channel;
@@ -70,7 +70,7 @@ esp_err_t DistancePoint::measureDistance(uint32_t *distance_cm){
     ftm_result_t ftm_report = measureRawDistance(&ftmi_cfg);
 
     if(ftm_report.status == FTM_STATUS_SUCCESS){
-        (*distance_cm) = filterDistance(ftm_report.dist_est);
+        distance_cm = filterDistance(ftm_report.dist_est);
 
         // allow _latest_log = -1 but not anything other
         if(_latest_log + 1 < 0) _latest_log = 0;
@@ -312,7 +312,7 @@ void DistanceMeter::task(){
         ESP_LOGI(TAG, "Measuring distance to %d points", _points.size());
         for(const auto& [key, point] : _points){
             uint32_t distance_cm = UINT32_MAX;
-            err = point->measureDistance(&distance_cm);
+            err = point->measureDistance(distance_cm);
             bool valid = err == ESP_OK;
             uint32_t point_id = point->getID();
             dm_measurement_data_t event_data;

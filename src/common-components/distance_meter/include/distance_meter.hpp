@@ -71,7 +71,7 @@ class DistancePoint {
         
         // default event loop needs to be created before calling this function
         static esp_err_t initDistanceMeasurement();
-        esp_err_t measureDistance(uint32_t *distance_cm);
+        esp_err_t measureDistance(uint32_t &distance_cm);
         static ftm_result_t measureRawDistance(
                 wifi_ftm_initiator_cfg_t* ftmi_conf);
         const uint8_t* getMac() { return _mac; }
