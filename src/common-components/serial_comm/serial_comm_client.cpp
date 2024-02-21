@@ -33,7 +33,7 @@ SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_nu
         ESP_LOGE(TAG, "cannot install UART driver");
         abort();
     }
-    
+    _semMutex = xSemaphoreCreateMutex();
     // return true;
 }
 
@@ -50,35 +50,49 @@ std::string SerialCommCli::SendCmd(CmdType type, const std::string& field, const
         cmdString += " " + body;
     }
     cmdString += "\n";
+    
+    if(pdTRUE != xSemaphoreTake(_semMutex, 10000 / portTICK_PERIOD_MS)){
+        ESP_LOGE(TAG, "SendCmd could not get semaphore mutex! %s", cmdString.c_str());
+        return "FAIL";
+    }
+    
     ESP_LOGI(TAG, "Sending cmd: %s", cmdString.c_str());
     uart_write_bytes(_uart_port, cmdString.c_str(), cmdString.length());
     ESP_LOGI(TAG, "Waiting for TX done...");
     uart_wait_tx_done(_uart_port, 1000 / portTICK_PERIOD_MS);
     ESP_LOGI(TAG, "Awaiting response...");
-    return GetResponse();
+
+    std::string response = GetResponse();
+
+    xSemaphoreGive(_semMutex);
+    
+    return response;
 }
 
 std::string SerialCommCli::GetResponse(){
-    uint8_t buf[rx_buffer_len];
-    int len = uart_read_bytes(_uart_port, buf, rx_buffer_len, 800 / portTICK_PERIOD_MS);
+    int len = uart_read_bytes(_uart_port, _buf, rx_buffer_len, 800 / portTICK_PERIOD_MS);
     if(len > 0){
-        buf[len] = '\0';
+        if(len >= rx_buffer_len){
+            len = rx_buffer_len-1;
+        }
+        
+        _buf[len] = '\0';
 
         // remove trailing new line
-        if(len-1 > 0 && buf[len-1] == '\n'){
-            buf[len-1] = '\0';
+        if(len-1 > 0 && _buf[len-1] == '\n'){
+            _buf[len-1] = '\0';
         }
 
         // skip previous timeouted responses
         size_t start = 0;
         for(size_t i = 0; i < len-1; i++){
-            if(buf[i] == '\n'){
+            if(_buf[i] == '\n'){
                 start = i+1;
             }
         }
 
-        ESP_LOGI(TAG, "Response (len=%d, start=%d): %s", len, start, buf+start);
-        std::string response{(char*)buf+start};
+        ESP_LOGI(TAG, "Response (len=%d, start=%d): %s", len, start, _buf+start);
+        std::string response{(char*)_buf+start};
         return response;
     }
     ESP_LOGW(TAG, "Could not get a response...");

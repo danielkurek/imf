@@ -5,6 +5,7 @@
 #include <driver/uart.h>
 #include <string>
 #include "serial_comm_common.hpp"
+#include "freertos/semphr.h"
 
 class SerialCommCli {
     public:
@@ -17,9 +18,11 @@ class SerialCommCli {
         std::string SendStatus(CommStatus status);
     private:
         constexpr static size_t rx_buffer_len = 128;
+        uint8_t _buf[rx_buffer_len];
         
         std::string SendCmd(CmdType type, const std::string& field, const std::string& body);
         std::string GetResponse();
+        SemaphoreHandle_t _semMutex;
         uart_port_t _uart_port;
         QueueHandle_t _uart_queue;
 };
