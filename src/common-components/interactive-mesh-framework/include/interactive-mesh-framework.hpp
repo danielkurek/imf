@@ -43,8 +43,8 @@ namespace imf{
             esp_err_t getLocation(location_local_t &location_out);
             esp_err_t setLevel(int16_t level);
             esp_err_t getLevel(int16_t &level_out);
-            esp_err_t measureDistance(uint32_t *distance_cm);
-            esp_err_t lastDistance(uint32_t *distance_cm);
+            esp_err_t measureDistance(uint32_t &distance_cm);
+            esp_err_t lastDistance(uint32_t &distance_cm);
             const uint32_t id;
             const DeviceType type;
             const uint16_t ble_mesh_addr;

@@ -327,15 +327,15 @@ esp_err_t Device::getLevel(int16_t &level_out){
 #endif
 
 #if CONFIG_IMF_DEBUG_STATIC_DEVICES
-esp_err_t Device::measureDistance(uint32_t *distance_cm){
+esp_err_t Device::measureDistance(uint32_t &distance_cm){
     if(type == DeviceType::Mobile){
         return ESP_FAIL;
     }
-    *distance_cm = debug_distance_cm;
+    distance_cm = debug_distance_cm;
     return ESP_OK;
 }
 #else
-esp_err_t Device::measureDistance(uint32_t *distance_cm){
+esp_err_t Device::measureDistance(uint32_t &distance_cm){
     if(type == DeviceType::Mobile || _point == nullptr){
         return ESP_FAIL;
     }
@@ -344,16 +344,16 @@ esp_err_t Device::measureDistance(uint32_t *distance_cm){
 #endif
 
 #if CONFIG_IMF_DEBUG_STATIC_DEVICES
-esp_err_t Device::lastDistance(uint32_t *distance_cm){
-    (*distance_cm) = debug_distance_cm;
+esp_err_t Device::lastDistance(uint32_t &distance_cm){
+    distance_cm = debug_distance_cm;
     return ESP_OK;
 }
 #else
-esp_err_t Device::lastDistance(uint32_t *distance_cm){
+esp_err_t Device::lastDistance(uint32_t &distance_cm){
     distance_measurement_t dm;
     esp_err_t err = _point->getDistanceFromLog(dm);
     if(err != ESP_OK) return err;
-    (*distance_cm) = dm.distance_cm;
+    distance_cm = dm.distance_cm;
     return ESP_OK;
 }
 #endif
