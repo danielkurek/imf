@@ -457,6 +457,8 @@ IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
     // DistanceMeter init
     _dm = std::make_shared<DistanceMeter>(false, _event_loop_hdl);
     Device::setDM(_dm);
+
+    xSemaphoreUpdate = xSemaphoreCreateBinary();
 }
 
 esp_err_t IMF::_wait_for_ble_mesh(uint32_t max_tries){
@@ -497,21 +499,82 @@ esp_err_t IMF::start() {
     _devices.emplace(0, Device::this_device);
     _init_topology();
     
-    _dm->startTask();
+    // _dm->startTask();
 #ifdef CONFIG_IMF_STATION_DEVICE 
     wifi_init_ap_default();
 #endif
+
+    startUpdateTask();
+
     return ESP_OK;
 }
 
-void IMF::_update_timer_cb(){
-    static TickType_t _last_update = 0;
-    TickType_t now = xTaskGetTickCount();
-    if(_update_cb != nullptr){
-        TickType_t diff = pdTICKS_TO_MS(now) - pdTICKS_TO_MS(_last_update);
-        _update_cb(diff);
+esp_err_t IMF::startUpdateTask(){
+    return xTaskCreatePinnedToCore(_update_task_wrapper, "UpdateTask", 1024*8, this, tskIDLE_PRIORITY, &_xUpdateHandle, 1);
+}
+void IMF::stopUpdateTask(){
+    if(_xUpdateHandle){
+        vTaskDelete(_xUpdateHandle);
+        _xUpdateHandle = NULL;
     }
-    _last_update = now;
+}
+
+void IMF::_update_task(){
+    static TickType_t _last_update = 0;
+    while(true){
+        ESP_LOGI(TAG, "Waiting for semaphore");
+        if(!xSemaphoreTake(xSemaphoreUpdate, 10000 / portTICK_PERIOD_MS)){
+            ESP_LOGI(TAG, "Semaphore not given");
+            continue;
+        }
+
+        TickType_t now = xTaskGetTickCount();
+        esp_err_t err;
+        if(Device::this_device){
+            int16_t state;
+            err = Device::this_device->getLevel(state);
+            if(err != ESP_OK){
+                state = 0;
+                LOGGER_E(TAG, "Could not get a state! Err=%d", err);
+            }
+            
+            // do actions when state is switched
+            if(current_state != state){
+                switch(state){
+                    case 1:
+                        _dm->startTask();
+                        stopLocationTopology();
+                        break;
+                    case 2:
+                        _dm->stopTask();
+                        startLocationTopology();
+                        break;
+                    case 3:
+                        // _dm->stopTask();
+                        stopLocationTopology();
+                        break;
+                }
+            }
+            current_state = state;
+
+            // do period actions for current state
+            switch(state){
+                case 3:
+                    if(_update_cb != nullptr){
+                        TickType_t diff = pdTICKS_TO_MS(now) - pdTICKS_TO_MS(_last_update);
+                        _update_cb(diff);
+                        _last_update = now;
+                    }
+                    break;
+            }
+
+        }
+    }
+}
+
+void IMF::_update_timer_cb(){
+    ESP_LOGI(TAG, "Update timer tick");
+    xSemaphoreGive(xSemaphoreUpdate);
 }
 
 esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args, update_function_t update_cb) 
@@ -531,28 +594,26 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
             return err;
         }
     }
-    if(update_cb != NULL){
-        esp_timer_create_args_t args = {
-            .callback = _update_timer_cb_wrapper,
-            .arg = this,
-            .dispatch_method = ESP_TIMER_TASK,
-            .name = "UpdateTimer",
-            .skip_unhandled_events = true
-        };
-        
-        _update_timer_cb();
-        err = esp_timer_create(&args, &(update_timer));
-        if(err != ESP_OK){
-            ESP_LOGE(TAG, "Failed initializing update timer! %s", esp_err_to_name(err));
-            return err;
-        }
-        
-        _update_cb = update_cb;
-        err = esp_timer_start_periodic(update_timer, UPDATE_TIME);
-        if(err != ESP_OK){
-            ESP_LOGE(TAG, "Failed to start update timer! %s", esp_err_to_name(err));
-            return err;
-        }
+    esp_timer_create_args_t args = {
+        .callback = _update_timer_cb_wrapper,
+        .arg = this,
+        .dispatch_method = ESP_TIMER_TASK,
+        .name = "UpdateTimer",
+        .skip_unhandled_events = true
+    };
+    
+    _update_timer_cb();
+    err = esp_timer_create(&args, &(update_timer));
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed initializing update timer! %s", esp_err_to_name(err));
+        return err;
+    }
+    
+    _update_cb = update_cb;
+    err = esp_timer_start_periodic(update_timer, UPDATE_TIME);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Failed to start update timer! %s", esp_err_to_name(err));
+        return err;
     }
     return err;
 }

@@ -89,10 +89,16 @@ namespace imf{
             void stopLocationTopology();
         private:
             std::map<uint32_t, std::shared_ptr<Device>> _devices;
+            esp_err_t startUpdateTask();
+            void stopUpdateTask();
+            void _update_task();
+            void _update_timer_cb();
+            static void _update_task_wrapper(void *param){
+                static_cast<IMF *>(param)->_update_task();
+            }
             static void _update_timer_cb_wrapper(void *param){
                 static_cast<IMF *>(param)->_update_timer_cb();
             }
-            void _update_timer_cb();
             esp_err_t _wait_for_ble_mesh(uint32_t max_tries);
             void _init_topology();
             std::shared_ptr<DistanceMeter> _dm;
@@ -102,6 +108,9 @@ namespace imf{
             uint32_t _next_id = 1; // 0 is reserved for local device
             nvs_handle_t _options_handle;
             std::shared_ptr<LocationTopology> _topology;
+            int16_t current_state = 0;
+            SemaphoreHandle_t xSemaphoreUpdate = NULL;
+            TaskHandle_t _xUpdateHandle;
     };
 }
 
