@@ -47,8 +47,8 @@ namespace imf{
             void freeGraph();
             void removeNodeEdges(uint32_t id);
             void removeNode(uint32_t id);
-            esp_err_t addNode(uint32_t id);
-            void addEdge(uint32_t source, uint32_t target, float distance);
+            Agnode_t *addNode(uint32_t id);
+            Agedge_t *addEdge(uint32_t source, uint32_t target, float distance);
             void updateGraph();
             esp_err_t updateNodePosition(uint32_t id);
             void updateNodePositions();
