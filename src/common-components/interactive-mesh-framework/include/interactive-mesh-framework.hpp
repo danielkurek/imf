@@ -49,10 +49,10 @@ namespace imf{
             const DeviceType type;
             const uint16_t ble_mesh_addr;
             #if CONFIG_IMF_DEBUG_STATIC_DEVICES
-            uint32_t debug_distance_cm;
-            rgb_t debug_rgb;
-            location_local_t debug_location;
-            int16_t debug_level;
+            uint32_t debug_distance_cm = 0;
+            rgb_t debug_rgb = {0,0,0};
+            location_local_t debug_location = {0,0,0,0,0};
+            int16_t debug_level = 0;
             #endif
             static esp_err_t setRgbAll(rgb_t rgb);
             static esp_err_t setLevelAll(int16_t level);
