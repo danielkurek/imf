@@ -55,6 +55,7 @@
 
 #define EVENT_GET_SUCCESS_BIT BIT0
 #define EVENT_GET_FAIL_BIT BIT1
+#define EVENT_GROUP_MAX_RETRIES 10
 
 // tag for logging
 static const char* TAG = "BLE-MESH";
@@ -681,9 +682,9 @@ esp_err_t ble_mesh_get_loc_local(uint16_t addr, location_local_t *result){
 
     esp_ble_mesh_generic_client_get_state(&common, &get_state);
 
-    while(true){
+    for(size_t i = 0; i < EVENT_GROUP_MAX_RETRIES; ++i){
         bits = xEventGroupWaitBits(s_location_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
-                                            pdTRUE, pdFALSE, portMAX_DELAY);
+                                            pdTRUE, pdFALSE, 500 / portTICK_PERIOD_MS);
         if(s_location_event_data.addr != addr){
             LOGGER_W(TAG, "Get Location local woke up to different address! Expected:0x%04" PRIx16 " Result for: 0x%04" PRIx16, addr, s_location_event_data.addr);
             continue;
@@ -696,6 +697,7 @@ esp_err_t ble_mesh_get_loc_local(uint16_t addr, location_local_t *result){
             return ESP_FAIL;
         }
     }
+    return ESP_FAIL;
 }
 
 esp_err_t ble_mesh_set_onoff(uint16_t addr, bool onoff){
@@ -751,9 +753,9 @@ esp_err_t ble_mesh_get_onoff(uint16_t addr, bool *onoff_out){
 
     esp_ble_mesh_generic_client_get_state(&common, &get_state);
 
-    while(true){
+    for(size_t i = 0; i < EVENT_GROUP_MAX_RETRIES; ++i){
         bits = xEventGroupWaitBits(s_onoff_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
-                                            pdTRUE, pdFALSE, portMAX_DELAY);
+                                            pdTRUE, pdFALSE, 500 / portTICK_PERIOD_MS);
         if(s_onoff_event_data.addr != addr){
             LOGGER_W(TAG, "Get OnOff woke up to different address! Expected:0x%04" PRIx16 " Result for: 0x%04" PRIx16, addr, s_onoff_event_data.addr);
             continue;
@@ -766,6 +768,7 @@ esp_err_t ble_mesh_get_onoff(uint16_t addr, bool *onoff_out){
             return ESP_FAIL;
         }
     }
+    return ESP_FAIL;
 }
 
 esp_err_t ble_mesh_set_level(uint16_t addr, int16_t level){
@@ -823,11 +826,11 @@ esp_err_t ble_mesh_get_level(uint16_t addr, int16_t *level_out){
 
     esp_ble_mesh_generic_client_get_state(&common, &get_state);
 
-    while(true){
+    for(size_t i = 0; i < EVENT_GROUP_MAX_RETRIES; ++i){
         bits = xEventGroupWaitBits(s_level_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
-                                            pdTRUE, pdFALSE, portMAX_DELAY);
+                                            pdTRUE, pdFALSE, 500 / portTICK_PERIOD_MS);
         if(s_level_event_data.addr != addr){
-            LOGGER_W(TAG, "Get OnOff woke up to different address! Expected:0x%04" PRIx16 " Result for: 0x%04" PRIx16, addr, s_level_event_data.addr);
+            LOGGER_W(TAG, "Get Level woke up to different address! Expected:0x%04" PRIx16 " Result for: 0x%04" PRIx16, addr, s_level_event_data.addr);
             continue;
         }
         
@@ -838,6 +841,7 @@ esp_err_t ble_mesh_get_level(uint16_t addr, int16_t *level_out){
             return ESP_FAIL;
         }
     }
+    return ESP_FAIL;
 }
 
 esp_err_t ble_mesh_get_addresses(uint16_t *primary_addr, uint8_t *addresses){
