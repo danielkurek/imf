@@ -42,8 +42,8 @@ void DistancePoint::event_handler(void* arg, esp_event_base_t event_base,
             xEventGroupSetBits(_s_ftm_event_group, FTM_REPORT_BIT);
             ESP_LOGI(TAG, "FTM measurement success");
         } else {
-            // ESP_LOGI(TAG, "FTM procedure with Peer(" MACSTR ") failed! (Status - %d)",
-            //          MAC2STR(event->peer_mac), event->status);
+            ESP_LOGW(TAG, "FTM procedure with Peer(" MACSTR ") failed! (Status - %d)",
+                     MAC2STR(event->peer_mac), event->status);
             xEventGroupSetBits(_s_ftm_event_group, FTM_FAILURE_BIT);
         }
     }
@@ -78,8 +78,9 @@ esp_err_t DistancePoint::measureDistance(uint32_t &distance_cm){
         if(next_log >= log_size){
             next_log = 0;
         }
+        assert(next_log < log_size);
         _distance_log[next_log].timestamp = xTaskGetTickCount();
-        _distance_log[next_log].distance_cm = *distance_cm;
+        _distance_log[next_log].distance_cm = distance_cm;
         _latest_log = next_log;
         return ESP_OK;
     }
@@ -123,9 +124,11 @@ ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cf
 }
 
 esp_err_t DistancePoint::getDistanceFromLog(distance_measurement_t &measurement, size_t offset){
-    if(_latest_log == -1) return ESP_FAIL;
+    ESP_LOGI(TAG, "getDistanceFromLog offset=%d _latest_log=%d", offset, _latest_log);
+    if(_latest_log < 0) return ESP_FAIL;
     if(offset >= log_size) return ESP_FAIL;
     size_t index = (_latest_log + offset) % log_size;
+    assert(index < log_size);
     measurement.timestamp = _distance_log[index].timestamp;
     measurement.distance_cm = _distance_log[index].distance_cm;
     return ESP_OK;
@@ -208,7 +211,10 @@ void DistanceMeter::startTask(){
     stopTask();
     // STACK_SIZE=1024*2???
     ESP_LOGI(TAG, "Starting DistanceMeter task");
-    xTaskCreatePinnedToCore(taskWrapper, "DistanceMeter", 1024*8, this, tskIDLE_PRIORITY+1, &_xHandle, 1);
+    auto ret = xTaskCreatePinnedToCore(taskWrapper, "DistanceMeter", 1024*8, this, tskIDLE_PRIORITY+1, &_xHandle, 1);
+    if(ret != pdPASS){
+        ESP_LOGE(TAG, "Could not create DistanceMeter task");
+    }
 }
 
 void DistanceMeter::stopTask(){
@@ -299,75 +305,83 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
     ESP_LOGI(TAG, "sta scan done");
     return result;
 }
-void DistanceMeter::task(){
+
+void DistanceMeter::singleRun(){
     static std::shared_ptr<DistancePoint> s_nearest_point = nullptr;
     esp_err_t err;
+
+    TickType_t now = xTaskGetTickCount();
+
+    // auto points = reachablePoints();
+    // ESP_LOGI(TAG, "%d reachable points", points.size());
+    ESP_LOGI(TAG, "Measuring distance to %d points", _points.size());
+    for(const auto& [key, point] : _points){
+        uint32_t distance_cm = UINT32_MAX;
+        err = point->measureDistance(distance_cm);
+        bool valid = err == ESP_OK;
+        uint32_t point_id = point->getID();
+        dm_measurement_data_t event_data;
+        event_data.point_id = point_id;
+        event_data.distance_cm = distance_cm;
+        event_data.valid = valid;
+        if(valid)
+            ESP_LOGI(TAG, "Distance to point %" PRIu32 " is %" PRIu32, point_id, distance_cm);
+        err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
+        if(err != ESP_OK){
+            ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
+        }
+    }
+
+    now = xTaskGetTickCount();
+
+    auto nearest_point = nearestPoint();
+    
+    if(nearest_point == nullptr){
+        return;
+    }
+
+    // check if this device is in near proximity
+    distance_measurement_t measurement;
+    err = nearest_point->getDistanceFromLog(measurement);
+    if(err == ESP_OK){
+        auto nearest_distance = nearestDeviceDistanceFunction(measurement, now);
+        if(nearest_distance >= _distance_threshold_cm){
+            nearest_point = nullptr;
+        }   
+    } else{
+        // fault happened -> reset nearest_point
+        nearest_point = nullptr;
+    }
+
+    if(nearest_point != s_nearest_point){
+        // when posting to event loop, the data are copied so we can use one instance for multiple events
+        dm_nearest_device_change_t event_data;
+        event_data.timestamp_ms = pdTICKS_TO_MS(xTaskGetTickCount());
+        if(s_nearest_point){
+            event_data.old_point_id = s_nearest_point->getID();;
+        } else{
+            event_data.old_point_id = UINT32_MAX;
+        }
+        
+        if(nearest_point){
+            event_data.new_point_id = nearest_point->getID();
+        } else{
+            event_data.new_point_id = UINT32_MAX;
+        }
+
+        s_nearest_point = nearest_point;
+        err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_CHANGE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
+        if(err != ESP_OK){
+            ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
+        }
+    }
+}
+
+void DistanceMeter::task(){
     while(true){
         vTaskDelay(500 / portTICK_PERIOD_MS); // allow other tasks to run
-
-        TickType_t now = xTaskGetTickCount();
-
-        // auto points = reachablePoints();
-        // ESP_LOGI(TAG, "%d reachable points", points.size());
-        ESP_LOGI(TAG, "Measuring distance to %d points", _points.size());
-        for(const auto& [key, point] : _points){
-            uint32_t distance_cm = UINT32_MAX;
-            err = point->measureDistance(distance_cm);
-            bool valid = err == ESP_OK;
-            uint32_t point_id = point->getID();
-            dm_measurement_data_t event_data;
-            event_data.point_id = point_id;
-            event_data.distance_cm = distance_cm;
-            event_data.valid = valid;
-            err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
-            if(err != ESP_OK){
-                ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
-            }
-        }
-
-        now = xTaskGetTickCount();
-
-        auto nearest_point = nearestPoint();
         
-        if(nearest_point == nullptr){
-            continue;
-        }
-
-        // check if this device is in near proximity
-        distance_measurement_t measurement;
-        err = nearest_point->getDistanceFromLog(measurement);
-        if(err == ESP_OK){
-            auto nearest_distance = nearestDeviceDistanceFunction(measurement, now);
-            if(nearest_distance >= _distance_threshold_cm){
-                nearest_point = nullptr;
-            }   
-        } else{
-            // fault happened -> reset nearest_point
-            nearest_point = nullptr;
-        }
-
-        if(nearest_point != s_nearest_point){
-            // when posting to event loop, the data are copied so we can use one instance for multiple events
-            dm_nearest_device_change_t event_data;
-            event_data.timestamp_ms = pdTICKS_TO_MS(xTaskGetTickCount());
-            if(s_nearest_point){
-                event_data.old_point_id = s_nearest_point->getID();;
-            } else{
-                event_data.old_point_id = UINT32_MAX;
-            }
-            
-            if(nearest_point){
-                event_data.new_point_id = nearest_point->getID();
-            } else{
-                event_data.new_point_id = UINT32_MAX;
-            }
-
-            s_nearest_point = nearest_point;
-            err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_NEAREST_DEVICE_CHANGE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
-            if(err != ESP_OK){
-                ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
-            }
-        }
+        singleRun();
     }
 
 }

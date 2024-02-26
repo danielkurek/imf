@@ -11,6 +11,9 @@
 #include "location_defs.h"
 #include "nvs_flash.h"
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/semphr.h"
+
 #include <vector>
 #include <map>
 #include <memory>
@@ -38,7 +41,7 @@ namespace imf{
                 rgb_t rgb, location_local_t location, int16_t level, uint32_t distance_cm);
             #endif
             esp_err_t setRgb(rgb_t rgb);
-            esp_err_t getRgb(rgb_t *rgb_out);
+            esp_err_t getRgb(rgb_t &rgb_out);
             esp_err_t setLocation(const location_local_t &location);
             esp_err_t getLocation(location_local_t &location_out);
             esp_err_t setLevel(int16_t level);

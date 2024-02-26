@@ -24,8 +24,9 @@ namespace imf{
         public:
             LocationTopology(const std::string &mode, std::shared_ptr<imf::Device> this_device, std::vector<std::shared_ptr<imf::Device>> stations, uint16_t max_iters_per_step);
             ~LocationTopology();
-            esp_err_t start();
+            bool start();
             void stop();
+            void singleRun();
         private:
             std::string _mode;
             std::shared_ptr<imf::Device> _this_device;
@@ -34,8 +35,6 @@ namespace imf{
             TaskHandle_t _xHandle = NULL;
             GVC_t *_gvc = NULL;
             Agraph_t *_g = NULL;
-            std::unordered_map<uint32_t, Agnode_t*> _nodes;
-            std::unordered_map<uint64_t, Agedge_t*> _edges;
             esp_err_t uint32ToStr(uint32_t num, size_t buf_len, char  *buf);
             void locationToPos(const location_local_t &location, float &x, float &y);
             void posToLocation(const float x, const float y, location_local_t &location);
@@ -45,15 +44,14 @@ namespace imf{
             std::shared_ptr<imf::Device> getDevice(uint32_t id);
             void initGraph();
             void freeGraph();
-            void removeNodeEdges(uint32_t id);
             void removeNode(uint32_t id);
+            Agnode_t *getNode(uint32_t id, bool create = false);
             Agnode_t *addNode(uint32_t id);
+            Agedge_t *getEdge(uint32_t source, uint32_t target, bool create = false);
             Agedge_t *addEdge(uint32_t source, uint32_t target, float distance);
-            void updateGraph();
+            void populateGraph();
             esp_err_t updateNodePosition(uint32_t id);
-            void updateNodePositions();
             void saveNodePosition(uint32_t node_id);
-            void saveNodePositions();
             void task();
             void singleRun();
             static void taskWrapper(void* param){

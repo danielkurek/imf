@@ -42,6 +42,21 @@ SerialCommSrv::SerialCommSrv(const uart_port_t port, int tx_io_num, int rx_io_nu
     // return true;
 }
 
+esp_err_t SerialCommSrv::StartTask(){
+    if(_xHandle != NULL){
+        // delete and start the task again or do nothing
+        vTaskDelete(_xHandle);
+        _xHandle = NULL;
+    }
+    // STACK_SIZE=1024*2???
+    auto ret = xTaskCreate(TaskWrapper, "SerialCommSrv", 1024*8, this, tskIDLE_PRIORITY+1, &_xHandle);
+    if(ret != pdPASS){
+        ESP_LOGE(TAG, "Could not create SerialCommSrv task");
+        return ESP_FAIL;
+    }
+    return ESP_OK;
+}
+
 esp_err_t SerialCommSrv::GetField(uint16_t addr, const std::string& field, std::string& out){
     auto iter = fields.find(addr);
     if(iter == fields.end()){

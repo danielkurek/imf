@@ -198,21 +198,21 @@ esp_err_t Device::setRgbAll(rgb_t rgb){
 }
 
 #if CONFIG_IMF_DEBUG_STATIC_DEVICES
-esp_err_t Device::getRgb(rgb_t *rgb_out){
-    rgb_out->red = debug_rgb.red;
-    rgb_out->green = debug_rgb.green;
-    rgb_out->blue = debug_rgb.blue;
+esp_err_t Device::getRgb(rgb_t &rgb_out){
+    rgb_out.red = debug_rgb.red;
+    rgb_out.green = debug_rgb.green;
+    rgb_out.blue = debug_rgb.blue;
     return ESP_OK;
 }
 #else
-esp_err_t Device::getRgb(rgb_t *rgb_out){
+esp_err_t Device::getRgb(rgb_t &rgb_out){
     std::string rgb_val;
     if(_local_commands){
         rgb_val = _serial->GetField("rgb");
     } else {
         rgb_val = _serial->GetField(ble_mesh_addr, "rgb");
     }
-    esp_err_t err = str_to_rgb(rgb_val.c_str(), rgb_out);
+    esp_err_t err = str_to_rgb(rgb_val.c_str(), &rgb_out);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Failed to convert RGB string to value: %s", rgb_val.c_str());
         return ESP_FAIL;
@@ -497,7 +497,7 @@ esp_err_t IMF::start() {
     _wait_for_ble_mesh(20);
 
     Device::initLocalDevice(this);
-    _devices.emplace(0, Device::this_device);
+    // _devices.emplace(0, Device::this_device);
     _init_topology();
     
     // _dm->startTask();
@@ -511,7 +511,12 @@ esp_err_t IMF::start() {
 }
 
 esp_err_t IMF::startUpdateTask(){
-    return xTaskCreatePinnedToCore(_update_task_wrapper, "UpdateTask", 1024*8, this, tskIDLE_PRIORITY, &_xUpdateHandle, 1);
+    auto ret = xTaskCreatePinnedToCore(_update_task_wrapper, "UpdateTask", 1024*48, this, tskIDLE_PRIORITY, &_xUpdateHandle, 1);
+    if(ret != pdPASS){
+        ESP_LOGE(TAG, "Could not create UpdateTask");
+        return ESP_FAIL;
+    }
+    return ESP_OK;
 }
 void IMF::stopUpdateTask(){
     if(_xUpdateHandle){
@@ -523,11 +528,12 @@ void IMF::stopUpdateTask(){
 void IMF::_update_task(){
     static TickType_t _last_update = 0;
     while(true){
+        ESP_LOGI(TAG, "StackHighWaterMark=%d, heapfree=%d, heapminfree=%d, heapmaxfree=%d", uxTaskGetStackHighWaterMark(NULL), heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
         ESP_LOGI(TAG, "Waiting for semaphore");
-        if(!xSemaphoreTake(xSemaphoreUpdate, 10000 / portTICK_PERIOD_MS)){
-            ESP_LOGI(TAG, "Semaphore not given");
-            continue;
-        }
+        // if(!xSemaphoreTake(xSemaphoreUpdate, 10000 / portTICK_PERIOD_MS)){
+        //     ESP_LOGI(TAG, "Semaphore not given");
+        //     continue;
+        // }
 
         TickType_t now = xTaskGetTickCount();
         esp_err_t err;
@@ -543,16 +549,16 @@ void IMF::_update_task(){
             if(current_state != state){
                 switch(state){
                     case 1:
-                        _dm->startTask();
-                        stopLocationTopology();
+                        // _dm->startTask();
+                        // stopLocationTopology();
                         break;
                     case 2:
-                        _dm->stopTask();
-                        startLocationTopology();
+                        // _dm->stopTask();
+                        // startLocationTopology();
                         break;
                     case 3:
                         // _dm->stopTask();
-                        stopLocationTopology();
+                        // stopLocationTopology();
                         break;
                 }
             }
@@ -560,6 +566,12 @@ void IMF::_update_task(){
 
             // do period actions for current state
             switch(state){
+                case 1:
+                    _dm->singleRun();
+                    break;
+                case 2:
+                    _topology->singleRun();
+                    break;
                 case 3:
                     if(_update_cb != nullptr){
                         TickType_t diff = pdTICKS_TO_MS(now) - pdTICKS_TO_MS(_last_update);
@@ -570,6 +582,7 @@ void IMF::_update_task(){
             }
 
         }
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
 }
 
@@ -595,27 +608,27 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
             return err;
         }
     }
-    esp_timer_create_args_t args = {
-        .callback = _update_timer_cb_wrapper,
-        .arg = this,
-        .dispatch_method = ESP_TIMER_TASK,
-        .name = "UpdateTimer",
-        .skip_unhandled_events = true
-    };
+    // esp_timer_create_args_t args = {
+    //     .callback = _update_timer_cb_wrapper,
+    //     .arg = this,
+    //     .dispatch_method = ESP_TIMER_TASK,
+    //     .name = "UpdateTimer",
+    //     .skip_unhandled_events = true
+    // };
     
-    _update_timer_cb();
-    err = esp_timer_create(&args, &(update_timer));
-    if(err != ESP_OK){
-        ESP_LOGE(TAG, "Failed initializing update timer! %s", esp_err_to_name(err));
-        return err;
-    }
+    // _update_timer_cb();
+    // err = esp_timer_create(&args, &(update_timer));
+    // if(err != ESP_OK){
+    //     ESP_LOGE(TAG, "Failed initializing update timer! %s", esp_err_to_name(err));
+    //     return err;
+    // }
     
-    _update_cb = update_cb;
-    err = esp_timer_start_periodic(update_timer, UPDATE_TIME);
-    if(err != ESP_OK){
-        ESP_LOGE(TAG, "Failed to start update timer! %s", esp_err_to_name(err));
-        return err;
-    }
+    // _update_cb = update_cb;
+    // err = esp_timer_start_periodic(update_timer, UPDATE_TIME);
+    // if(err != ESP_OK){
+    //     ESP_LOGE(TAG, "Failed to start update timer! %s", esp_err_to_name(err));
+    //     return err;
+    // }
     return err;
 }
 uint32_t IMF::addDevice(DeviceType type, std::string _wifi_mac_str, uint8_t wifi_channel, uint16_t ble_mesh_addr) {

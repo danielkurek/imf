@@ -13,16 +13,7 @@ typedef void (*serial_comm_get_cb)(uint16_t addr, const std::string& field);
 class SerialCommSrv {
     public:
         SerialCommSrv(const uart_port_t port, int tx_io_num, int rx_io_num, uint16_t default_addr);
-        esp_err_t StartTask(){
-            if(_xHandle != NULL){
-                // delete and start the task again or do nothing
-                vTaskDelete(_xHandle);
-                _xHandle = NULL;
-            }
-            // STACK_SIZE=1024*2???
-            xTaskCreate(TaskWrapper, "SerialCommSrv", 1024*8, this, tskIDLE_PRIORITY+1, &_xHandle);
-            return ESP_OK;
-        }
+        esp_err_t StartTask();
         esp_err_t GetField(uint16_t addr, const std::string& field, std::string& out);
         esp_err_t SetField(uint16_t addr, const std::string& field, const std::string& value, bool do_callback = true);
         esp_err_t SetStatus(CommStatus status);

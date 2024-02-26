@@ -47,14 +47,20 @@ LocationTopology::~LocationTopology(){
 
 void LocationTopology::freeGraph(){
     if(_g){
+        ESP_LOGI(TAG, "Freeing graph");
         gvFreeLayout(_gvc, _g);
-        agclose(_g);
+        int ret = agclose(_g);
+        if(!ret){
+            ESP_LOGE(TAG, "Could not close graph! ret=%d", ret);
+        }
+        _g = NULL;
+        return;
     }
-    _nodes.clear();
-    _edges.clear();
+    ESP_LOGI(TAG, "Graph could not be freed");
 }
 
 void LocationTopology::initGraph(){
+    ESP_LOGI(TAG, "Initialing new graph");
     _g = agopen(graph_name, Agundirected, 0);
     agsafeset(_g, mode_name, _mode.c_str(), "");
     agsafeset(_g, notranslate_name, "true", "");
@@ -62,34 +68,11 @@ void LocationTopology::initGraph(){
     // addNode(_this_device->id);
 }
 
-void LocationTopology::removeNodeEdges(uint32_t id){
-    auto iter = _edges.begin();
-    while(iter != _edges.end()){
-        uint32_t id1, id2;
-        extract_pair(iter->first, &id1, &id2);
-        if(id1 == id || id2 == id){
-            Agedge_t *edge = addEdge(id1, id2, 0.0);
-            if(edge){
-                agdeledge(_g, edge);
-            }
-            iter = _edges.erase(iter);
-            continue;
-        }
-        ++iter;
-    }
-}
-
 void LocationTopology::removeNode(uint32_t id){
-    removeNodeEdges(id);
-    Agnode_t *node = addNode(id);
+    Agnode_t *node = getNode(id);
     if(node){
         agdelnode(_g, node);
     }
-    auto iter = _nodes.find(id);
-    if(iter == _nodes.end()){
-        return;
-    }
-    _nodes.erase(iter);
 }
 
 esp_err_t LocationTopology::uint32ToStr(uint32_t num, size_t buf_len, char  *buf){
@@ -101,12 +84,12 @@ esp_err_t LocationTopology::uint32ToStr(uint32_t num, size_t buf_len, char  *buf
 }
 
 void LocationTopology::locationToPos(const location_local_t &location, float &x, float &y){
-    x = ((float) location.local_north * 72)/ 10;
-    y = ((float) location.local_east  * 72)/ 10;
+    x = ((float) location.local_north * 72.0)/ 10;
+    y = ((float) location.local_east  * 72.0)/ 10;
 }
 void LocationTopology::posToLocation(const float x, const float y, location_local_t &location){
-    location.local_north = (x / 72) * 10;
-    location.local_east  = (y / 72) * 10;
+    location.local_north = (x / 72.0) * 10;
+    location.local_east  = (y / 72.0) * 10;
 }
 
 esp_err_t LocationTopology::locationToPosStr(const location_local_t &location, size_t buf_len, char *buf){
@@ -167,9 +150,6 @@ std::shared_ptr<imf::Device> LocationTopology::getDevice(uint32_t id){
 }
 
 esp_err_t LocationTopology::updateNodePosition(uint32_t id){
-    if(!_nodes.contains(id)){
-        return ESP_FAIL;
-    }
     esp_err_t err;
     std::shared_ptr<Device> device = getDevice(id);
     if(!device){
@@ -187,22 +167,30 @@ esp_err_t LocationTopology::updateNodePosition(uint32_t id){
         LOGGER_E(TAG, "Could not convert location to position string for node %" PRIu32, id);
         return err;
     }
-    // TODO: check return code
-    if(_nodes[id] == NULL){
-        LOGGER_E(TAG, "node with id %" PRIu32 " is NULL", id);
-        // return ESP_FAIL;
-    }
-    Agnode_t *node = addNode(id);
-    if(!node){
+
+    Agnode_t *node = getNode(id);
+    if(node == NULL){
         return ESP_FAIL;
     }
     agsafeset(node, pos_name, pos_str, "");
-    if(id != _this_device->id){
+    if(_this_device && id != _this_device->id){
         agsafeset(node, pin_name, "true", "");
     }
 
     // TODO: update all edges
     return ESP_OK;
+}
+
+Agnode_t *LocationTopology::getNode(uint32_t id, bool create){
+    char id_str[10+1];
+    uint32ToStr(id, 10+1, id_str);
+
+    Agnode_t *node = agnode(_g, id_str, create ? 1 : 0);
+    if(node == NULL){
+        LOGGER_E(TAG, "agnode returned NULL instead of node! node_id=%" PRIu32, id);
+        return NULL;
+    }
+    return node;
 }
 
 Agnode_t *LocationTopology::addNode(uint32_t id){
@@ -229,71 +217,75 @@ Agnode_t *LocationTopology::addNode(uint32_t id){
         return NULL;
     }
 
-    // create node and set attributes
-    char id_str[10+1];
-    uint32ToStr(id, 10+1, id_str);
-
-    Agnode_t *node = agnode(_g, id_str, 1);
+    // create node
+    Agnode_t *node = getNode(id, true);
     if(node == NULL){
         LOGGER_E(TAG, "agnode returned NULL instead of node! node_id=%" PRIu32, id);
         return NULL;
     }
     ESP_LOGI(TAG, "Adding node %" PRIu32 " pointer=%p", id, (void *)node);
-    _nodes.emplace(id, node);
-    // updateNodePosition(id);
 
-    agsafeset(node, pos_name, pos_str, "");
-    if(id != _this_device->id){
+    // set attributes
+
+    // assume that 0,0 position is unassigned (in future use the uncertainty value)
+    if(location.local_north != 0 && location.local_east != 0){
+        agsafeset(node, pos_name, pos_str, "");
+    }
+    if(_this_device && id != _this_device->id){
         agsafeset(node, pin_name, "true", "");
     }
     return node;
 }
 
-Agedge_t *LocationTopology::addEdge(uint32_t source, uint32_t target, float distance){
-    // if(!_nodes.contains(source) || !_nodes.contains(target)){
-    //     return NULL;
-    // }
-    uint64_t edge;
+Agedge_t *LocationTopology::getEdge(uint32_t source, uint32_t target, bool create){
+    // normalize input
     if(source > target){
         uint32_t tmp = source;
         source = target;
         target = tmp;   
     }
-    edge = make_pair(source, target);
-    std::string dist_str = std::to_string(distance);
-    // auto iter = _edges.find(edge);
-    // if(iter != _edges.end()){
-    //     ESP_LOGI(TAG, "Setting edge (pointer=%p) from=%" PRIu32 " to=%" PRIu32 " to len=%s", (void *)iter->second, source, target, dist_str.c_str());
-    //     agsafeset(iter->second, len_name, dist_str.c_str(), "");
-    //     return NULL;
-    // }
-    ESP_LOGI(TAG, "Creating edge from=%" PRIu32 " (pointer=%p) to=%" PRIu32 " (pointer=%p)", source, (void *) _nodes[source], target, (void *) _nodes[target]);
-    Agnode_t *source_node = addNode(source);
-    Agnode_t *target_node = addNode(target);
+
+    Agnode_t *source_node = getNode(source);
+    Agnode_t *target_node = getNode(target);
     ESP_LOGI(TAG, "Creating edge from=%" PRIu32 " (pointer=%p) to=%" PRIu32 " (pointer=%p)", source, (void *) source_node, target, (void *) target_node);
     if(source_node == NULL || target_node == NULL){
         ESP_LOGE(TAG, "While creating edge source node(%p) or target node(%p) is NULL", (void *) source_node, (void *) target_node);
         return NULL;
     }
-    Agedge_t *e = agedge(_g, source_node, target_node, 0, 1);
+    Agedge_t *e = agedge(_g, source_node, target_node, 0, create ? 1 : 0);
+    
     if(e == NULL){
-        ESP_LOGE(TAG, "agedge returned null for source=%" PRIu32 " target=%" PRIu32, source, target);
-        return NULL;
+        LOGGER_E(TAG, "agedge returned NULL instead of edge! source_id=%" PRIu32" target_id=%" PRIu32, source, target);
+        return e;
     }
-    ESP_LOGI(TAG, "Setting edge (pointer=%p) from=%" PRIu32 " to=%" PRIu32 " to len=%s", (void *)e, source, target, dist_str.c_str());
-    agsafeset(e, len_name, dist_str.c_str(), "");
-    ESP_LOGI(TAG, "Saving edge (pointer=%p) from=%" PRIu32 " (pointer=%p) to=%" PRIu32 " (pointer=%p)", (void *)e, source, (void *) _nodes[source], target, (void *) _nodes[target]);
-    _edges.emplace(edge, e);
+
     return e;
 }
 
-void LocationTopology::updateGraph(){
+Agedge_t *LocationTopology::addEdge(uint32_t source, uint32_t target, float distance){
+    std::string dist_str = std::to_string(distance);
+    
+    Agedge_t *e = getEdge(source, target, true);
+    if(e == NULL){
+        ESP_LOGE(TAG, "getEdge returned null for source=%" PRIu32 " target=%" PRIu32, source, target);
+        return NULL;
+    }
+    ESP_LOGI(TAG, "Setting edge (pointer=%p) from=%" PRIu32 " to=%" PRIu32 " with len=%s", (void *)e, source, target, dist_str.c_str());
+    agsafeset(e, len_name, dist_str.c_str(), "");
+    return e;
+}
+
+void LocationTopology::populateGraph(){
+    ESP_LOGI(TAG, "Updating graph");
     std::vector<uint32_t> unknown_dist_nodes;
     std::vector<uint32_t> neighbor_nodes;
-    auto find = _nodes.find(_this_device->id);
-    if(find == _nodes.end()){
+    if(_this_device){
         addNode(_this_device->id);
+    } else{
+        ESP_LOGE(TAG, "this device is not initialized");
+        return;
     }
+    ESP_LOGI(TAG, "Adding reachable stations");
     for(auto iter = _stations.begin(); iter != _stations.end(); ++iter){
         auto id = iter->first;
         auto device = iter->second;
@@ -301,16 +293,13 @@ void LocationTopology::updateGraph(){
         esp_err_t err = device->lastDistance(distance_cm);
         if(err != ESP_OK){
             unknown_dist_nodes.push_back(id);
-            removeNodeEdges(id);
             continue;
         }
         neighbor_nodes.push_back(id);
-        auto find = _nodes.find(id);
-        if(find == _nodes.end()){
-            addNode(id);
-        }
+        addNode(id);
         addEdge(_this_device->id, id, distance_cm);
     }
+    ESP_LOGI(TAG, "Adding unreachable stations");
     for(const auto &neighbor_id : neighbor_nodes){
         for(const auto &other_id : unknown_dist_nodes){
             float distance;
@@ -320,17 +309,13 @@ void LocationTopology::updateGraph(){
                 continue;
             }
             // ensure nodes exist
-            addNode(neighbor_id);
-            addNode(other_id);
+            if(getNode(neighbor_id) == NULL)
+                addNode(neighbor_id);
+            if(getNode(other_id) == NULL)
+                addNode(other_id);
 
             addEdge(neighbor_id, other_id, distance);
         }
-    }
-}
-
-void LocationTopology::updateNodePositions(){
-    for(const auto &iter : _nodes){
-        updateNodePosition(iter.first);
     }
 }
 
@@ -339,8 +324,8 @@ void LocationTopology::saveNodePosition(uint32_t node_id){
     // if(iter == _nodes.end()){
     //     return;
     // }
-    Agnode_t *node = addNode(node_id);
-    if(!node){
+    Agnode_t *node = getNode(node_id);
+    if(node == NULL){
         LOGGER_E(TAG, "Could not get node with id %" PRIu32, node_id);
         return;
     }
@@ -359,32 +344,42 @@ void LocationTopology::saveNodePosition(uint32_t node_id){
     }
 }
 
-void LocationTopology::saveNodePositions(){
-    for(const auto &iter : _nodes){
-        saveNodePosition(iter.first);
-    }
-}
-
 void LocationTopology::singleRun(){
+    heap_caps_print_heap_info(MALLOC_CAP_8BIT);
+    ESP_LOGI(TAG, "START StackHighWaterMark=%d, heapfree=%d, heapminfree=%d, heapmaxfree=%d", uxTaskGetStackHighWaterMark(NULL), heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     initGraph();
-    updateGraph();
-    neato_esp_layout(_gvc, _g);
-    neato_esp_render(_gvc, _g, stdout); // only for debugging
+    populateGraph();
+    int ret;
+    ret = neato_esp_layout(_gvc, _g);
+    if(ret != 0){
+        ESP_LOGE(TAG, "Could not perform layout! ret=%d", ret);
+    }
+    ret = neato_esp_render(_gvc, _g, stdout); // only for debugging
+    if(ret != 0){
+        ESP_LOGE(TAG, "Could not perform render! ret=%d", ret);
+    }
     saveNodePosition(_this_device->id);
     freeGraph();
+    ESP_LOGI(TAG, "END StackHighWaterMark=%d, heapfree=%d, heapminfree=%d, heapmaxfree=%d", uxTaskGetStackHighWaterMark(NULL), heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 }
 
 void LocationTopology::task(){
     // TODO: stopping condition? - detect stagnation (nodes are not moving much)
     while(true){
         singleRun();
-        uint32_t rnd = esp_random() / 1000000; // 0-4294
-        vTaskDelay(1000 + rnd); // random delay 1000 - 5294 ticks
+        // uint32_t rnd = esp_random() / 1000000; // 0-4294
+        // vTaskDelay(1000 + rnd); // random delay 1000 - 5294 ticks
+        vTaskDelay(500 / portTICK_PERIOD_MS);
     }
 }
 
-esp_err_t LocationTopology::start(){
-    return xTaskCreatePinnedToCore(taskWrapper, "LocationTopology", 1024*32, this, tskIDLE_PRIORITY+2, &_xHandle, 1);
+bool LocationTopology::start(){
+    auto ret = xTaskCreatePinnedToCore(taskWrapper, "LocationTopology", 1024*20, this, tskIDLE_PRIORITY+2, &_xHandle, 1);
+    if(ret != pdPASS){
+        ESP_LOGE(TAG, "Could not create Location task");
+        return false;
+    }
+    return true;
 }
 
 void LocationTopology::stop(){
