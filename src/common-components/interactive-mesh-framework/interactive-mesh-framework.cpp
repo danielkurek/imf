@@ -460,6 +460,9 @@ IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
     Device::setDM(_dm);
 
     xSemaphoreUpdate = xSemaphoreCreateBinary();
+    auto serial = Device::getSerialCli();
+    if(serial)
+        serial->startReadTask();
 }
 
 esp_err_t IMF::_wait_for_ble_mesh(uint32_t max_tries){

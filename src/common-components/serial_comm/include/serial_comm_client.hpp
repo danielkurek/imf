@@ -6,25 +6,19 @@
 #include <string>
 #include "serial_comm_common.hpp"
 #include "freertos/semphr.h"
+#include <unordered_map>
 
-class SerialCommCli {
+class SerialCommCli : public SerialComm {
     public:
         SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_num);
         std::string GetField(const std::string& field);
-        std::string GetField(uint16_t addr, const std::string& field);
-        std::string PutField(const std::string& field, const std::string& value);
-        std::string PutField(uint16_t addr, const std::string& field, const std::string& value);
-        CommStatus  GetStatus();
-        std::string SendStatus(CommStatus status);
+        std::string GetField(uint16_t addr, const std::string& field_name);
+        esp_err_t PutField(const std::string& field, const std::string& value);
+        esp_err_t PutField(uint16_t addr, const std::string& field_name, const std::string& value);
     private:
-        constexpr static size_t rx_buffer_len = 128;
-        uint8_t _buf[rx_buffer_len];
-        
-        std::string SendCmd(CmdType type, const std::string& field, const std::string& body);
-        std::string GetResponse();
+        void processInput(const std::string& input) override;
+        std::unordered_map<std::string, std::string> cache{};
         SemaphoreHandle_t _semMutex;
-        uart_port_t _uart_port;
-        QueueHandle_t _uart_queue;
 };
 
 #endif

@@ -31,6 +31,28 @@ esp_err_t ble_mesh_get_level(uint16_t addr, int16_t *level_out);
 
 esp_err_t ble_mesh_get_addresses(uint16_t *primary_addr, uint8_t *addresses);
 
+typedef enum{
+    LOC_LOCAL_CHANGE = 0,
+    RGB_CHANGE,
+    ONOFF_CHANGE,
+    LEVEL_CHANGE
+} ble_mesh_value_change_type_t;
+
+typedef struct{
+    ble_mesh_value_change_type_t type;
+    uint16_t addr;
+    union{
+        location_local_t loc_local;
+        rgb_t rgb;
+        bool onoff;
+        int16_t level;
+    };
+} ble_mesh_value_change_data_t;
+
+typedef void (* ble_mesh_value_change_cb)(ble_mesh_value_change_data_t event_data);
+
+void ble_mesh_register_cb(ble_mesh_value_change_cb value_change_cb);
+
 #ifdef __cplusplus
 }
 #endif

@@ -20,7 +20,7 @@ static const char *TAG = "APP";
 
 void server(void* param){
     SerialCommSrv serial_srv {UART_NUM_1, GPIO_NUM_16, GPIO_NUM_17};
-    serial_srv.StartTask();
+    serial_srv.startReadTask();
 
     vTaskDelete(NULL);
 }
@@ -77,9 +77,6 @@ void client(void* param){
     ESP_LOGI(TAG, "Get \"rgb\": %s", response.c_str());
 
     // vTaskDelay(1000 / portTICK_PERIOD_MS);
-
-    response = GetStatusName(cli.GetStatus());
-    ESP_LOGI(TAG, "Get status: %s", response.c_str());
 
     vTaskDelete(NULL);
 }

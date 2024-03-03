@@ -197,7 +197,7 @@ esp_err_t serial_comm_init(){
     }
     serialSrv = std::make_unique<SerialCommSrv>(UART_NUM_1, GPIO_NUM_10, GPIO_NUM_1, primary_addr);
     serialSrv->RegisterChangeCallback(serial_comm_change_callback, serial_comm_get_callback);
-    serialSrv->StartTask();
+    serialSrv->startReadTask();
 
     return ESP_OK;
 } 
@@ -221,6 +221,48 @@ void button_release_callback(uint8_t button_num){
         } else{
             LOGGER_I(TAG, "0x%04" PRIx16" - color=%s", addr, buf);
         }
+    }
+}
+
+extern "C" void value_change_cb(ble_mesh_value_change_data_t event_data){
+    esp_err_t err;
+    LOGGER_I(TAG, "BLE-Mesh value change callback! Type=%d Addr=0x%04" PRIx16, event_data.type, event_data.addr);
+    if(event_data.type == LOC_LOCAL_CHANGE){
+        size_t buf_len = 10+1;
+        char buf[buf_len];
+        err = simple_loc_to_str(&event_data.loc_local, buf_len, buf);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, event_data.addr);
+            return;
+        }
+        serialSrv->SetField(event_data.addr, "loc", buf);
+    }
+    if(event_data.type == RGB_CHANGE){
+        size_t buf_len = 6+1;
+        char buf[buf_len];
+        err = rgb_to_str(event_data.rgb, buf_len, buf);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, event_data.addr);
+            return;
+        }
+        serialSrv->SetField(event_data.addr, "rgb", buf);
+    }
+    if(event_data.type == ONOFF_CHANGE){
+        if(event_data.onoff){
+            serialSrv->SetField(event_data.addr, "onoff", "ON");
+        } else{
+            serialSrv->SetField(event_data.addr, "onoff", "OFF");
+        }
+    }
+    if(event_data.type == LEVEL_CHANGE){
+        char buf[7];
+        int ret = snprintf(buf, 7, "%" PRId16, event_data.level);
+        if(ret <= 0){
+            LOGGER_E(TAG, "Could not convert level value to str 0x%04" PRIx16, event_data.addr);
+            return;
+        }
+
+        serialSrv->SetField(event_data.addr, "level", buf, false);
     }
 }
 
@@ -280,12 +322,10 @@ extern "C" void app_main(void)
         }
     }
 
-    // wait for bluetooth initialization to complete
-    // TODO: find better way to handle this
-    vTaskDelay(10000 / portTICK_PERIOD_MS);
-
     err = serial_comm_init();
     if (err){
         LOGGER_E(TAG, "Serial communication init failed (err %d)", err);
     }
+
+    ble_mesh_register_cb(value_change_cb);
 }

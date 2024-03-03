@@ -6,132 +6,96 @@
 
 static const char *TAG = "SerialCli";
 
-SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_num){
-    _uart_port = port;
-
-    uart_config_t uart_config = {};
-    uart_config.baud_rate = 115200;
-    uart_config.data_bits = UART_DATA_8_BITS;
-    uart_config.parity = UART_PARITY_DISABLE;
-    uart_config.stop_bits = UART_STOP_BITS_1;
-    uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
-    uart_config.rx_flow_ctrl_thresh = 122;
-    uart_config.source_clk = UART_SCLK_DEFAULT;
-    
-    if(uart_param_config(port, &uart_config) != ESP_OK){
-        ESP_LOGE(TAG, "cannot set UART params");
-        abort();
-    }
-
-    if(uart_set_pin(port, tx_io_num, rx_io_num, UART_PIN_NO_CHANGE, UART_PIN_NO_CHANGE) != ESP_OK){
-        ESP_LOGE(TAG, "cannot set UART pins");
-        abort();
-    }
-
-    const int uart_buffer_size = (1024 * 2);
-    if(uart_driver_install(port, uart_buffer_size, 0, 10, &_uart_queue, 0) != ESP_OK){
-        ESP_LOGE(TAG, "cannot install UART driver");
-        abort();
-    }
+SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_num)
+    : SerialComm(port, tx_io_num, rx_io_num){
     _semMutex = xSemaphoreCreateMutex();
-    // return true;
-}
-
-std::string SerialCommCli::SendCmd(CmdType type, const std::string& field, const std::string& body){
-    std::string cmdString = GetCmdName(type);
-
-    // maybe sanitize the parameters similar to CSV sanitization
-    if(field.length() > 0){
-        cmdString += " " + field;
-    } else if(body.length() > 0){
-        return "FAIL";
-    }
-    if(body.length() > 0){
-        cmdString += " " + body;
-    }
-    cmdString += "\n";
-    
-    if(pdTRUE != xSemaphoreTake(_semMutex, 10000 / portTICK_PERIOD_MS)){
-        ESP_LOGE(TAG, "SendCmd could not get semaphore mutex! %s", cmdString.c_str());
-        return "FAIL";
-    }
-    
-    ESP_LOGI(TAG, "Sending cmd: %s", cmdString.c_str());
-    uart_write_bytes(_uart_port, cmdString.c_str(), cmdString.length());
-    ESP_LOGI(TAG, "Waiting for TX done...");
-    uart_wait_tx_done(_uart_port, 1000 / portTICK_PERIOD_MS);
-    ESP_LOGI(TAG, "Awaiting response...");
-
-    std::string response = GetResponse();
-
-    xSemaphoreGive(_semMutex);
-    
-    return response;
-}
-
-std::string SerialCommCli::GetResponse(){
-    int len = uart_read_bytes(_uart_port, _buf, rx_buffer_len, 800 / portTICK_PERIOD_MS);
-    if(len > 0){
-        if(len >= rx_buffer_len){
-            len = rx_buffer_len-1;
-        }
-        
-        _buf[len] = '\0';
-
-        // remove trailing new line
-        if(len-1 > 0 && _buf[len-1] == '\n'){
-            _buf[len-1] = '\0';
-        }
-
-        // skip previous timeouted responses
-        size_t start = 0;
-        for(size_t i = 0; i < len-1; i++){
-            if(_buf[i] == '\n'){
-                start = i+1;
-            }
-        }
-
-        ESP_LOGI(TAG, "Response (len=%d, start=%d): %s", len, start, _buf+start);
-        std::string response{(char*)_buf+start};
-        return response;
-    }
-    ESP_LOGW(TAG, "Could not get a response...");
-    return "";
 }
 
 std::string SerialCommCli::GetField(const std::string& field){
-    return SendCmd(CmdType::GET, field, "");
+    if(pdTRUE != xSemaphoreTake(_semMutex, 500 / portTICK_PERIOD_MS)){
+        return "FAIL";
+    }
+    SerialRequest req{.type=CmdType::GET, .field=field, .value=""};
+    writeRequest(req);
+    std::string resp = "";
+    auto it = cache.find(field);
+    if(it == cache.end()){
+        ESP_LOGW(TAG, "Could not get field '%s'", field.c_str());
+    } else{
+        resp = it->second;
+    }
+    xSemaphoreGive(_semMutex);
+    return resp;
 }
 
-std::string SerialCommCli::GetField(uint16_t addr, const std::string& field){
-    std::string addr_str;
-    esp_err_t err = AddrToStr(addr, addr_str);
+std::string SerialCommCli::GetField(uint16_t addr, const std::string& field_name){
+    std::string field;
+    esp_err_t err = MakeField(addr, field_name, field);
     if(err != ESP_OK){
         return "";
     }
-    return SendCmd(CmdType::GET, addr_str + ":" + field, "");
+    return GetField(field);
 }
 
-std::string SerialCommCli::PutField(const std::string& field, const std::string& value){
-    return SendCmd(CmdType::PUT, field, value);
+esp_err_t SerialCommCli::PutField(const std::string& field, const std::string& value){
+    SerialRequest req{.type=CmdType::PUT, .field=field, .value=value};
+    return writeRequest(req);
 }
 
-std::string SerialCommCli::PutField(uint16_t addr, const std::string& field, const std::string& value){
-    std::string addr_str;
-    esp_err_t err = AddrToStr(addr, addr_str);
+esp_err_t SerialCommCli::PutField(uint16_t addr, const std::string& field_name, const std::string& value){
+    std::string field;
+    esp_err_t err = MakeField(addr, field_name, field);
     if(err != ESP_OK){
-        return "";
+        return ESP_FAIL;
     }
-    return SendCmd(CmdType::PUT, addr_str + ":" + field, value);
+    //TODO: either save to cache or wait for confirmation
+    return PutField(field, value);
 }
 
-CommStatus SerialCommCli::GetStatus(){
-    std::string result = SendCmd(CmdType::STATUS, "", "");
-    return ParseStatus(result);
-}
-
-std::string SerialCommCli::SendStatus(CommStatus status){
-    return SendCmd(CmdType::STATUS, GetStatusName(status), "");
+void SerialCommCli::processInput(const std::string& input){
+    ESP_LOGI(TAG, "Processing input: %s", input.c_str());
+    SerialResponse resp;
+    esp_err_t err = SerialResponse::parse(input, resp);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Could not parse serial response '%s'", input.c_str());
+        return;
+    }
+    ESP_LOGI(TAG, "Respose: field=%s value=%s", resp.field.c_str(), resp.value.c_str());
+    // check field name
+    std::string field;
+    uint16_t addr;
+    FieldParseErr f_err = ParseField(resp.field, field, addr);
+    switch(f_err){
+        case FieldParseErr::ok:
+            // normalize addr formatting
+            err = MakeField(addr, field, resp.field);
+            if(err != ESP_OK){
+                ESP_LOGE(TAG, "Could not make field string!");
+                return;
+            }
+        case FieldParseErr::no_addr:
+            // field is correct
+            if(pdTRUE != xSemaphoreTake(_semMutex, 1500 / portTICK_PERIOD_MS)){
+                ESP_LOGW(TAG, "Could not take semaphore when processing input");
+                return;
+            }
+            ESP_LOGI(TAG, "Setting cache[%s]=%s", resp.field.c_str(), resp.value.c_str());
+            cache[resp.field] = resp.value;
+            xSemaphoreGive(_semMutex);
+            break;
+        case FieldParseErr::malformed_addr:
+            ESP_LOGE(TAG, "Error during parsing field '%s': malformed_addr", resp.field.c_str());
+            break;
+        case FieldParseErr::empty_field:
+            ESP_LOGE(TAG, "Error during parsing field '%s': empty_field", resp.field.c_str());
+            break;
+        case FieldParseErr::empty_field_name:
+            ESP_LOGE(TAG, "Error during parsing field '%s': empty_field_name", resp.field.c_str());
+            break;
+        default:
+            ESP_LOGE(TAG, "Malformed field!");
+            return;
+    }
 }
 
 // #endif //CONFIG_SERIAL_COMM_CLIENT

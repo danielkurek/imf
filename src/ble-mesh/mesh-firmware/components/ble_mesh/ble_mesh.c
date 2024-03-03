@@ -60,6 +60,8 @@
 // tag for logging
 static const char* TAG = "BLE-MESH";
 
+static ble_mesh_value_change_cb s_value_change_cb;
+
 static rgb_conf_t *rgb_conf;
 
 static EventGroupHandle_t s_location_event_group;
@@ -333,8 +335,16 @@ static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_ev
         LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_SERVER_STATE_CHANGE_EVT");
         if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET ||
             param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_SET_UNACK) {
-            LOGGER_I(TAG, "onoff 0x%02x", param->value.state_change.onoff_set.onoff);
-            board_set_onoff(&internal_rgb_conf, param->value.state_change.onoff_set.onoff);
+            bool onoff = param->value.state_change.onoff_set.onoff;
+            LOGGER_I(TAG, "onoff 0x%02x", onoff);
+            board_set_onoff(&internal_rgb_conf, onoff);
+            if(s_value_change_cb){
+                s_value_change_cb((ble_mesh_value_change_data_t){
+                    .type=ONOFF_CHANGE,
+                    .addr=param->ctx.recv_dst,
+                    .onoff=onoff
+                    });
+            }
         }
         if (param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET ||
             param->ctx.recv_op == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_SET_UNACK) {
@@ -345,7 +355,18 @@ static void example_ble_mesh_generic_server_cb(esp_ble_mesh_generic_server_cb_ev
                                         loc_change.altitude,
                                         loc_change.floor_number,
                                         loc_change.uncertainty);
-            change_local_loc_state(loc_change);
+            if(s_value_change_cb){
+                s_value_change_cb((ble_mesh_value_change_data_t){
+                    .type=LOC_LOCAL_CHANGE, 
+                    .addr=param->ctx.recv_dst,
+                    .loc_local={
+                        .local_north = loc_change.north,
+                        .local_east = loc_change.east,
+                        .local_altitude = loc_change.altitude,
+                        .floor_number = loc_change.floor_number,
+                        .uncertainty = loc_change.uncertainty
+                    }});
+            }
         }
         break;
     case ESP_BLE_MESH_GENERIC_SERVER_RECV_GET_MSG_EVT:
@@ -369,43 +390,73 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
     esp_ble_mesh_gen_onoff_srv_t *srv;
     LOGGER_I(TAG, "event 0x%02x, opcode 0x%04" PRIx32 ", src 0x%04x, dst 0x%04x",
         event, param->params->ctx.recv_op, param->params->ctx.addr, param->params->ctx.recv_dst);
+    
+    uint16_t addr = param->params->ctx.addr;
 
     switch (event) {
+    case ESP_BLE_MESH_GENERIC_CLIENT_PUBLISH_EVT:
+        // Triggered by receiving publishing message
+        LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_PUBLISH_EVT 0x%0" PRIx32, param->params->opcode);
+        
     case ESP_BLE_MESH_GENERIC_CLIENT_GET_STATE_EVT:
         LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_GET_STATE_EVT");
         if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET){
-            s_location_event_data.location.local_north = param->status_cb.location_local_status.local_north;
-            s_location_event_data.location.local_east = param->status_cb.location_local_status.local_east;
-            s_location_event_data.location.local_altitude = param->status_cb.location_local_status.local_altitude;
-            s_location_event_data.location.floor_number = param->status_cb.location_local_status.floor_number;
-            s_location_event_data.location.uncertainty = param->status_cb.location_local_status.uncertainty;
+            esp_ble_mesh_gen_loc_local_status_cb_t loc_state = param->status_cb.location_local_status;
+
+            s_location_event_data.location.local_north = loc_state.local_north;
+            s_location_event_data.location.local_east = loc_state.local_east;
+            s_location_event_data.location.local_altitude = loc_state.local_altitude;
+            s_location_event_data.location.floor_number = loc_state.floor_number;
+            s_location_event_data.location.uncertainty = loc_state.uncertainty;
             
-            // TODO: test if this is the right address
-            s_location_event_data.addr = param->params->ctx.addr;
+            s_location_event_data.addr = addr;
             xEventGroupSetBits(s_location_event_group, EVENT_GET_SUCCESS_BIT);
+            if(s_value_change_cb){
+                s_value_change_cb((ble_mesh_value_change_data_t){
+                    .type=LOC_LOCAL_CHANGE,
+                    .addr=addr,
+                    .loc_local={
+                        .local_north = loc_state.local_north,
+                        .local_east = loc_state.local_east,
+                        .local_altitude = loc_state.local_altitude,
+                        .floor_number = loc_state.floor_number,
+                        .uncertainty = loc_state.uncertainty
+                    }});
+            }
         }
         if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_GET){
-            s_onoff_event_data.onoff = param->status_cb.location_local_status.local_north;
+            bool onoff = param->status_cb.onoff_status.present_onoff;
+            s_onoff_event_data.onoff = onoff;
             
-            // TODO: test if this is the right address
-            s_onoff_event_data.addr = param->params->ctx.addr;
+            s_onoff_event_data.addr = addr;
             xEventGroupSetBits(s_onoff_event_group, EVENT_GET_SUCCESS_BIT);
+            if(s_value_change_cb){
+                s_value_change_cb((ble_mesh_value_change_data_t){
+                    .type=ONOFF_CHANGE,
+                    .addr=addr,
+                    .onoff=onoff
+                    });
+            }
         }
         if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LEVEL_GET){
-            s_level_event_data.level = param->status_cb.level_status.present_level;
+            int16_t level = param->status_cb.level_status.present_level;
+            s_level_event_data.level = level;
             
             // TODO: test if this is the right address
             s_level_event_data.addr = param->params->ctx.addr;
             xEventGroupSetBits(s_level_event_group, EVENT_GET_SUCCESS_BIT);
+            if(s_value_change_cb){
+                s_value_change_cb((ble_mesh_value_change_data_t){
+                    .type=LEVEL_CHANGE,
+                    .addr=addr,
+                    .level=level
+                    });
+            }
         }
         break;
     case ESP_BLE_MESH_GENERIC_CLIENT_SET_STATE_EVT:
         // Triggered by receiving acknowledgment packet after sending SET message through GENERIC_CLIENT
         LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_SET_STATE_EVT");
-        break;
-    case ESP_BLE_MESH_GENERIC_CLIENT_PUBLISH_EVT:
-        // Triggered by receiving publishing message
-        LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_PUBLISH_EVT");
         break;
     case ESP_BLE_MESH_GENERIC_CLIENT_TIMEOUT_EVT:
         // Timeout reached when sending a message
@@ -680,7 +731,7 @@ esp_err_t ble_mesh_get_loc_local(uint16_t addr, location_local_t *result){
     common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
     common.msg_role = ROLE_NODE;
 
-    esp_ble_mesh_generic_client_get_state(&common, &get_state);
+    return esp_ble_mesh_generic_client_get_state(&common, &get_state);
 
     for(size_t i = 0; i < EVENT_GROUP_MAX_RETRIES; ++i){
         bits = xEventGroupWaitBits(s_location_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
@@ -751,7 +802,7 @@ esp_err_t ble_mesh_get_onoff(uint16_t addr, bool *onoff_out){
     common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
     common.msg_role = ROLE_NODE;
 
-    esp_ble_mesh_generic_client_get_state(&common, &get_state);
+    return esp_ble_mesh_generic_client_get_state(&common, &get_state);
 
     for(size_t i = 0; i < EVENT_GROUP_MAX_RETRIES; ++i){
         bits = xEventGroupWaitBits(s_onoff_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
@@ -824,7 +875,7 @@ esp_err_t ble_mesh_get_level(uint16_t addr, int16_t *level_out){
     common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
     common.msg_role = ROLE_NODE;
 
-    esp_ble_mesh_generic_client_get_state(&common, &get_state);
+    return esp_ble_mesh_generic_client_get_state(&common, &get_state);
 
     for(size_t i = 0; i < EVENT_GROUP_MAX_RETRIES; ++i){
         bits = xEventGroupWaitBits(s_level_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
@@ -853,6 +904,10 @@ esp_err_t ble_mesh_get_addresses(uint16_t *primary_addr, uint8_t *addresses){
     }
     
     return ESP_OK;
+}
+
+void ble_mesh_register_cb(ble_mesh_value_change_cb value_change_cb){
+    s_value_change_cb = value_change_cb;
 }
 
 
