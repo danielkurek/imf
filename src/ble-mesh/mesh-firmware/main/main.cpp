@@ -138,9 +138,8 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
             LOGGER_E(TAG, "Could not get local location value for 0x%04" PRIx16, addr);
             return;
         }
-        size_t buf_len = 10+1;
-        char buf[buf_len];
-        err = simple_loc_to_str(&loc_local, buf_len, buf);
+        char buf[SIMPLE_LOC_STR_LEN];
+        err = simple_loc_to_str(&loc_local, SIMPLE_LOC_STR_LEN, buf);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, addr);
             return;
@@ -228,9 +227,8 @@ extern "C" void value_change_cb(ble_mesh_value_change_data_t event_data){
     esp_err_t err;
     LOGGER_I(TAG, "BLE-Mesh value change callback! Type=%d Addr=0x%04" PRIx16, event_data.type, event_data.addr);
     if(event_data.type == LOC_LOCAL_CHANGE){
-        size_t buf_len = 10+1;
-        char buf[buf_len];
-        err = simple_loc_to_str(&event_data.loc_local, buf_len, buf);
+        char buf[SIMPLE_LOC_STR_LEN];
+        err = simple_loc_to_str(&event_data.loc_local, SIMPLE_LOC_STR_LEN, buf);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, event_data.addr);
             return;
