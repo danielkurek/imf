@@ -53,7 +53,6 @@ namespace imf{
             esp_err_t updateNodePosition(uint32_t id);
             void saveNodePosition(uint32_t node_id);
             void task();
-            void singleRun();
             static void taskWrapper(void* param){
                 static_cast<LocationTopology *>(param)->task();
             }
