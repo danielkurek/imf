@@ -572,6 +572,15 @@ static void update_light(rgb_t rgb){
     board_set_rgb(&internal_rgb_conf, rgb);
 }
 
+static void rgb_client_get_cb(uint16_t addr, rgb_t rgb){
+    if(s_value_change_cb){
+        s_value_change_cb((ble_mesh_value_change_data_t){
+            .type=RGB_CHANGE, 
+            .addr=addr,
+            .rgb=rgb});
+    }
+}
+
 // initialization of BLE-mesh
 // ideally it is called from app_main function
 static esp_err_t mesh_init(void)
@@ -585,6 +594,7 @@ static esp_err_t mesh_init(void)
     esp_ble_mesh_register_health_server_callback(example_ble_mesh_health_server_cb);
     ble_mesh_rgb_control_server_register_change_callback(update_light);
     ble_mesh_rgb_client_init();
+    ble_mesh_rgb_client_register_get_cb(rgb_client_get_cb);
 
     // indicate that it the device is on
     // if it stays lit it means that the device needs to be provisioned

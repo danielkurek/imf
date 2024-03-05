@@ -18,24 +18,36 @@ typedef struct{
 
 static rgb_event_cb_param_t rgb_event_cb_param;
 
+static ble_mesh_rgb_client_get_cb rgb_get_cb = NULL;
+
+void ble_mesh_rgb_client_register_get_cb(ble_mesh_rgb_client_get_cb get_cb){
+    rgb_get_cb = get_cb;
+}
+
 static void ble_mesh_light_client_cb(esp_ble_mesh_light_client_cb_event_t event,
                                      esp_ble_mesh_light_client_cb_param_t *param){
     switch(event){
+        case ESP_BLE_MESH_LIGHT_CLIENT_PUBLISH_EVT:
+            // this event can happen when GET command is sent to group address
+            ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_PUBLISH_EVT");
         case ESP_BLE_MESH_LIGHT_CLIENT_GET_STATE_EVT:
             ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_GET_STATE_EVT");
+            esp_ble_mesh_light_hsl_status_cb_t hsl_status = param->status_cb.hsl_status;
+            if(rgb_get_cb){
+                hsl_t hsl = {
+                    .lightness=hsl_status.hsl_lightness, 
+                    .hue=hsl_status.hsl_hue, 
+                    .saturation=hsl_status.hsl_saturation};
+                rgb_t rgb = hsl_to_rgb(hsl);
+                rgb_get_cb(param->params->ctx.addr, rgb);
+            }
+
             rgb_event_cb_param.ctx = param->params->ctx;
             rgb_event_cb_param.hsl_status = param->status_cb.hsl_status;
             xEventGroupSetBits(s_rgb_event_group, RGB_GET_BIT);
             return;
         case ESP_BLE_MESH_LIGHT_CLIENT_SET_STATE_EVT:
             ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_SET_STATE_EVT");
-            break;
-        case ESP_BLE_MESH_LIGHT_CLIENT_PUBLISH_EVT:
-            // this event can happen when GET command is sent to group address
-            ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_PUBLISH_EVT");
-            rgb_event_cb_param.ctx = param->params->ctx;
-            rgb_event_cb_param.hsl_status = param->status_cb.hsl_status;
-            xEventGroupSetBits(s_rgb_event_group, RGB_GET_BIT);
             break;
         case ESP_BLE_MESH_LIGHT_CLIENT_TIMEOUT_EVT:
             ESP_LOGI(TAG, "ESP_BLE_MESH_LIGHT_CLIENT_TIMEOUT_EVT");
