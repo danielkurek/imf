@@ -31,7 +31,7 @@ typedef void(*ble_mesh_rgb_client_get_cb)(uint16_t addr, rgb_t rgb);
 
 void ble_mesh_rgb_client_register_get_cb(ble_mesh_rgb_client_get_cb get_cb);
 esp_err_t ble_mesh_rgb_client_set_state(esp_ble_mesh_client_common_param_t *common, esp_ble_mesh_rgb_set_t *set_state);
-esp_err_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t *common, rgb_t *color_out);
+esp_err_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t *common);
 esp_err_t ble_mesh_rgb_client_init();
 
 #endif

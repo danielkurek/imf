@@ -55,7 +55,6 @@
 
 #define EVENT_GET_SUCCESS_BIT BIT0
 #define EVENT_GET_FAIL_BIT BIT1
-#define EVENT_GROUP_MAX_RETRIES 10
 
 // tag for logging
 static const char* TAG = "BLE-MESH";
@@ -63,24 +62,6 @@ static const char* TAG = "BLE-MESH";
 static ble_mesh_value_change_cb s_value_change_cb;
 
 static rgb_conf_t *rgb_conf;
-
-static EventGroupHandle_t s_location_event_group;
-static struct{
-    location_local_t location;
-    uint16_t addr;   
-} s_location_event_data;
-
-static EventGroupHandle_t s_onoff_event_group;
-static struct{
-    bool onoff;
-    uint16_t addr;   
-} s_onoff_event_data;
-
-static EventGroupHandle_t s_level_event_group;
-static struct{
-    int16_t level;
-    uint16_t addr;   
-} s_level_event_data;
 
 // company ID who implemented BLE-mesh
 // needs to be member of Bluetooth group
@@ -315,10 +296,6 @@ static void prov_complete(uint16_t net_idx, uint16_t addr, uint8_t flags, uint32
      */
 }
 
-static void change_local_loc_state(esp_ble_mesh_state_change_gen_loc_local_set_t loc_local){
-
-}
-
 // Callback for Generic server
 // this is needed for OnOff Server
 // because it does not have its own callback
@@ -402,15 +379,6 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
         LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_GET_STATE_EVT");
         if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET){
             esp_ble_mesh_gen_loc_local_status_cb_t loc_state = param->status_cb.location_local_status;
-
-            s_location_event_data.location.local_north = loc_state.local_north;
-            s_location_event_data.location.local_east = loc_state.local_east;
-            s_location_event_data.location.local_altitude = loc_state.local_altitude;
-            s_location_event_data.location.floor_number = loc_state.floor_number;
-            s_location_event_data.location.uncertainty = loc_state.uncertainty;
-            
-            s_location_event_data.addr = addr;
-            xEventGroupSetBits(s_location_event_group, EVENT_GET_SUCCESS_BIT);
             if(s_value_change_cb){
                 s_value_change_cb((ble_mesh_value_change_data_t){
                     .type=LOC_LOCAL_CHANGE,
@@ -426,10 +394,6 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
         }
         if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_GET){
             bool onoff = param->status_cb.onoff_status.present_onoff;
-            s_onoff_event_data.onoff = onoff;
-            
-            s_onoff_event_data.addr = addr;
-            xEventGroupSetBits(s_onoff_event_group, EVENT_GET_SUCCESS_BIT);
             if(s_value_change_cb){
                 s_value_change_cb((ble_mesh_value_change_data_t){
                     .type=ONOFF_CHANGE,
@@ -440,11 +404,6 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
         }
         if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LEVEL_GET){
             int16_t level = param->status_cb.level_status.present_level;
-            s_level_event_data.level = level;
-            
-            // TODO: test if this is the right address
-            s_level_event_data.addr = param->params->ctx.addr;
-            xEventGroupSetBits(s_level_event_group, EVENT_GET_SUCCESS_BIT);
             if(s_value_change_cb){
                 s_value_change_cb((ble_mesh_value_change_data_t){
                     .type=LEVEL_CHANGE,
@@ -461,12 +420,6 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
     case ESP_BLE_MESH_GENERIC_CLIENT_TIMEOUT_EVT:
         // Timeout reached when sending a message
         LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_TIMEOUT_EVT");
-        if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET){
-            xEventGroupSetBits(s_location_event_group, EVENT_GET_FAIL_BIT);
-        }
-        if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_GET){
-            xEventGroupSetBits(s_onoff_event_group, EVENT_GET_FAIL_BIT);
-        }
         break;
     default:
         LOGGER_E(TAG, "Unknown Generic Server event 0x%02x", event);
@@ -669,7 +622,7 @@ esp_err_t ble_mesh_set_rgb(uint16_t addr, rgb_t color, bool ack){
     return ESP_OK;
 }
 
-esp_err_t ble_mesh_get_rgb(uint16_t addr, rgb_t *color_out){
+esp_err_t ble_mesh_get_rgb(uint16_t addr){
     esp_ble_mesh_client_common_param_t common = {0};
 
     common.opcode = BLE_MESH_MODEL_OP_RGB_GET;
@@ -686,7 +639,7 @@ esp_err_t ble_mesh_get_rgb(uint16_t addr, rgb_t *color_out){
     common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
     common.msg_role = ROLE_NODE;
 
-    esp_err_t err = ble_mesh_rgb_client_get_state(&common, color_out);
+    esp_err_t err = ble_mesh_rgb_client_get_state(&common);
     if(err != ESP_OK){
         LOGGER_E(TAG, "RGB Get failed");
         return err;
@@ -722,8 +675,7 @@ esp_err_t ble_mesh_set_loc_local(uint16_t addr, const location_local_t *loc_loca
     return esp_ble_mesh_generic_client_set_state(&common, &set_state);
 }
 
-esp_err_t ble_mesh_get_loc_local(uint16_t addr, location_local_t *result){
-    EventBits_t bits;
+esp_err_t ble_mesh_get_loc_local(uint16_t addr){
     esp_ble_mesh_client_common_param_t common = {0};
     esp_ble_mesh_generic_client_get_state_t get_state = {0};
 
@@ -742,23 +694,6 @@ esp_err_t ble_mesh_get_loc_local(uint16_t addr, location_local_t *result){
     common.msg_role = ROLE_NODE;
 
     return esp_ble_mesh_generic_client_get_state(&common, &get_state);
-
-    for(size_t i = 0; i < EVENT_GROUP_MAX_RETRIES; ++i){
-        bits = xEventGroupWaitBits(s_location_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
-                                            pdTRUE, pdFALSE, 500 / portTICK_PERIOD_MS);
-        if(s_location_event_data.addr != addr){
-            LOGGER_W(TAG, "Get Location local woke up to different address! Expected:0x%04" PRIx16 " Result for: 0x%04" PRIx16, addr, s_location_event_data.addr);
-            continue;
-        }
-        
-        if(bits & EVENT_GET_SUCCESS_BIT){
-            (*result) = s_location_event_data.location;
-            return ESP_OK;
-        } else{
-            return ESP_FAIL;
-        }
-    }
-    return ESP_FAIL;
 }
 
 esp_err_t ble_mesh_set_onoff(uint16_t addr, bool onoff){
@@ -793,8 +728,7 @@ esp_err_t ble_mesh_set_onoff(uint16_t addr, bool onoff){
     return err;
 }
 
-esp_err_t ble_mesh_get_onoff(uint16_t addr, bool *onoff_out){
-    EventBits_t bits;
+esp_err_t ble_mesh_get_onoff(uint16_t addr){
     esp_ble_mesh_client_common_param_t common = {0};
     esp_ble_mesh_generic_client_get_state_t get_state = {0};
 
@@ -813,23 +747,6 @@ esp_err_t ble_mesh_get_onoff(uint16_t addr, bool *onoff_out){
     common.msg_role = ROLE_NODE;
 
     return esp_ble_mesh_generic_client_get_state(&common, &get_state);
-
-    for(size_t i = 0; i < EVENT_GROUP_MAX_RETRIES; ++i){
-        bits = xEventGroupWaitBits(s_onoff_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
-                                            pdTRUE, pdFALSE, 500 / portTICK_PERIOD_MS);
-        if(s_onoff_event_data.addr != addr){
-            LOGGER_W(TAG, "Get OnOff woke up to different address! Expected:0x%04" PRIx16 " Result for: 0x%04" PRIx16, addr, s_onoff_event_data.addr);
-            continue;
-        }
-        
-        if(bits & EVENT_GET_SUCCESS_BIT){
-            (*onoff_out) = s_onoff_event_data.onoff;
-            return ESP_OK;
-        } else{
-            return ESP_FAIL;
-        }
-    }
-    return ESP_FAIL;
 }
 
 esp_err_t ble_mesh_set_level(uint16_t addr, int16_t level){
@@ -866,8 +783,7 @@ esp_err_t ble_mesh_set_level(uint16_t addr, int16_t level){
     return err;
 }
 
-esp_err_t ble_mesh_get_level(uint16_t addr, int16_t *level_out){
-    EventBits_t bits;
+esp_err_t ble_mesh_get_level(uint16_t addr){
     esp_ble_mesh_client_common_param_t common = {0};
     esp_ble_mesh_generic_client_get_state_t get_state = {0};
 
@@ -886,23 +802,6 @@ esp_err_t ble_mesh_get_level(uint16_t addr, int16_t *level_out){
     common.msg_role = ROLE_NODE;
 
     return esp_ble_mesh_generic_client_get_state(&common, &get_state);
-
-    for(size_t i = 0; i < EVENT_GROUP_MAX_RETRIES; ++i){
-        bits = xEventGroupWaitBits(s_level_event_group, EVENT_GET_SUCCESS_BIT | EVENT_GET_FAIL_BIT,
-                                            pdTRUE, pdFALSE, 500 / portTICK_PERIOD_MS);
-        if(s_level_event_data.addr != addr){
-            LOGGER_W(TAG, "Get Level woke up to different address! Expected:0x%04" PRIx16 " Result for: 0x%04" PRIx16, addr, s_level_event_data.addr);
-            continue;
-        }
-        
-        if(bits & EVENT_GET_SUCCESS_BIT){
-            (*level_out) = s_level_event_data.level;
-            return ESP_OK;
-        } else{
-            return ESP_FAIL;
-        }
-    }
-    return ESP_FAIL;
 }
 
 esp_err_t ble_mesh_get_addresses(uint16_t *primary_addr, uint8_t *addresses){
@@ -954,10 +853,6 @@ esp_err_t ble_mesh_init()
 
     // populate uuid
     ble_mesh_get_dev_uuid(dev_uuid);
-
-    s_location_event_group = xEventGroupCreate();
-    s_onoff_event_group    = xEventGroupCreate();
-    s_level_event_group    = xEventGroupCreate();
 
     /* Initialize the Bluetooth Mesh Subsystem */
     LOGGER_V(TAG, "mesh init");

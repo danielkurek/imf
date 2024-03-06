@@ -116,65 +116,32 @@ void serial_comm_get_callback(uint16_t addr, const std::string& field){
     esp_err_t err;
     LOGGER_I(TAG, "Serial comm Get callback! Addr=0x%04" PRIx16 " Field=%s", addr, field.c_str());
     if(field == "rgb"){
-        rgb_t color;
-        err = ble_mesh_get_rgb(addr, &color);
+        err = ble_mesh_get_rgb(addr);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Could not get RGB value for 0x%04" PRIx16, addr);
             return;
         }
-        size_t buf_len = 6+1;
-        char buf[buf_len];
-        err = rgb_to_str(color, buf_len, buf);
-        if(err != ESP_OK){
-            LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, addr);
-            return;
-        }
-        serialSrv->SetField(addr, field, buf, false);
     }
     if(field == "loc"){
-        location_local_t loc_local {0,0,0,0,0};
-        err = ble_mesh_get_loc_local(addr, &loc_local);
+        err = ble_mesh_get_loc_local(addr);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Could not get local location value for 0x%04" PRIx16, addr);
             return;
         }
-        char buf[SIMPLE_LOC_STR_LEN];
-        err = simple_loc_to_str(&loc_local, SIMPLE_LOC_STR_LEN, buf);
-        if(err != ESP_OK){
-            LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, addr);
-            return;
-        }
-        serialSrv->SetField(addr, field, buf, false);
     }
     if(field == "onoff"){
-        bool onoff;
-        err = ble_mesh_get_onoff(addr, &onoff);
+        err = ble_mesh_get_onoff(addr);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Could not get onoff value for 0x%04" PRIx16, addr);
             return;
         }
-        if(onoff){
-            serialSrv->SetField(addr, field, "ON", false);
-        } else{
-            serialSrv->SetField(addr, field, "OFF", false);
-        }
     }
     if(field == "level"){
-        int16_t level;
-        err = ble_mesh_get_level(addr, &level);
+        err = ble_mesh_get_level(addr);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Could not get level value for 0x%04" PRIx16, addr);
             return;
         }
-        
-        char buf[7];
-        int ret = snprintf(buf, 7, "%" PRId16, level);
-        if(ret <= 0){
-            LOGGER_E(TAG, "Could not convert level value to str 0x%04" PRIx16, addr);
-            return;
-        }
-
-        serialSrv->SetField(addr, field, buf, false);
     }
     if(field == "addr"){
         std::string addr_str;
@@ -202,25 +169,7 @@ esp_err_t serial_comm_init(){
 } 
 
 void button_release_callback(uint8_t button_num){
-    if(button_num == 0){
-        ble_mesh_set_rgb(0xffff, (rgb_t){120, 255, 0}, false);
-    }
-    if(button_num == 1){
-        rgb_t color;
-        uint16_t addr = 0xffff;
-        esp_err_t err = ble_mesh_get_rgb(addr, &color);
-        if(err != ESP_OK){
-            LOGGER_E(TAG, "Could not get RGB value for 0x%04" PRIx16, addr);
-        }
-        size_t buf_len = 6+1;
-        char buf[buf_len];
-        err = rgb_to_str(color, buf_len, buf);
-        if(err != ESP_OK){
-            LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, addr);
-        } else{
-            LOGGER_I(TAG, "0x%04" PRIx16" - color=%s", addr, buf);
-        }
-    }
+    return;
 }
 
 extern "C" void value_change_cb(ble_mesh_value_change_data_t event_data){
@@ -233,7 +182,7 @@ extern "C" void value_change_cb(ble_mesh_value_change_data_t event_data){
             LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, event_data.addr);
             return;
         }
-        serialSrv->SetField(event_data.addr, "loc", buf);
+        serialSrv->SetField(event_data.addr, "loc", buf, false);
     }
     if(event_data.type == RGB_CHANGE){
         size_t buf_len = 6+1;
@@ -243,13 +192,13 @@ extern "C" void value_change_cb(ble_mesh_value_change_data_t event_data){
             LOGGER_E(TAG, "Could not convert RGB value to str! 0x%04" PRIx16, event_data.addr);
             return;
         }
-        serialSrv->SetField(event_data.addr, "rgb", buf);
+        serialSrv->SetField(event_data.addr, "rgb", buf, false);
     }
     if(event_data.type == ONOFF_CHANGE){
         if(event_data.onoff){
-            serialSrv->SetField(event_data.addr, "onoff", "ON");
+            serialSrv->SetField(event_data.addr, "onoff", "ON", false);
         } else{
-            serialSrv->SetField(event_data.addr, "onoff", "OFF");
+            serialSrv->SetField(event_data.addr, "onoff", "OFF", false);
         }
     }
     if(event_data.type == LEVEL_CHANGE){

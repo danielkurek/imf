@@ -14,7 +14,7 @@ static void hsl_change(hsl_t new_hsl){
 }
 
 static void ble_mesh_lightning_server_cb(esp_ble_mesh_lighting_server_cb_event_t event,
-                                                 esp_ble_mesh_lighting_server_cb_param_t *param)
+                                         esp_ble_mesh_lighting_server_cb_param_t *param)
 {
     ESP_LOGI(TAG, "event 0x%02x, opcode 0x%04" PRIx32 ", src 0x%04x, dst 0x%04x",
         event, param->ctx.recv_op, param->ctx.addr, param->ctx.recv_dst);
