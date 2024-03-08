@@ -27,7 +27,7 @@ using namespace imf;
 
 static esp_timer_handle_t update_timer;
 
-std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>(UART_NUM_1, SERIAL_TX_GPIO, SERIAL_RX_GPIO);
+std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>(UART_NUM_1, SERIAL_TX_GPIO, SERIAL_RX_GPIO, 1000 / portTICK_PERIOD_MS);
 std::shared_ptr<DistanceMeter> Device::_dm = nullptr;
 std::shared_ptr<Device> Device::this_device = nullptr;
 

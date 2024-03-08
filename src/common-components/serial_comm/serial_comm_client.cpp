@@ -6,23 +6,28 @@
 
 static const char *TAG = "SerialCli";
 
-SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_num)
-    : SerialComm(port, tx_io_num, rx_io_num){
+SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_num, const TickType_t cache_threshold)
+    : SerialComm(port, tx_io_num, rx_io_num), _cacheThreshold(cache_threshold){
     _semMutex = xSemaphoreCreateMutex();
 }
 
 std::string SerialCommCli::GetField(const std::string& field){
+    TickType_t arrivalTime = 0;
     if(pdTRUE != xSemaphoreTake(_semMutex, 500 / portTICK_PERIOD_MS)){
         return "FAIL";
     }
-    SerialRequest req{.type=CmdType::GET, .field=field, .value=""};
-    writeRequest(req);
-    std::string resp = "";
+    TickType_t now = xTaskGetTickCount();
+    std::string resp = "FAIL";
     auto it = cache.find(field);
     if(it == cache.end()){
         ESP_LOGW(TAG, "Could not get field '%s'", field.c_str());
     } else{
-        resp = it->second;
+        arrivalTime = it->second.arrivalTime;
+        resp = it->second.value;
+    }
+    if((now - arrivalTime) >= _cacheThreshold){
+        SerialRequest req{.type=CmdType::GET, .field=field, .value=""};
+        writeRequest(req);
     }
     xSemaphoreGive(_semMutex);
     return resp;
@@ -54,6 +59,7 @@ esp_err_t SerialCommCli::PutField(uint16_t addr, const std::string& field_name, 
 
 void SerialCommCli::processInput(const std::string& input){
     ESP_LOGI(TAG, "Processing input: %s", input.c_str());
+    TickType_t now = xTaskGetTickCount();
     SerialResponse resp;
     esp_err_t err = SerialResponse::parse(input, resp);
     if(err != ESP_OK){
@@ -80,7 +86,7 @@ void SerialCommCli::processInput(const std::string& input){
                 return;
             }
             ESP_LOGI(TAG, "Setting cache[%s]=%s", resp.field.c_str(), resp.value.c_str());
-            cache[resp.field] = resp.value;
+            cache[resp.field] = (cache_value_t){now, resp.value};
             xSemaphoreGive(_semMutex);
             break;
         case FieldParseErr::malformed_addr:
