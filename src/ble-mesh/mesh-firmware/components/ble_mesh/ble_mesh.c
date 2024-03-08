@@ -689,7 +689,7 @@ esp_err_t ble_mesh_get_loc_local(uint16_t addr){
 
     common.ctx.addr = addr;
     common.ctx.send_ttl = 3;
-    common.ctx.send_rel = true;
+    common.ctx.send_rel = false;
     common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
     common.msg_role = ROLE_NODE;
 
@@ -763,7 +763,7 @@ esp_err_t ble_mesh_set_level(uint16_t addr, int16_t level){
 
     common.ctx.addr = addr;
     common.ctx.send_ttl = 3;
-    common.ctx.send_rel = true;
+    common.ctx.send_rel = false;
     common.msg_timeout = 0;     /* 0 indicates that timeout value from menuconfig will be used */
     common.msg_role = ROLE_NODE;
 
