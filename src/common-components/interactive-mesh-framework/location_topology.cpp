@@ -50,7 +50,7 @@ void LocationTopology::freeGraph(){
         ESP_LOGI(TAG, "Freeing graph");
         gvFreeLayout(_gvc, _g);
         int ret = agclose(_g);
-        if(!ret){
+        if(ret != 0){
             ESP_LOGE(TAG, "Could not close graph! ret=%d", ret);
         }
         _g = NULL;
