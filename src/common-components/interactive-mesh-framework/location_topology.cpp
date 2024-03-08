@@ -277,6 +277,7 @@ Agedge_t *LocationTopology::addEdge(uint32_t source, uint32_t target, float dist
 
 void LocationTopology::populateGraph(){
     ESP_LOGI(TAG, "Updating graph");
+    constexpr TickType_t delay = 200 / portTICK_PERIOD_MS;
     std::vector<uint32_t> unknown_dist_nodes;
     std::vector<uint32_t> neighbor_nodes;
     if(_this_device){
@@ -297,22 +298,27 @@ void LocationTopology::populateGraph(){
         }
         neighbor_nodes.push_back(id);
         addNode(id);
-        addEdge(_this_device->id, id, distance_cm);
+        vTaskDelay(delay);
     }
     ESP_LOGI(TAG, "Adding unreachable stations");
     for(const auto &neighbor_id : neighbor_nodes){
         for(const auto &other_id : unknown_dist_nodes){
             float distance;
             esp_err_t err = nodeDistance(neighbor_id, other_id, distance);
+            vTaskDelay(delay);
             if(err != ESP_OK){
                 // remove something?
                 continue;
             }
             // ensure nodes exist
-            if(getNode(neighbor_id) == NULL)
+            if(getNode(neighbor_id) == NULL){
                 addNode(neighbor_id);
-            if(getNode(other_id) == NULL)
+                vTaskDelay(delay);
+            }
+            if(getNode(other_id) == NULL){
                 addNode(other_id);
+                vTaskDelay(delay);
+            }
 
             addEdge(neighbor_id, other_id, distance);
         }
