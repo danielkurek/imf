@@ -132,9 +132,13 @@ esp_err_t LocationTopology::nodeDistance(uint32_t id1, uint32_t id2, float &resu
         return err;
     }
 
-    float dist_north = loc1.local_north + loc2.local_north;
-    float dist_east = loc1.local_east + loc2.local_east;
-    result = sqrt(pow(dist_north, 2) + pow(dist_east, 2));
+    float x1,y1;
+    locationToPos(loc1, x1, y1);
+
+    float x2,y2;
+    locationToPos(loc2, x2, y2);
+    
+    result = sqrt(pow(x2-x1, 2) + pow(y2-y1, 2));
     return ESP_OK;
 }
 
