@@ -3,7 +3,12 @@
 #include <math.h>
 
 esp_err_t simple_str_to_loc(const char* str, location_local_t *loc_local){
-    int ret = sscanf(str, "N%05" SCNd16 "E%05" SCNd16, &(loc_local->local_north), &(loc_local->local_east));
+    int ret = sscanf(str, "N%05" SCNd16 "E%05" SCNd16 "A%05" SCNd16 "F%03" SCNu8 "U%05" SCNu16, 
+        &(loc_local->local_north), 
+        &(loc_local->local_east),
+        &(loc_local->local_altitude),
+        &(loc_local->floor_number),
+        &(loc_local->uncertainty));
     if(ret == 2){
         return ESP_OK;
     }
@@ -11,7 +16,12 @@ esp_err_t simple_str_to_loc(const char* str, location_local_t *loc_local){
 }
 
 esp_err_t simple_loc_to_str(const location_local_t* loc_local, size_t buf_len, char buf[]){
-    int ret = snprintf(buf, buf_len, "N%05" PRId16 "E%05" PRId16, loc_local->local_north, loc_local->local_east);
+    int ret = snprintf(buf, buf_len, "N%05" PRId16 "E%05" PRId16 "A%05" PRId16 "F%03" PRIu8 "U%05" PRIu16, 
+        loc_local->local_north,
+        loc_local->local_east,
+        loc_local->local_altitude,
+        loc_local->floor_number,
+        loc_local->uncertainty);
     if(ret > 0){
         return ESP_OK;
     }
