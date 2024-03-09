@@ -27,6 +27,8 @@ namespace imf{
             bool start();
             void stop();
             void singleRun();
+            static void locationToPos(const location_local_t &location, float &x, float &y);
+            static void posToLocation(const float x, const float y, location_local_t &location);
         private:
             std::string _mode;
             std::shared_ptr<imf::Device> _this_device;
@@ -36,8 +38,6 @@ namespace imf{
             GVC_t *_gvc = NULL;
             Agraph_t *_g = NULL;
             esp_err_t uint32ToStr(uint32_t num, size_t buf_len, char  *buf);
-            void locationToPos(const location_local_t &location, float &x, float &y);
-            void posToLocation(const float x, const float y, location_local_t &location);
             esp_err_t locationToPosStr(const location_local_t &location, size_t buf_len, char *buf);
             esp_err_t posStrToLocation(const char* pos_str, location_local_t &location);
             esp_err_t nodeDistance(uint32_t id1, uint32_t id2, float &distance);
