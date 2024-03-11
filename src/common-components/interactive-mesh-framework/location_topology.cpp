@@ -232,10 +232,10 @@ Agnode_t *LocationTopology::addNode(uint32_t id){
     // set attributes
 
     // assume that 0,0 position is unassigned (in future use the uncertainty value)
-    if(location.local_north != 0 && location.local_east != 0){
+    if(location.uncertainty < UINT16_MAX){
         agsafeset(node, pos_name, pos_str, "");
     }
-    if(_this_device && id != _this_device->id){
+    if(!_this_device || (_this_device && id != _this_device->id)){
         agsafeset(node, pin_name, "true", "");
     }
     return node;
@@ -283,9 +283,10 @@ void LocationTopology::populateGraph(){
     ESP_LOGI(TAG, "Updating graph");
     constexpr TickType_t delay = 200 / portTICK_PERIOD_MS;
     std::vector<uint32_t> unknown_dist_nodes;
-    std::vector<uint32_t> neighbor_nodes;
+    std::vector<uint32_t> local_nodes;
     if(_this_device){
         addNode(_this_device->id);
+        local_nodes.push_back(_this_device->id);
     } else{
         ESP_LOGE(TAG, "this device is not initialized");
         return;
@@ -300,23 +301,24 @@ void LocationTopology::populateGraph(){
             unknown_dist_nodes.push_back(id);
             continue;
         }
-        neighbor_nodes.push_back(id);
+        local_nodes.push_back(id);
         addNode(id);
+        addEdge(_this_device->id, id, ((float) distance_cm) / 100.0);
         vTaskDelay(delay);
     }
     ESP_LOGI(TAG, "Adding unreachable stations");
-    for(const auto &neighbor_id : neighbor_nodes){
+    for(const auto &local_id : local_nodes){
         for(const auto &other_id : unknown_dist_nodes){
             float distance;
-            esp_err_t err = nodeDistance(neighbor_id, other_id, distance);
+            esp_err_t err = nodeDistance(local_id, other_id, distance);
             vTaskDelay(delay);
             if(err != ESP_OK){
                 // remove something?
                 continue;
             }
             // ensure nodes exist
-            if(getNode(neighbor_id) == NULL){
-                addNode(neighbor_id);
+            if(getNode(local_id) == NULL){
+                addNode(local_id);
                 vTaskDelay(delay);
             }
             if(getNode(other_id) == NULL){
@@ -324,7 +326,14 @@ void LocationTopology::populateGraph(){
                 vTaskDelay(delay);
             }
 
-            addEdge(neighbor_id, other_id, distance);
+            // limit maximum distance
+            if(distance > 100){
+                distance = 100;
+            } else if(distance < -100){
+                distance = -100;
+            }
+
+            addEdge(local_id, other_id, distance);
         }
     }
 }
