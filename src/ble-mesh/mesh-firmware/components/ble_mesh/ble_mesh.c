@@ -377,7 +377,8 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
         
     case ESP_BLE_MESH_GENERIC_CLIENT_GET_STATE_EVT:
         LOGGER_I(TAG, "ESP_BLE_MESH_GENERIC_CLIENT_GET_STATE_EVT");
-        if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET){
+        if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_GET 
+            || param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LOC_LOCAL_STATUS){
             esp_ble_mesh_gen_loc_local_status_cb_t loc_state = param->status_cb.location_local_status;
             if(s_value_change_cb){
                 s_value_change_cb((ble_mesh_value_change_data_t){
@@ -392,7 +393,8 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
                     }});
             }
         }
-        if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_GET){
+        if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_GET
+           || param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_ONOFF_STATUS){
             bool onoff = param->status_cb.onoff_status.present_onoff;
             if(s_value_change_cb){
                 s_value_change_cb((ble_mesh_value_change_data_t){
@@ -402,7 +404,8 @@ void generic_client_cb(esp_ble_mesh_generic_client_cb_event_t event,
                     });
             }
         }
-        if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LEVEL_GET){
+        if(param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LEVEL_GET
+            || param->params->opcode == ESP_BLE_MESH_MODEL_OP_GEN_LEVEL_STATUS){
             int16_t level = param->status_cb.level_status.present_level;
             if(s_value_change_cb){
                 s_value_change_cb((ble_mesh_value_change_data_t){
