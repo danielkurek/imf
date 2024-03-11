@@ -51,6 +51,7 @@ namespace imf{
             const uint32_t id;
             const DeviceType type;
             const uint16_t ble_mesh_addr;
+            bool fixed_location;
             #if CONFIG_IMF_DEBUG_STATIC_DEVICES
             uint32_t debug_distance_cm = 0;
             rgb_t debug_rgb = {0,0,0};

@@ -14,6 +14,7 @@
 
 #define DEFAULT_COLOR_OPT "color"
 #define BLE_MESH_ADDR_OPT "ble_mesh/addr"
+#define LOCATION_POS_OPT  "loc/pos"
 
 // can be configured via menuconfig (idf.py menuconfig)
 #define SERIAL_TX_GPIO CONFIG_IMF_SERIAL_TX_GPIO
@@ -31,8 +32,16 @@ std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>
 std::shared_ptr<DistanceMeter> Device::_dm = nullptr;
 std::shared_ptr<Device> Device::this_device = nullptr;
 
+static esp_err_t loc_pos_opt_parse(const char *value, int16_t &north, int16_t &east){
+    int ret = sscanf(value, "N%" SCNd16 "E%" SCNd16, &north, &east);
+    if(ret == 2){
+        return ESP_OK;
+    }
+    return ESP_FAIL;
+}
+
 Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr, bool local_commands)
-    : id(_id), type(_type), ble_mesh_addr(_ble_mesh_addr), _local_commands(local_commands){
+    : id(_id), type(_type), ble_mesh_addr(_ble_mesh_addr), fixed_location(false), _local_commands(local_commands){
     if(_type == DeviceType::Station){
         if(_dm != nullptr){
             uint32_t id = _dm->addPoint(_wifi_mac_str, _wifi_channel);
@@ -130,7 +139,7 @@ esp_err_t Device::initLocalDevice(IMF *imf){
     // TODO: get device type
     this_device = std::shared_ptr<Device>(new Device(0, DeviceType::Mobile, _getMAC(), 1, ble_mesh_addr, !valid_addr));
     
-    // set default color
+    // set default color && location
     if(imf != nullptr){
         LOGGER_I(TAG, "Setting default color for this device");
         nvs_handle_t nvs_handle = imf->getOptionsHandle();
@@ -148,6 +157,23 @@ esp_err_t Device::initLocalDevice(IMF *imf){
                 this_device->setRgb(color);
             }
         }
+        location_local_t location {0,0,0,0,UINT16_MAX};
+        size_t pos_len = ((6+1)*2)+1;
+        char pos_str[pos_len];
+        err = nvs_get_str(nvs_handle, LOCATION_POS_OPT, pos_str, &pos_len);
+        if(err != ESP_OK){
+            LOGGER_E(TAG, "Could not get location! Err: %d", err);
+        } else{
+            int16_t north,east;
+            err = loc_pos_opt_parse(pos_str, north, east);
+            if(err == ESP_OK){
+                location.local_north = north;
+                location.local_east = east;
+                location.uncertainty = 0;
+                this_device->fixed_location = true;
+            }
+        }
+        this_device->setLocation(location);
     }
     return ESP_OK;
 }
@@ -395,6 +421,13 @@ static esp_err_t ble_mesh_addr_validate(const char *value){
     return StrToAddr(value, &addr);
 }
 
+static esp_err_t loc_pos_validate(const char *value){
+    // allow empty string
+    if(strlen(value) == 0) return ESP_OK;
+    int16_t north, east;
+    return loc_pos_opt_parse(value, north, east);
+}
+
 IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
     // Init custom Logger
     logger_init(ESP_LOG_INFO);
@@ -437,6 +470,12 @@ IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
         .type = NVS_TYPE_STR,
         .value_to_log = true,
         .validate_function = ble_mesh_addr_validate,
+    });
+    _options.emplace_back((config_option_t){
+        .key = LOCATION_POS_OPT,
+        .type = NVS_TYPE_STR,
+        .value_to_log = true,
+        .validate_function = loc_pos_validate,
     });
 
     ESP_LOGI(TAG, "NVS flash init...");
@@ -573,7 +612,9 @@ void IMF::_update_task(){
                     _dm->singleRun();
                     break;
                 case 2:
-                    _topology->singleRun();
+                    if(Device::this_device->fixed_location == false){
+                        _topology->singleRun();
+                    }
                     break;
                 case 3:
                     if(_update_cb != nullptr){
