@@ -9,7 +9,7 @@ esp_err_t simple_str_to_loc(const char* str, location_local_t *loc_local){
         &(loc_local->local_altitude),
         &(loc_local->floor_number),
         &(loc_local->uncertainty));
-    if(ret == 2){
+    if(ret == 5){
         return ESP_OK;
     }
     return ESP_FAIL;
