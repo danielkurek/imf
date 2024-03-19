@@ -532,7 +532,7 @@ void IMF::_init_topology(){
             stations.push_back(device);
         }
     }
-    _topology = std::make_shared<LocationTopology>("major", Device::this_device, stations, 2);
+    _topology = std::make_shared<GraphLocalization>("major", Device::this_device, stations, 2);
 }
 
 esp_err_t IMF::start() { 

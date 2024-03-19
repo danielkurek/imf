@@ -14,16 +14,16 @@
 
 // need forward declaration because of circular dependency
 namespace imf{
-    class LocationTopology;
+    class GraphLocalization;
 }
 
 #include "interactive-mesh-framework.hpp"
 
 namespace imf{
-    class LocationTopology{
+    class GraphLocalization{
         public:
-            LocationTopology(const std::string &mode, std::shared_ptr<imf::Device> this_device, std::vector<std::shared_ptr<imf::Device>> stations, uint16_t max_iters_per_step);
-            ~LocationTopology();
+            GraphLocalization(const std::string &mode, std::shared_ptr<imf::Device> this_device, std::vector<std::shared_ptr<imf::Device>> stations, uint16_t max_iters_per_step);
+            ~GraphLocalization();
             bool start();
             void stop();
             void singleRun();
@@ -54,7 +54,7 @@ namespace imf{
             void saveNodePosition(uint32_t node_id);
             void task();
             static void taskWrapper(void* param){
-                static_cast<LocationTopology *>(param)->task();
+                static_cast<GraphLocalization *>(param)->task();
             }
     };
 }

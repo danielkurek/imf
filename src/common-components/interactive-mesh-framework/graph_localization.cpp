@@ -1,4 +1,4 @@
-#include "location_topology.hpp"
+#include "graph_localization.hpp"
 #include "neato_esp.h"
 #include "esp_random.h"
 #include <string>
@@ -30,7 +30,7 @@ static inline void extract_pair(uint64_t pair, uint32_t *x, uint32_t *y){
     (*y) = pair & UINT32_MAX;
 }
 
-LocationTopology::LocationTopology(const std::string& mode, std::shared_ptr<Device> this_device, std::vector<std::shared_ptr<Device>> stations, uint16_t max_iters_per_step)
+GraphLocalization::GraphLocalization(const std::string& mode, std::shared_ptr<Device> this_device, std::vector<std::shared_ptr<Device>> stations, uint16_t max_iters_per_step)
     : _mode(mode), _this_device(this_device), _max_iters_per_step(max_iters_per_step){
     for(size_t i = 0; i < stations.size(); i++){
         _stations.emplace(stations[i]->id, stations[i]);
@@ -39,13 +39,13 @@ LocationTopology::LocationTopology(const std::string& mode, std::shared_ptr<Devi
     // initGraph();
 }
 
-LocationTopology::~LocationTopology(){
+GraphLocalization::~GraphLocalization(){
     stop();
     freeGraph();
     gvFreeContext(_gvc);
 }
 
-void LocationTopology::freeGraph(){
+void GraphLocalization::freeGraph(){
     if(_g){
         ESP_LOGI(TAG, "Freeing graph");
         gvFreeLayout(_gvc, _g);
@@ -59,7 +59,7 @@ void LocationTopology::freeGraph(){
     ESP_LOGI(TAG, "Graph could not be freed");
 }
 
-void LocationTopology::initGraph(){
+void GraphLocalization::initGraph(){
     ESP_LOGI(TAG, "Initialing new graph");
     _g = agopen(graph_name, Agundirected, 0);
     agsafeset(_g, mode_name, _mode.c_str(), "");
@@ -68,14 +68,14 @@ void LocationTopology::initGraph(){
     // addNode(_this_device->id);
 }
 
-void LocationTopology::removeNode(uint32_t id){
+void GraphLocalization::removeNode(uint32_t id){
     Agnode_t *node = getNode(id);
     if(node){
         agdelnode(_g, node);
     }
 }
 
-esp_err_t LocationTopology::uint32ToStr(uint32_t num, size_t buf_len, char  *buf){
+esp_err_t GraphLocalization::uint32ToStr(uint32_t num, size_t buf_len, char  *buf){
     int ret = snprintf(buf, buf_len, "%" PRIu32, num);
     if(ret > 0){
         return ESP_OK;
@@ -83,16 +83,16 @@ esp_err_t LocationTopology::uint32ToStr(uint32_t num, size_t buf_len, char  *buf
     return ESP_FAIL;
 }
 
-void LocationTopology::locationToPos(const location_local_t &location, float &x, float &y){
+void GraphLocalization::locationToPos(const location_local_t &location, float &x, float &y){
     x = ((float) location.local_north * 72.0)/ 10;
     y = ((float) location.local_east  * 72.0)/ 10;
 }
-void LocationTopology::posToLocation(const float x, const float y, location_local_t &location){
+void GraphLocalization::posToLocation(const float x, const float y, location_local_t &location){
     location.local_north = (x / 72.0) * 10;
     location.local_east  = (y / 72.0) * 10;
 }
 
-esp_err_t LocationTopology::locationToPosStr(const location_local_t &location, size_t buf_len, char *buf){
+esp_err_t GraphLocalization::locationToPosStr(const location_local_t &location, size_t buf_len, char *buf){
     float x, y;
     locationToPos(location, x, y);
     int ret = snprintf(buf, buf_len, "%f,%f", x,y);
@@ -102,7 +102,7 @@ esp_err_t LocationTopology::locationToPosStr(const location_local_t &location, s
     return ESP_FAIL;
 }
 
-esp_err_t LocationTopology::posStrToLocation(const char* pos_str, location_local_t &location){
+esp_err_t GraphLocalization::posStrToLocation(const char* pos_str, location_local_t &location){
     float x, y;
     int ret = sscanf(pos_str, "%f,%f", &x, &y);
     if(ret != 2){
@@ -112,7 +112,7 @@ esp_err_t LocationTopology::posStrToLocation(const char* pos_str, location_local
     return ESP_OK;
 }
 
-esp_err_t LocationTopology::nodeDistance(uint32_t id1, uint32_t id2, float &result){
+esp_err_t GraphLocalization::nodeDistance(uint32_t id1, uint32_t id2, float &result){
     auto device1 = getDevice(id1);
     auto device2 = getDevice(id2);
     
@@ -142,7 +142,7 @@ esp_err_t LocationTopology::nodeDistance(uint32_t id1, uint32_t id2, float &resu
     return ESP_OK;
 }
 
-std::shared_ptr<imf::Device> LocationTopology::getDevice(uint32_t id){
+std::shared_ptr<imf::Device> GraphLocalization::getDevice(uint32_t id){
     if(_this_device && id == _this_device->id){
         return _this_device;
     }
@@ -153,7 +153,7 @@ std::shared_ptr<imf::Device> LocationTopology::getDevice(uint32_t id){
     return iter->second;
 }
 
-esp_err_t LocationTopology::updateNodePosition(uint32_t id){
+esp_err_t GraphLocalization::updateNodePosition(uint32_t id){
     esp_err_t err;
     std::shared_ptr<Device> device = getDevice(id);
     if(!device){
@@ -185,7 +185,7 @@ esp_err_t LocationTopology::updateNodePosition(uint32_t id){
     return ESP_OK;
 }
 
-Agnode_t *LocationTopology::getNode(uint32_t id, bool create){
+Agnode_t *GraphLocalization::getNode(uint32_t id, bool create){
     char id_str[10+1];
     uint32ToStr(id, 10+1, id_str);
 
@@ -197,7 +197,7 @@ Agnode_t *LocationTopology::getNode(uint32_t id, bool create){
     return node;
 }
 
-Agnode_t *LocationTopology::addNode(uint32_t id){
+Agnode_t *GraphLocalization::addNode(uint32_t id){
     // if(_nodes.contains(id)){
     //     return NULL;
     // }
@@ -241,7 +241,7 @@ Agnode_t *LocationTopology::addNode(uint32_t id){
     return node;
 }
 
-Agedge_t *LocationTopology::getEdge(uint32_t source, uint32_t target, bool create){
+Agedge_t *GraphLocalization::getEdge(uint32_t source, uint32_t target, bool create){
     // normalize input
     if(source > target){
         uint32_t tmp = source;
@@ -266,7 +266,7 @@ Agedge_t *LocationTopology::getEdge(uint32_t source, uint32_t target, bool creat
     return e;
 }
 
-Agedge_t *LocationTopology::addEdge(uint32_t source, uint32_t target, float distance){
+Agedge_t *GraphLocalization::addEdge(uint32_t source, uint32_t target, float distance){
     std::string dist_str = std::to_string(distance);
     
     Agedge_t *e = getEdge(source, target, true);
@@ -279,7 +279,7 @@ Agedge_t *LocationTopology::addEdge(uint32_t source, uint32_t target, float dist
     return e;
 }
 
-void LocationTopology::populateGraph(){
+void GraphLocalization::populateGraph(){
     ESP_LOGI(TAG, "Updating graph");
     constexpr TickType_t delay = 200 / portTICK_PERIOD_MS;
     std::vector<uint32_t> unknown_dist_nodes;
@@ -338,7 +338,7 @@ void LocationTopology::populateGraph(){
     }
 }
 
-void LocationTopology::saveNodePosition(uint32_t node_id){
+void GraphLocalization::saveNodePosition(uint32_t node_id){
     // auto iter = _nodes.find(node_id);
     // if(iter == _nodes.end()){
     //     return;
@@ -363,7 +363,7 @@ void LocationTopology::saveNodePosition(uint32_t node_id){
     }
 }
 
-void LocationTopology::singleRun(){
+void GraphLocalization::singleRun(){
     heap_caps_print_heap_info(MALLOC_CAP_8BIT);
     ESP_LOGI(TAG, "START StackHighWaterMark=%d, heapfree=%d, heapminfree=%d, heapmaxfree=%d", uxTaskGetStackHighWaterMark(NULL), heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     initGraph();
@@ -382,7 +382,7 @@ void LocationTopology::singleRun(){
     ESP_LOGI(TAG, "END StackHighWaterMark=%d, heapfree=%d, heapminfree=%d, heapmaxfree=%d", uxTaskGetStackHighWaterMark(NULL), heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
 }
 
-void LocationTopology::task(){
+void GraphLocalization::task(){
     // TODO: stopping condition? - detect stagnation (nodes are not moving much)
     while(true){
         singleRun();
@@ -392,8 +392,8 @@ void LocationTopology::task(){
     }
 }
 
-bool LocationTopology::start(){
-    auto ret = xTaskCreatePinnedToCore(taskWrapper, "LocationTopology", 1024*20, this, tskIDLE_PRIORITY+2, &_xHandle, 1);
+bool GraphLocalization::start(){
+    auto ret = xTaskCreatePinnedToCore(taskWrapper, "GraphLocalization", 1024*20, this, tskIDLE_PRIORITY+2, &_xHandle, 1);
     if(ret != pdPASS){
         ESP_LOGE(TAG, "Could not create Location task");
         return false;
@@ -401,7 +401,7 @@ bool LocationTopology::start(){
     return true;
 }
 
-void LocationTopology::stop(){
+void GraphLocalization::stop(){
     if(_xHandle != NULL){
         vTaskDelete(_xHandle);
         _xHandle = NULL;
