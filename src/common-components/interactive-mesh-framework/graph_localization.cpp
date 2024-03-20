@@ -3,6 +3,7 @@
 #include "esp_random.h"
 #include <string>
 #include <math.h>
+#include "logger.h"
 
 using namespace imf;
 

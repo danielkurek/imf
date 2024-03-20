@@ -12,12 +12,7 @@
 #include "gvc.h"
 #include "cgraph.h"
 
-// need forward declaration because of circular dependency
-namespace imf{
-    class GraphLocalization;
-}
-
-#include "interactive-mesh-framework.hpp"
+#include "imf-device.hpp"
 
 namespace imf{
     class GraphLocalization{

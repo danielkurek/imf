@@ -1,4 +1,5 @@
 #include "interactive-mesh-framework.hpp"
+#include "imf-device.hpp"
 #include "serial_comm_client.hpp"
 #include <string>
 #include <cstdio>
@@ -72,7 +73,7 @@ Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_
 }
 #endif
 
-esp_err_t Device::initLocalDevice(IMF *imf){
+esp_err_t Device::initLocalDevice(nvs_handle_t options_handle){
     if(Device::this_device){
         return ESP_FAIL;
     }
@@ -82,28 +83,26 @@ esp_err_t Device::initLocalDevice(IMF *imf){
     std::string addr;
     esp_err_t err;
 
-    if(imf != nullptr){
-        // save MAC and ble-mesh addr
-        nvs_handle_t nvs_handle = imf->getOptionsHandle();
-        char addr_str[ADDR_STR_LEN];
-        size_t addr_str_len = sizeof(addr_str);
-        err = nvs_get_str(nvs_handle, BLE_MESH_ADDR_OPT, addr_str, &addr_str_len);
+    // save MAC and ble-mesh addr
+    char addr_str[ADDR_STR_LEN];
+    size_t addr_str_len = sizeof(addr_str);
+    err = nvs_get_str(options_handle, BLE_MESH_ADDR_OPT, addr_str, &addr_str_len);
+    if(err == ESP_OK){
+        LOGGER_I(TAG, "Using ble-mesh address stored in nvs for local device: %s", addr_str);
+        err = StrToAddr(addr_str, &ble_mesh_addr);
         if(err == ESP_OK){
-            LOGGER_I(TAG, "Using ble-mesh address stored in nvs for local device: %s", addr_str);
-            err = StrToAddr(addr_str, &ble_mesh_addr);
-            if(err == ESP_OK){
-                valid_addr = true;
-            } else{
-                LOGGER_E(TAG, "Stored ble-mesh address is not valid!");
-            }
+            valid_addr = true;
         } else{
-            LOGGER_E(TAG, "Could not get ble-mesh addr from NVS! Err: %d", err);
+            LOGGER_E(TAG, "Stored ble-mesh address is not valid!");
         }
-        err = nvs_get_u16(nvs_handle, "softAP/channel", &wifi_channel);
-        if(err != ESP_OK){
-            LOGGER_E(TAG, "Could not get softAP/channel! Err: %d", err);
-        }
+    } else{
+        LOGGER_E(TAG, "Could not get ble-mesh addr from NVS! Err: %d", err);
     }
+    err = nvs_get_u16(options_handle, "softAP/channel", &wifi_channel);
+    if(err != ESP_OK){
+        LOGGER_E(TAG, "Could not get softAP/channel! Err: %d", err);
+    }
+
     if(!valid_addr){
         for(int i = 0; i < _maxRetries; i++){
             addr = _serial->GetField("addr");
@@ -124,13 +123,12 @@ esp_err_t Device::initLocalDevice(IMF *imf){
         return ESP_FAIL;
     } 
 
-    if(valid_addr && imf != nullptr){
-        nvs_handle_t nvs_handle = imf->getOptionsHandle();
+    if(valid_addr){
         err = AddrToStr(ble_mesh_addr, addr);
         if(err != ESP_OK){
             LOGGER_E(TAG, "Could not convert addr to str!");
         } else{
-            err = nvs_set_str(nvs_handle, BLE_MESH_ADDR_OPT, addr.c_str());
+            err = nvs_set_str(options_handle, BLE_MESH_ADDR_OPT, addr.c_str());
             if(err != ESP_OK){
                 LOGGER_E(TAG, "Could not save local ble_mesh/addr! Err: %d", err);
             }
@@ -140,41 +138,38 @@ esp_err_t Device::initLocalDevice(IMF *imf){
     this_device = std::shared_ptr<Device>(new Device(0, DeviceType::Mobile, _getMAC(), 1, ble_mesh_addr, !valid_addr));
     
     // set default color && location
-    if(imf != nullptr){
-        LOGGER_I(TAG, "Setting default color for this device");
-        nvs_handle_t nvs_handle = imf->getOptionsHandle();
-        char rgb_str[RGB_STR_LEN];
-        size_t rgb_str_len = RGB_STR_LEN;
-        err = nvs_get_str(nvs_handle, DEFAULT_COLOR_OPT, rgb_str, &rgb_str_len);
+    LOGGER_I(TAG, "Setting default color for this device");
+    char rgb_str[RGB_STR_LEN];
+    size_t rgb_str_len = RGB_STR_LEN;
+    err = nvs_get_str(options_handle, DEFAULT_COLOR_OPT, rgb_str, &rgb_str_len);
+    if(err != ESP_OK){
+        LOGGER_E(TAG, "Could not get default color! Err: %d", err);
+    } else{
+        rgb_t color;
+        err = str_to_rgb(rgb_str, &color);
         if(err != ESP_OK){
-            LOGGER_E(TAG, "Could not get default color! Err: %d", err);
+            LOGGER_E(TAG, "Could not get convert default color! Color: %s", rgb_str);
         } else{
-            rgb_t color;
-            err = str_to_rgb(rgb_str, &color);
-            if(err != ESP_OK){
-                LOGGER_E(TAG, "Could not get convert default color! Color: %s", rgb_str);
-            } else{
-                this_device->setRgb(color);
-            }
+            this_device->setRgb(color);
         }
-        location_local_t location {0,0,0,0,UINT16_MAX};
-        size_t pos_len = ((6+1)*2)+1;
-        char pos_str[pos_len];
-        err = nvs_get_str(nvs_handle, LOCATION_POS_OPT, pos_str, &pos_len);
-        if(err != ESP_OK){
-            LOGGER_E(TAG, "Could not get location! Err: %d", err);
-        } else{
-            int16_t north,east;
-            err = loc_pos_opt_parse(pos_str, north, east);
-            if(err == ESP_OK){
-                location.local_north = north;
-                location.local_east = east;
-                location.uncertainty = 0;
-                this_device->fixed_location = true;
-            }
-        }
-        this_device->setLocation(location);
     }
+    location_local_t location {0,0,0,0,UINT16_MAX};
+    size_t pos_len = ((6+1)*2)+1;
+    char pos_str[pos_len];
+    err = nvs_get_str(options_handle, LOCATION_POS_OPT, pos_str, &pos_len);
+    if(err != ESP_OK){
+        LOGGER_E(TAG, "Could not get location! Err: %d", err);
+    } else{
+        int16_t north,east;
+        err = loc_pos_opt_parse(pos_str, north, east);
+        if(err == ESP_OK){
+            location.local_north = north;
+            location.local_east = east;
+            location.uncertainty = 0;
+            this_device->fixed_location = true;
+        }
+    }
+    this_device->setLocation(location);
     return ESP_OK;
 }
 
@@ -356,6 +351,8 @@ esp_err_t Device::getLevel(int16_t &level_out){
     } else {
         level_val = _serial->GetField(ble_mesh_addr, "level");
     }
+    if(level_val == "FAIL") return ESP_FAIL;
+    
     int ret = sscanf(level_val.c_str(), "%04" SCNx16, &level_out);
     if(ret != 1){
         ESP_LOGE(TAG, "Failed to convert Level response to value: %s", level_val.c_str());
@@ -391,10 +388,12 @@ esp_err_t Device::lastDistance(uint32_t &distance_cm){
 #else
 esp_err_t Device::lastDistance(uint32_t &distance_cm){
     distance_measurement_t dm;
+    // distance_cm = 200;
+    // return ESP_OK;
     if(!_point) return ESP_FAIL;
     esp_err_t err = _point->getDistanceFromLog(dm);
     if(err != ESP_OK) return err;
-    distance_cm = dm.distance_cm;
+    // distance_cm = dm.distance_cm;
     return ESP_OK;
 }
 #endif
@@ -438,6 +437,7 @@ IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
 
     // Init board helper functions
     board_init(buttons.size(), &buttons[0]);
+    board_set_rgb(&internal_rgb_conf, (rgb_t){0,0,0});
 
     // event loop init
     esp_event_loop_args_t loop_args{
@@ -538,7 +538,7 @@ void IMF::_init_topology(){
 esp_err_t IMF::start() { 
     _wait_for_ble_mesh(20);
 
-    Device::initLocalDevice(this);
+    Device::initLocalDevice(getOptionsHandle());
     // _devices.emplace(0, Device::this_device);
     _init_topology();
     
@@ -591,14 +591,17 @@ void IMF::_update_task(){
             if(current_state != state){
                 switch(state){
                     case 1:
+                        board_set_rgb(&internal_rgb_conf, (rgb_t){255,0,0});
                         // _dm->startTask();
                         // stopLocationTopology();
                         break;
                     case 2:
+                        board_set_rgb(&internal_rgb_conf, (rgb_t){0,255,0});
                         // _dm->stopTask();
                         // startLocationTopology();
                         break;
                     case 3:
+                        board_set_rgb(&internal_rgb_conf, (rgb_t){0,0,255});
                         // _dm->stopTask();
                         // stopLocationTopology();
                         break;
@@ -612,6 +615,7 @@ void IMF::_update_task(){
                     _dm->singleRun();
                     break;
                 case 2:
+                    
                     if(Device::this_device->fixed_location == false){
                         _topology->singleRun();
                     }
