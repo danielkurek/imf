@@ -438,6 +438,7 @@ IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
     // Init board helper functions
     board_init(buttons.size(), &buttons[0]);
     board_set_rgb(&internal_rgb_conf, (rgb_t){0,0,0});
+    board_set_ext_pwr(true);
 
     // event loop init
     esp_event_loop_args_t loop_args{

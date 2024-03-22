@@ -1,0 +1,9 @@
+menu "Board configuration"
+    orsource "$IDF_PATH/examples/common_components/env_caps/$IDF_TARGET/Kconfig.env_caps"
+    config EXT_POWER_GPIO
+        int "Externel power control GPIO number"
+        range ENV_GPIO_RANGE_MIN ENV_GPIO_OUT_RANGE_MAX
+        default 40
+        help
+            GPIO number (IOxx) to control external power.
+endmenu

@@ -1,7 +1,9 @@
 #include "board.h"
 #include "led_strip.h"
-#include <driver/gpio.h>
+#include "driver/gpio.h"
 #include "esp_log.h"
+
+#define EXT_POWER_CTRL_GPIO CONFIG_EXT_POWER_GPIO
 
 static const char* TAG = "BOARD";
 
@@ -25,6 +27,8 @@ rgb_conf_t internal_rgb_conf = {
 
 static button_conf_t *s_buttons;
 static size_t s_buttons_len;
+
+static gpio_num_t s_ext_pwr_gpio;
 
 esp_err_t update_led(rgb_conf_t *conf){
     if(!conf->on_off){
@@ -54,6 +58,10 @@ esp_err_t board_set_rgb(rgb_conf_t *conf, rgb_t new_color){
 esp_err_t board_set_onoff(rgb_conf_t *conf, bool onoff){
     conf->on_off = onoff;
     return update_led(conf);
+}
+
+esp_err_t board_set_ext_pwr(bool onoff){
+    return gpio_set_level(s_ext_pwr_gpio, onoff);
 }
 
 esp_err_t board_start_blinking(rgb_conf_t *conf, uint64_t period_us){
@@ -162,6 +170,18 @@ static esp_err_t board_buttons_init(size_t buttons_len, const button_gpio_config
     return ret;
 }
 
+static esp_err_t board_ext_pwr_init(gpio_num_t gpio_num){
+    gpio_config_t config = {
+        .pin_bit_mask = 1ull << gpio_num,
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_ENABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+    s_ext_pwr_gpio = gpio_num;
+    return gpio_config(&config);
+}
+
 esp_err_t board_init(size_t buttons_len, const button_gpio_config_t *buttons){
     esp_err_t ret_err = ESP_OK;
     esp_err_t err;
@@ -174,6 +194,12 @@ esp_err_t board_init(size_t buttons_len, const button_gpio_config_t *buttons){
     err = board_buttons_init(buttons_len, buttons);
     if(err != ESP_OK){
         ESP_LOGE(TAG, "Could not init buttons");
+        ret_err = err;
+    }
+
+    err = board_ext_pwr_init(EXT_POWER_CTRL_GPIO);
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "Could not init ext power control GPIO");
         ret_err = err;
     }
 
