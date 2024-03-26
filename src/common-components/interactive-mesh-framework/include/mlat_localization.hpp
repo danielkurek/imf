@@ -1,5 +1,5 @@
-#ifndef LOCATION_TOPOLOGY_H_
-#define LOCATION_TOPOLOGY_H_
+#ifndef MLAT_LOCALIZATION_H_
+#define MLAT_LOCALIZATION_H_
 
 #include <inttypes.h>
 #include <vector>

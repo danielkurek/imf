@@ -766,6 +766,11 @@ static esp_err_t wifi_ap_nvs(){
         return ESP_FAIL;
     }
 
+    if(strlen(ssid) == 0){
+        ESP_LOGI(TAG, "WIFI AP SSID from NVS is empty! Cannot create AP!");
+        return ESP_FAIL;
+    }
+
     err = nvs_get_str(handle, AP_PASSWORD_KEY, password, &password_len);
     if(err != ESP_OK){
         ESP_LOGI(TAG, "Failed to get WIFI AP password from NVS");

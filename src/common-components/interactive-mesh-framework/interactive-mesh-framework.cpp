@@ -393,7 +393,7 @@ esp_err_t Device::lastDistance(uint32_t &distance_cm){
     if(!_point) return ESP_FAIL;
     esp_err_t err = _point->getDistanceFromLog(dm);
     if(err != ESP_OK) return err;
-    // distance_cm = dm.distance_cm;
+    distance_cm = dm.distance_cm;
     return ESP_OK;
 }
 #endif
@@ -533,7 +533,7 @@ void IMF::_init_topology(){
             stations.push_back(device);
         }
     }
-    _topology = std::make_shared<GraphLocalization>("major", Device::this_device, stations, 2);
+    _topology = std::make_shared<MlatLocalization>(Device::this_device, stations);
 }
 
 esp_err_t IMF::start() { 
