@@ -822,11 +822,12 @@ static esp_err_t wifi_initialize(){
 }
 
 static void init_logging(){
-    logger_init(ESP_LOG_INFO);
-    logger_output_to_default();
-    logger_init_storage();
-    const char* filename = "/logs/log.txt";
-    logger_output_to_file(filename, 2000);
+    if(logger_init(ESP_LOG_INFO)){
+        logger_output_to_default(true);
+        logger_init_storage();
+        const char* filename = "/logs/log.txt";
+        logger_output_to_file(filename, 2000);
+    }
 }
 
 static void deinit_logging(){

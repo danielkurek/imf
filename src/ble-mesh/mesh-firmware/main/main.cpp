@@ -59,11 +59,12 @@ static size_t buttons_len = sizeof(buttons) / sizeof(buttons[0]);
 
 // initialize custom logging library for persistent logs
 void log_init(){
-    logger_init(ESP_LOG_INFO);
-    logger_output_to_default();
-    logger_init_storage();
+    if(logger_init(ESP_LOG_INFO)){
+        logger_output_to_default(true);
+        logger_init_storage();
 
-    logger_output_to_file("/logs/log.txt", 2000);
+        logger_output_to_file("/logs/log.txt", 2000);
+    }
 }
 
 void serial_comm_change_callback(uint16_t addr, const std::string& field, const std::string& value){

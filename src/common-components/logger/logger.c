@@ -14,23 +14,26 @@
 #include "esp_random.h"
 
 #define BLOCK_SIZE 4096
-#define MIN_BLOCKS_FREE 10
+#define MIN_BLOCKS_FREE 40
 #define MIN_FREE_SPACE MIN_BLOCKS_FREE * BLOCK_SIZE
+#define BASE_PATH "/logs"
+#define PARTITION_LABEL "logs"
 
 static const char *TAG = "LOGGER";
 
 static logger_conf_t conf;
 static QueueHandle_t uart_queue;
 
-void logger_init(esp_log_level_t level){
+bool logger_init(esp_log_level_t level){
     static bool initialized = false;
-    if(initialized) return;
+    if(initialized) return false;
     conf.level = level;
     uint8_t rnd = (uint8_t) esp_random();
     
     // A-Z (65-90)
     conf.rnd_char = 'A' + rnd % ('Z' - 'A');
     initialized = true;
+    return true;
 }
 
 char logger_get_current_rnd_letter(){
@@ -42,9 +45,11 @@ bool logger_init_storage(){
     if(initialized) return true;
 
     esp_vfs_littlefs_conf_t storage_conf = {
-      .base_path = "/logs",
-      .partition_label = "logs",
+      .base_path = BASE_PATH,
+      .partition_label = PARTITION_LABEL,
       .format_if_mount_failed = true,
+      .dont_mount = false,
+      .grow_on_mount = true,
     };
     esp_err_t ret = esp_vfs_littlefs_register(&storage_conf);
     if (ret != ESP_OK) {
@@ -79,23 +84,111 @@ bool logger_init_storage(){
     return true;
 }
 
-void logger_output_to_default(){
-    conf.to_default = true;
+static bool logger_file_close(){
+    logger_sync_file();
+    if(conf.log_file != NULL){
+        ESP_LOGI(TAG, "closing file");
+        if(fclose(conf.log_file) != 0){
+            ESP_LOGE(TAG, "could not close logging file");
+            return false;
+        }
+    }
+    conf.to_file = false;
+    return true;
+}
+
+void logger_output_to_default(bool onoff){
+    conf.to_default = onoff;
+}
+
+esp_err_t file_get_size(FILE *f, long *size){
+    fpos_t orig_pos;
+    ESP_LOGI(TAG, "getting position");
+    if(fgetpos(f, &orig_pos) != 0){
+        ESP_LOGE(TAG, "cannot get position of log file; %s", strerror(errno));
+        return ESP_FAIL;
+    }
+    ESP_LOGI(TAG, "rewinding");
+    int err = fseek(f, 0, SEEK_END);
+    if(err != 0) {
+        ESP_LOGE(TAG, "cannot seek in log file, err=%d", err); 
+        return ESP_FAIL;
+    }
+
+    long pos = ftell(f);
+    if(pos < 0){
+        ESP_LOGE(TAG, "cannot get position of the end of file; %s", strerror(errno));
+        return ESP_FAIL;
+    }
+    *size = pos;
+
+    ESP_LOGI(TAG, "setting position");
+    if(fsetpos(conf.log_file, &orig_pos) != 0){
+        ESP_LOGE(TAG, "cannot set position of log file; %s", strerror(errno));
+        return ESP_FAIL;
+    }
+
+    return ESP_OK;
+}
+
+static void update_max_file_size(){
+    long size;
+    esp_err_t err = file_get_size(conf.log_file, &size);
+    if(err == ESP_OK){
+        size_t free_space = 0;
+        if(conf.storage_size_used <= conf.storage_size_threshold){
+            free_space = conf.storage_size_threshold - conf.storage_size_used;
+        }
+        conf.max_log_size = size + free_space;
+    } else{
+        conf.max_log_size = conf.storage_size_threshold;
+    }
+    ESP_LOGI(TAG, "Max log size: %" PRIu32, conf.max_log_size);
+}
+
+static void check_log_position(int size){
+    if(size < 0) size = 0;
+    bool seek = false;
+    long pos = ftell(conf.log_file);
+    if(pos < 0){
+        ESP_LOGE(TAG, "cannot get current position of log file; %s", strerror(errno));
+        return;
+    }
+    if(pos + size >= conf.max_log_size){
+        pos = 0;
+        seek = true;
+    }
+    if(conf.storage_protect_start <= conf.storage_protect_end){
+        if(pos < conf.storage_protect_end && pos + size >= conf.storage_protect_start - 1){
+            pos = conf.storage_protect_end;
+            seek = true;
+        }
+    } else{
+        // protect region wraps around
+        if(pos + size >= conf.storage_protect_start - 1 || pos < conf.storage_protect_end){
+            pos = conf.storage_protect_end;
+            seek = true;
+        }
+    }
+    
+    if(seek){
+        int err = fseek(conf.log_file, pos, SEEK_SET);
+        if(err != 0) { 
+            ESP_LOGE(TAG, "could not seek log file to position %ld, err=%s", pos, strerror(errno));
+            return;
+        }
+    }
 }
 
 bool logger_output_to_file(const char* filename, long int protect_start_bytes){
-    if(conf.log_file != NULL){
-        logger_sync_file();
-        fclose(conf.log_file);
-        conf.log_file = NULL;
-    }
+    logger_file_close();
     struct stat st;
     if (stat(filename, &st) == 0) {
         // File exists
         ESP_LOGI(TAG, "file already exists, opening in r+ mode");
-        conf.log_file = fopen(filename, "r+");
+        conf.log_file = fopen(filename, "rb+");
     } else {
-        conf.log_file = fopen(filename, "w+");
+        conf.log_file = fopen(filename, "wb+");
     }
 
     if(conf.log_file == NULL){
@@ -103,10 +196,15 @@ bool logger_output_to_file(const char* filename, long int protect_start_bytes){
         return false;
     }
 
-    fseek(conf.log_file, 0, SEEK_END);
+    int err = fseek(conf.log_file, 0, SEEK_END);
+    if(err != 0){
+        ESP_LOGE(TAG, "cannot seek log file, err=%d", err);
+    }
 
     conf.to_file = true;
     conf.log_file_name = filename;
+
+    update_max_file_size();
 
     conf.storage_protect_log_start = protect_start_bytes != 0;
     conf.storage_overwriting = false;
@@ -117,7 +215,13 @@ bool logger_output_to_file(const char* filename, long int protect_start_bytes){
             return false;
         }
         conf.storage_protect_end = conf.storage_protect_start + protect_start_bytes;
+        // wrap protect region to start of the file
+        if(conf.storage_protect_end >= conf.max_log_size){
+            conf.storage_protect_end = conf.storage_protect_end - conf.max_log_size;
+        }
     }
+
+    check_log_position(0);
 
     LOGGER_E("", "\n####[START OF LOG]####\n\n");
     return true;
@@ -134,10 +238,19 @@ void logger_sync_file(){
 void logger_set_file_overwrite(){
     logger_sync_file();
 
-    fseek(conf.log_file, 0, SEEK_END);
+    if(0 != fseek(conf.log_file, 0, SEEK_END)){
+        ESP_LOGE(TAG, "Could not seek to end of log file");
+        return;
+    }
     long file_size = ftell(conf.log_file);
-    fseek(conf.log_file, 0, SEEK_SET);
-
+    if(file_size < 0){
+        ESP_LOGE(TAG, "Could not get size of log file");
+        return;
+    }
+    if(0 != fseek(conf.log_file, 0, SEEK_SET)){
+        ESP_LOGE(TAG, "Could not seek to beginning of log file");
+        return;
+    }
     ESP_LOGI(TAG, "file %s size %"PRId32", used %d", conf.log_file_name, file_size, conf.storage_size_used);
     conf.storage_size_used -= file_size;
     conf.storage_overwriting = true;
@@ -198,21 +311,38 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
         int ret = vsnprintf(out, sizeof(out), format, args);
         if (ret >= 0){
             if(conf.to_file){
-                if(conf.storage_size_used >= conf.storage_size_threshold){
-                    ESP_LOGI(TAG, "file estimation reached %d; starting overwrite", conf.storage_size_used);
-                    logger_set_file_overwrite();
-                }
-                if(conf.storage_protect_log_start && conf.storage_overwriting){
-                    if(ftell(conf.log_file) + ret >= conf.storage_protect_start - 1){
-                        fseek(conf.log_file, conf.storage_protect_end, SEEK_SET);
+                check_log_position(ret);
+                int written = vfprintf(conf.log_file, format, args);
+                if(written < 0){
+                    ESP_LOGE(TAG, "Cannot write to file, %s", strerror(errno));
+                    if(errno == ENOSPC){
+                        // try to write to beginning of the file
+                        fseek(conf.log_file, 0, SEEK_SET);
+                        check_log_position(ret);
+                        written = vfprintf(conf.log_file, format, args);
+                        if(written < 0){
+                            ESP_LOGE(TAG, "Writing to start of file failed, %s", strerror(errno));
+                        }
                     }
                 }
-                int written = vfprintf(conf.log_file, format, args);
-                conf.storage_size_used += written;
-                writes_to_file += 1;
-                if(writes_to_file > 10){
-                    logger_sync_file();
-                    writes_to_file = 0;
+                if(written >= 0){
+                    writes_to_file += 1;
+                    if(writes_to_file > 10){
+                        logger_sync_file();
+                        writes_to_file = 0;
+                        size_t total = 0, used = 0;
+                        esp_err_t err_ret = esp_littlefs_info(PARTITION_LABEL, &total, &used);
+                        if(err_ret == ESP_OK){
+                            ESP_LOGI(TAG, "Partition info - total: %d, used: %d (stored: %d)", total, used, conf.storage_size_used);
+                            conf.storage_size_used = used;
+                        }
+                        long pos = ftell(conf.log_file);
+                        if(pos < 0){
+                            ESP_LOGE(TAG, "cannot get current position of log file; %s", strerror(errno));
+                        } else{
+                            ESP_LOGI(TAG, "File position: %ld", pos);
+                        }
+                    }
                 }
             }
             if(conf.to_uart){
@@ -239,7 +369,8 @@ bool logger_dump_log_file(){
         return false;
     }
     ESP_LOGI(TAG, "rewinding");
-    fseek(conf.log_file, 0, SEEK_SET);
+    int err = fseek(conf.log_file, 0, SEEK_SET);
+    if(err != 0) { ESP_LOGE(TAG, "cannot seek in log file, err=%d", err); }
 
     char line[128];
     char *pos;
@@ -274,11 +405,7 @@ bool logger_delete_log(const char *filename){
 }
 
 void logger_storage_close(){
-    if(conf.log_file != NULL){
-        ESP_LOGI(TAG, "closing file");
-        fclose(conf.log_file);
-    }
-    conf.to_file = false;
+    logger_file_close();
     ESP_LOGI(TAG, "unregistering spiffs");
     esp_vfs_littlefs_unregister(LOGGER_STORAGE_LABEL);
 }

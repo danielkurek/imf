@@ -428,9 +428,10 @@ static esp_err_t loc_pos_validate(const char *value){
 }
 
 IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
+    esp_err_t err;
     // Init custom Logger
     logger_init(ESP_LOG_INFO);
-    logger_output_to_default();
+    logger_output_to_default(true);
     logger_init_storage();
 
     logger_output_to_file("/logs/log.txt", 2000);
@@ -453,8 +454,9 @@ IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
         ESP_LOGE(TAG, "create event loop failed");
         return;
     }
-
-    if (esp_event_loop_create_default() != ESP_OK){
+    err = esp_event_loop_create_default();
+    // ESP_ERR_INVALID_STATE is returned when default loop was already created
+    if (err != ESP_OK && err != ESP_ERR_INVALID_STATE){
         ESP_LOGE(TAG, "create default event loop failed");
         return;
     }
@@ -480,7 +482,7 @@ IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
     });
 
     ESP_LOGI(TAG, "NVS flash init...");
-    esp_err_t err = nvs_flash_init();
+    err = nvs_flash_init();
     if (err == ESP_ERR_NVS_NO_FREE_PAGES) {
         ESP_ERROR_CHECK(nvs_flash_erase());
         err = nvs_flash_init();
