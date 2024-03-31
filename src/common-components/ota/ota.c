@@ -192,7 +192,12 @@ void ota_init(esp_event_handler_t event_handler)
     ESP_ERROR_CHECK( err );
 
     ESP_ERROR_CHECK(esp_netif_init());
-    ESP_ERROR_CHECK(esp_event_loop_create_default());
+    err = esp_event_loop_create_default();
+    // ESP_ERR_INVALID_STATE is returned when default loop was already created
+    if(err != ESP_OK && err != ESP_ERR_INVALID_STATE){
+        ESP_LOGE(TAG, "Could not create default event loop! err=%d", err);
+        return;
+    }
 
     ota_register_events(event_handler);
     

@@ -31,7 +31,7 @@ void location_testing(void *param){
     devices.emplace_back(std::make_shared<Device>(4, DeviceType::Station, "00:00:00:00:00:04", 1, 0x000d, (rgb_t){0,0,0}, (location_local_t){140,-30,0,0,0}, 0, 3)); // L (distance=3.16)
     devices.emplace_back(std::make_shared<Device>(5, DeviceType::Station, "00:00:00:00:00:05", 1, 0x0010, (rgb_t){0,0,0}, (location_local_t){110,-70,0,0,0}, 0, 3)); // M (distance=3.00)
     // TODO: add other devices with unknown distance
-    LocationTopology topology {"major", Device::this_device, devices, 2};
+    GraphLocalization topology {"major", Device::this_device, devices, 2};
     topology.start();
     while(1){
         vTaskDelay(10000 / portTICK_PERIOD_MS);

@@ -504,7 +504,7 @@ static esp_err_t log_get_handler(httpd_req_t *req){
     ESP_LOGI(TAG, "getting position");
     if(fgetpos(fd, &orig_pos) != 0){
         ESP_LOGE(TAG, "cannot get position of log file; %s", strerror(errno));
-        return false;
+        return ESP_FAIL;
     }
 
     ESP_LOGI(TAG, "rewinding");
