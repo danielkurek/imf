@@ -324,7 +324,7 @@ wifi_event_ftm_report_t *wifi_cmd_ftm(const char *ssid)
     EventBits_t bits;
 
     wifi_ftm_initiator_cfg_t ftmi_cfg = {
-        .frm_count = 32,
+        .frm_count = 16,
         .burst_period = 2,
     };
 
