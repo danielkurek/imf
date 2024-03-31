@@ -37,6 +37,8 @@ static const char* TAG = "MESH-FMW";
 
 // GPIO pin that the button is connected to
 #define CONFIG_BUTTON GPIO_NUM_1
+#define SERIAL_TX_GPIO CONFIG_SERIAL_TX_GPIO
+#define SERIAL_RX_GPIO CONFIG_SERIAL_RX_GPIO
 
 
 // NVS handle for reading the web_config options
@@ -162,7 +164,7 @@ esp_err_t serial_comm_init(){
     if (err != ESP_OK){
         LOGGER_E(TAG, "Could not get addresses of this node");
     }
-    serialSrv = std::make_unique<SerialCommSrv>(UART_NUM_1, GPIO_NUM_10, GPIO_NUM_1, primary_addr);
+    serialSrv = std::make_unique<SerialCommSrv>(UART_NUM_1, SERIAL_TX_GPIO, SERIAL_RX_GPIO, primary_addr);
     serialSrv->RegisterChangeCallback(serial_comm_change_callback, serial_comm_get_callback);
     serialSrv->startReadTask();
 
