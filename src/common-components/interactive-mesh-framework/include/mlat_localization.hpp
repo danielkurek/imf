@@ -10,9 +10,10 @@
 #include "esp_err.h"
 
 #include "imf-device.hpp"
+#include "localization.hpp"
 
 namespace imf{
-    class MlatLocalization{
+    class MlatLocalization : public Localization{
         public:
             MlatLocalization(std::shared_ptr<imf::Device> this_device, std::vector<std::shared_ptr<imf::Device>> stations);
             bool start();

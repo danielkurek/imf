@@ -11,19 +11,14 @@
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "esp_event.h"
 
 #include <vector>
 #include <map>
 #include <memory>
 
-// need forward declaration because of circular dependency
-namespace imf{
-    class IMF;
-    class Device;
-}
-
-#include "graph_localization.hpp"
-#include "mlat_localization.hpp"
+#include "imf-device.hpp"
+#include "localization.hpp"
 
 namespace imf{
     typedef void (*update_function_t)(TickType_t diff_ms);
@@ -65,7 +60,7 @@ namespace imf{
             update_function_t _update_cb = nullptr;
             uint32_t _next_id = 1; // 0 is reserved for local device
             nvs_handle_t _options_handle;
-            std::shared_ptr<MlatLocalization> _topology;
+            std::shared_ptr<Localization> _topology;
             int16_t current_state = 0;
             SemaphoreHandle_t xSemaphoreUpdate = NULL;
             TaskHandle_t _xUpdateHandle;

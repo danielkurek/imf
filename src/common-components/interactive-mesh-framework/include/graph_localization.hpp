@@ -13,9 +13,10 @@
 #include "cgraph.h"
 
 #include "imf-device.hpp"
+#include "localization.hpp"
 
 namespace imf{
-    class GraphLocalization{
+    class GraphLocalization : public Localization{
         public:
             GraphLocalization(const std::string &mode, std::shared_ptr<imf::Device> this_device, std::vector<std::shared_ptr<imf::Device>> stations, uint16_t max_iters_per_step);
             ~GraphLocalization();
