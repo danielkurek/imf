@@ -8,7 +8,7 @@ namespace imf{
         public:
             virtual bool start() = 0;
             virtual void stop() = 0;
-            virtual void singleRun() = 0;
+            virtual void tick(TickType_t diff) = 0;
     };
 }
 

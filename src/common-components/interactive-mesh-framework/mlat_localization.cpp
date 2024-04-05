@@ -50,7 +50,7 @@ static inline float distance_2d(const position_t pos1, const position_t pos2){
               + pow(pos1.y - pos2.y, 2));
 }
 
-void MlatLocalization::singleRun(){
+void MlatLocalization::tick(TickType_t diff){
     location_local_t new_location{0,0,0,0,0};
     std::vector<anchor_t> anchors;
     for(auto && [id,station] : _stations){
@@ -110,7 +110,7 @@ void MlatLocalization::singleRun(){
 
 void MlatLocalization::task(){
     while(true){
-        singleRun();
+        tick(2000 / portTICK_PERIOD_MS);
         vTaskDelay(2000 / portTICK_PERIOD_MS);
     }
     vTaskDelete(_xHandle);

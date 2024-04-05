@@ -430,7 +430,7 @@ static esp_err_t loc_pos_validate(const char *value){
     return loc_pos_opt_parse(value, north, east);
 }
 
-IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
+IMF::IMF(const std::vector<button_gpio_config_t> &buttons, bool default_states){
     esp_err_t err;
     // Init custom Logger
     logger_init(ESP_LOG_INFO);
@@ -508,6 +508,10 @@ IMF::IMF(const std::vector<button_gpio_config_t> &buttons){
     auto serial = Device::getSerialCli();
     if(serial)
         serial->startReadTask();
+    
+    if(default_states){
+        addDefaultStates();
+    }
 }
 
 esp_err_t IMF::_wait_for_ble_mesh(uint32_t max_tries){
@@ -575,6 +579,7 @@ void IMF::stopUpdateTask(){
 
 void IMF::_update_task(){
     static TickType_t _last_update = 0;
+    tick_function_t tick = nullptr;
     while(true){
         ESP_LOGI(TAG, "StackHighWaterMark=%d, heapfree=%d, heapminfree=%d, heapmaxfree=%d", uxTaskGetStackHighWaterMark(NULL), heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
         ESP_LOGI(TAG, "Waiting for semaphore");
@@ -595,46 +600,26 @@ void IMF::_update_task(){
             
             // do actions when state is switched
             if(current_state != state){
-                switch(state){
-                    case 1:
-                        board_set_rgb(&internal_rgb_conf, (rgb_t){255,0,0});
-                        // _dm->startTask();
-                        // stopLocationTopology();
-                        break;
-                    case 2:
-                        board_set_rgb(&internal_rgb_conf, (rgb_t){0,255,0});
-                        // _dm->stopTask();
-                        // startLocationTopology();
-                        break;
-                    case 3:
-                        board_set_rgb(&internal_rgb_conf, (rgb_t){0,0,255});
-                        // _dm->stopTask();
-                        // stopLocationTopology();
-                        break;
+                auto it = _states.find(state);
+                if(it == _states.end()){
+                    LOGGER_W(TAG, "Could not find tick function for given state %" PRId16, state);
+                    tick = nullptr;
+                    board_set_rgb(&internal_rgb_conf, (rgb_t){0,0,0});
+                } else{
+                    tick = it->second.tick_f;
+                    board_set_rgb(&internal_rgb_conf, it->second.color);
+                }
+                if(_state_change_cb){
+                    _state_change_cb(current_state, state);
                 }
             }
             current_state = state;
-
-            // do period actions for current state
-            switch(state){
-                case 1:
-                    _dm->singleRun();
-                    break;
-                case 2:
-                    
-                    if(Device::this_device->fixed_location == false){
-                        _topology->singleRun();
-                    }
-                    break;
-                case 3:
-                    if(_update_cb != nullptr){
-                        TickType_t diff = pdTICKS_TO_MS(now) - pdTICKS_TO_MS(_last_update);
-                        _update_cb(diff);
-                        _last_update = now;
-                    }
-                    break;
+            
+            if(tick != nullptr){
+                TickType_t diff = pdTICKS_TO_MS(now) - pdTICKS_TO_MS(_last_update);
+                tick(diff);
+                _last_update = now;
             }
-
         }
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
@@ -645,23 +630,25 @@ void IMF::_update_timer_cb(){
     xSemaphoreGive(xSemaphoreUpdate);
 }
 
-esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args, update_function_t update_cb) 
+esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args, tick_function_t update_cb, state_change_t state_change_cb) 
 { 
     esp_err_t err = ESP_OK;
-    if(btn_cb != NULL){
+    if(btn_cb != nullptr){
         err = board_buttons_release_register_callback(btn_cb);
         if(err != ESP_OK){
             ESP_LOGE(TAG, "Cannot register board button callback");
             return err;
         }
     }
-    if(event_handler != NULL){
+    if(event_handler != nullptr){
         err = _dm->registerEventHandle(event_handler, handler_args);
         if(err != ESP_OK){
             ESP_LOGE(TAG, "Cannot board register DM event handle");
             return err;
         }
     }
+    _update_cb = update_cb;
+    _state_change_cb = state_change_cb;
     // esp_timer_create_args_t args = {
     //     .callback = _update_timer_cb_wrapper,
     //     .arg = this,
@@ -715,6 +702,30 @@ esp_err_t IMF::connectToAP(const std::string& ssid, const std::string& password)
 esp_err_t IMF::addOption(const config_option_t& option){
     _options.push_back(option);
     return ESP_OK;
+}
+
+void IMF::setStateData(int16_t state_num, tick_function_t tick_fun, rgb_t color){
+    auto it = _states.find(state_num);
+    if(it != _states.end()){
+        _states[state_num].tick_f = tick_fun; 
+        _states[state_num].color  = color;
+    } else{
+        _states[state_num] = (state_data_t){tick_fun, color};
+    }
+}
+
+void IMF::addDefaultStates(){
+    // auto dmTick = [this](TickType_t diff) { if(this->_dm) this->_dm->tick(diff); };
+    auto dmTick = safeSharedTickCall<DistanceMeter>(_dm);
+    auto topologyTick = [this](TickType_t diff) { 
+        if(this->_topology && Device::this_device->fixed_location == false) 
+            this->_topology->tick(diff); 
+    };
+    auto updateTick = [this](TickType_t diff) { if(this->_update_cb) this->_update_cb(diff); };
+    setStateData(0, nullptr, (rgb_t){ 50, 50, 50});
+    setStateData(1, dmTick, (rgb_t){255,  0,  0});
+    setStateData(2, topologyTick, (rgb_t){  0,255,  0});
+    setStateData(3, updateTick, (rgb_t){  0,  0,255});
 }
 
 void IMF::startWebConfig(){

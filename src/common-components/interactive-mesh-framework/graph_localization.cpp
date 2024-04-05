@@ -364,7 +364,7 @@ void GraphLocalization::saveNodePosition(uint32_t node_id){
     }
 }
 
-void GraphLocalization::singleRun(){
+void GraphLocalization::tick(TickType_t diff){
     heap_caps_print_heap_info(MALLOC_CAP_8BIT);
     ESP_LOGI(TAG, "START StackHighWaterMark=%d, heapfree=%d, heapminfree=%d, heapmaxfree=%d", uxTaskGetStackHighWaterMark(NULL), heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
     initGraph();
@@ -386,7 +386,7 @@ void GraphLocalization::singleRun(){
 void GraphLocalization::task(){
     // TODO: stopping condition? - detect stagnation (nodes are not moving much)
     while(true){
-        singleRun();
+        tick(500 / portTICK_PERIOD_MS);
         // uint32_t rnd = esp_random() / 1000000; // 0-4294
         // vTaskDelay(1000 + rnd); // random delay 1000 - 5294 ticks
         vTaskDelay(500 / portTICK_PERIOD_MS);

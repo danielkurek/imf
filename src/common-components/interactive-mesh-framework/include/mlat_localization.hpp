@@ -18,7 +18,7 @@ namespace imf{
             MlatLocalization(std::shared_ptr<imf::Device> this_device, std::vector<std::shared_ptr<imf::Device>> stations);
             bool start();
             void stop();
-            void singleRun();
+            void tick(TickType_t diff);
             static void locationToPos(const location_local_t &location, float &x, float &y);
             static void posToLocation(const float x, const float y, location_local_t &location);
         private:

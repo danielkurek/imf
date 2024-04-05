@@ -76,6 +76,7 @@ esp_err_t DistancePoint::measureDistance(uint32_t &distance_cm){
         if(_latest_log + 1 < 0) _latest_log = 0;
         size_t next_log = _latest_log + 1;
         if(next_log >= log_size){
+            ESP_LOGI(TAG, "resetting log index %d+1 (%d) to 0 (log_size=%d)", _latest_log, next_log, log_size);
             next_log = 0;
         }
         assert(next_log < log_size);
@@ -129,6 +130,7 @@ esp_err_t DistancePoint::getDistanceFromLog(distance_measurement_t &measurement,
     if(offset >= log_size) return ESP_FAIL;
     size_t index = (_latest_log + offset) % log_size;
     assert(index < log_size);
+    ESP_LOGI(TAG, "returning %d, distance %" PRIu32, index, _distance_log[index].distance_cm);
     measurement.timestamp = _distance_log[index].timestamp;
     measurement.distance_cm = _distance_log[index].distance_cm;
     return ESP_OK;
@@ -306,7 +308,7 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
     return result;
 }
 
-void DistanceMeter::singleRun(){
+void DistanceMeter::tick(TickType_t diff){
     static std::shared_ptr<DistancePoint> s_nearest_point = nullptr;
     esp_err_t err;
 
@@ -381,7 +383,7 @@ void DistanceMeter::task(){
     while(true){
         vTaskDelay(500 / portTICK_PERIOD_MS); // allow other tasks to run
         
-        singleRun();
+        tick(500 / portTICK_PERIOD_MS);
     }
 
 }
