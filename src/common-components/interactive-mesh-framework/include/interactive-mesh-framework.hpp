@@ -52,8 +52,8 @@ namespace imf{
             nvs_handle_t getOptionsHandle() { return _options_handle; }
             void startWebConfig();
             void stopWebConfig();
-            esp_err_t startLocationTopology();
-            void stopLocationTopology();
+            esp_err_t startLocalization();
+            void stopLocalization();
             auto devices_cbegin() { return _devices.cbegin(); }
             auto devices_cend() { return _devices.cend(); }
         private:
@@ -70,7 +70,7 @@ namespace imf{
                 static_cast<IMF *>(param)->_update_timer_cb();
             }
             esp_err_t _wait_for_ble_mesh(uint32_t max_tries);
-            void _init_topology();
+            void _init_localization();
             std::shared_ptr<DistanceMeter> _dm;
             std::vector<config_option_t> _options;
             esp_event_loop_handle_t _event_loop_hdl;
@@ -78,7 +78,7 @@ namespace imf{
             state_change_t _state_change_cb = nullptr;
             uint32_t _next_id = 1; // 0 is reserved for local device
             nvs_handle_t _options_handle;
-            std::shared_ptr<Localization> _topology;
+            std::shared_ptr<Localization> _localization;
             int16_t current_state = 0;
             SemaphoreHandle_t xSemaphoreUpdate = NULL;
             TaskHandle_t _xUpdateHandle;

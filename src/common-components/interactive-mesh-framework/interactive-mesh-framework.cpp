@@ -137,8 +137,13 @@ esp_err_t Device::initLocalDevice(nvs_handle_t options_handle){
             }
         }
     }
-    // TODO: get device type
-    this_device = std::shared_ptr<Device>(new Device(0, DeviceType::Mobile, _getMAC(), 1, ble_mesh_addr, !valid_addr));
+#if CONFIG_IMF_MOBILE_DEVICE
+    DeviceType type = DeviceType::Mobile;
+#else
+    DeviceType type = DeviceType::Station;
+#endif
+
+    this_device = std::shared_ptr<Device>(new Device(0, type, _getMAC(), 1, ble_mesh_addr, !valid_addr));
     
     // set default color && location
     LOGGER_I(TAG, "Setting default color for this device");
@@ -534,7 +539,7 @@ esp_err_t IMF::_wait_for_ble_mesh(uint32_t max_tries){
     return ESP_FAIL;
 }
 
-void IMF::_init_topology(){
+void IMF::_init_localization(){
     std::vector<std::shared_ptr<Device>> stations;
     for(auto it = _devices.begin(); it != _devices.end(); ++it){
         std::shared_ptr<Device> device = it->second;
@@ -542,7 +547,7 @@ void IMF::_init_topology(){
             stations.push_back(device);
         }
     }
-    _topology = std::make_shared<MlatLocalization>(Device::this_device, stations);
+    _localization = std::make_shared<MlatLocalization>(Device::this_device, stations);
 }
 
 esp_err_t IMF::start() { 
@@ -550,7 +555,7 @@ esp_err_t IMF::start() {
 
     Device::initLocalDevice(getOptionsHandle());
     // _devices.emplace(0, Device::this_device);
-    _init_topology();
+    _init_localization();
     
     // _dm->startTask();
 #ifdef CONFIG_IMF_STATION_DEVICE 
@@ -715,17 +720,35 @@ void IMF::setStateData(int16_t state_num, tick_function_t tick_fun, rgb_t color)
 }
 
 void IMF::addDefaultStates(){
-    // auto dmTick = [this](TickType_t diff) { if(this->_dm) this->_dm->tick(diff); };
-    auto dmTick = safeSharedTickCall<DistanceMeter>(_dm);
-    auto topologyTick = [this](TickType_t diff) { 
-        if(this->_topology && Device::this_device->fixed_location == false) 
-            this->_topology->tick(diff); 
-    };
-    auto updateTick = [this](TickType_t diff) { if(this->_update_cb) this->_update_cb(diff); };
-    setStateData(0, nullptr, (rgb_t){ 50, 50, 50});
-    setStateData(1, dmTick, (rgb_t){255,  0,  0});
-    setStateData(2, topologyTick, (rgb_t){  0,255,  0});
-    setStateData(3, updateTick, (rgb_t){  0,  0,255});
+    if(!Device::this_device){
+        // try to init local device
+        Device::initLocalDevice();
+        if(!Device::this_device){
+            return;
+        }
+    }
+    if(Device::this_device && Device::this_device->type == DeviceType::Station){
+        auto dmTick = safeSharedTickCall<DistanceMeter>(_dm);
+        auto topologyTick = [this](TickType_t diff) { 
+            if(this->_localization && Device::this_device && Device::this_device->fixed_location == false) 
+                this->_localization->tick(diff); 
+        };
+        auto updateTick = [this](TickType_t diff) { if(this->_update_cb) this->_update_cb(diff); };
+        setStateData(0, nullptr,      (rgb_t){ 50, 50, 50});
+        setStateData(1, dmTick,       (rgb_t){255,  0,  0}); // red
+        setStateData(2, topologyTick, (rgb_t){170,100,  0}); // orange
+        setStateData(3, updateTick,   (rgb_t){  0,255,  0}); // green
+    } else{
+        auto updateTick = [this](TickType_t diff) {
+            if(this->_dm) _dm->tick(diff);
+            if(this->_localization) _localization->tick(diff);
+            if(this->_update_cb) this->_update_cb(diff);
+        };
+        setStateData(0, nullptr,    (rgb_t){ 50, 50, 50});
+        setStateData(1, nullptr,    (rgb_t){255,  0,  0}); // red
+        setStateData(2, nullptr,    (rgb_t){170,100,  0}); // orange
+        setStateData(3, updateTick, (rgb_t){  0,255,  0}); // green
+    }
 }
 
 void IMF::startWebConfig(){
