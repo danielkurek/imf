@@ -45,16 +45,22 @@ class Node:
     def __init__(self, addr):
         self.addr = addr
         self.loc = None
+        self.rgb = None
+        self.level = None
+    def __str__(self):
+        return f"{{A:{self.addr}|C:{self.rgb}|L:{self.level}|x={self.loc.north * Helper.pos_scale if self.loc is not None else "?"} y={self.loc.east * Helper.pos_scale if self.loc is not None else "?"}}}"
 
 class Helper:
+    pos_scale = 1
     def __init__(self, serial_port):
         self.ser = serial.Serial(serial_port, 115200, timeout=0)
         self.cache = {}
+        self.local_addr = None
 
     def parse_loc_value(self, value):
         if len(value) != 28:
             print(f"Error: unexpected location value - expected length 28, got {len(value)}")
-            sys.exit(1)
+            return None,None,None,None,None
         north = int(value[1:6])
         east = int(value[7:12])
         alt = int(value[13:18])
@@ -69,16 +75,32 @@ class Helper:
             print(f"Error: bad type of response expected bytes or str (actual={type(rsp)})")
             sys.exit(1)
         rsp = rsp.strip()
-        field,value = rsp.split('=')
+        values = rsp.split('=')
+        if len(values) != 2:
+            print("Error: cannot parse response")
+            return
+        field,value = values[0], values[1]
         addr = None
         if ':' in field:
             addr, field = field.split(':')
         print(f"{addr=} {field=} {value=}")
+        if self.local_addr is not None and addr == self.local_addr:
+            print("skipping local device")
+            return
         if addr not in self.cache:
             self.cache[addr] = Node(addr)
         if field == "loc":
             north,east,alt,floor,uncertainty = self.parse_loc_value(value)
+            if None in (north,east,alt,floor,uncertainty):
+                print("Not saving the value")
+                return
             self.cache[addr].loc = Location(north,east,alt,floor,uncertainty)
+            print("Saved succesfully")
+        elif field == "rgb":
+            self.cache[addr].rgb = value
+            print("Saved succesfully")
+        elif field == "level":
+            self.cache[addr].level = value
             print("Saved succesfully")
 
     def read_responses(self):
@@ -92,14 +114,13 @@ class Helper:
             self.parse_response(line)
     
     def show(self):
-        pos_scale = 10
         # create graph
         G = pgv.AGraph(notranslate="true", inputscale=72, size="16,9!", dpi=100)
         for key in self.cache.keys():
             if isinstance(self.cache[key].loc, Location):
                 print(self.cache[key].loc)
-                pos = f"{self.cache[key].loc.north * pos_scale},{self.cache[key].loc.east * pos_scale}"
-                G.add_node(key, pos=pos)
+                pos = f"{self.cache[key].loc.north * self.pos_scale},{self.cache[key].loc.east * self.pos_scale}"
+            G.add_node(key, pos=pos, label = str(self.cache[key]), shape="record")
         
         G.layout("neato", args="-n2")
 
@@ -114,11 +135,28 @@ class Helper:
         cv2.waitKey(1)
 
     def main_task(self):
+        for _ in range(10):
+            self.ser.write(b"GET addr\n")
+            time.sleep(1)
+            while self.ser.in_waiting > 0:
+                rsp = self.ser.readline()
+                rsp = rsp.decode("utf-8")
+                field,value = rsp.split('=')
+                if field == "addr":
+                    self.local_addr = value.strip()
+                    break
+            if self.local_addr is not None:
+                break
         while True:
             self.read_responses()
             self.show()
             self.ser.write(b"GET ffff:loc\n")
-            time.sleep(1)
+            self.ser.write(b"GET ffff:rgb\n")
+            self.ser.write(b"GET ffff:level\n")
+            # tune this value if Ble-mesh network becomes overwhelmed
+            # the network becomes overwhelmed when there are a lot of
+            # devices and relay is enabled
+            time.sleep(5)
 
 if __name__ == "__main__":
     if len(sys.argv) != 2:
