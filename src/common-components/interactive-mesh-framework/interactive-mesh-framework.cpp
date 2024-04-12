@@ -750,7 +750,7 @@ void IMF::addDefaultStates(){
         auto updateTick = [this](TickType_t diff) { if(this->_update_cb) this->_update_cb(diff); };
         setStateData(0, nullptr,      (rgb_t){  0,  0,255});
         setStateData(1, dmTick,       (rgb_t){255,  0,  0}); // red
-        setStateData(2, topologyTick, (rgb_t){255,255,  0}); // orange
+        setStateData(2, topologyTick, (rgb_t){255,  0,255}); // pink
         setStateData(3, updateTick,   (rgb_t){  0,255,  0}); // green
     } else{
         auto updateTick = [this](TickType_t diff) {
@@ -760,7 +760,7 @@ void IMF::addDefaultStates(){
         };
         setStateData(0, nullptr,    (rgb_t){  0,  0,255});
         setStateData(1, nullptr,    (rgb_t){255,  0,  0}); // red
-        setStateData(2, nullptr,    (rgb_t){255,255,  0}); // orange
+        setStateData(2, nullptr,    (rgb_t){255,  0,255}); // pink
         setStateData(3, updateTick, (rgb_t){  0,255,  0}); // green
     }
 }
