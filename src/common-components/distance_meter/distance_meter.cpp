@@ -214,6 +214,12 @@ uint32_t DistanceMeter::_addPoint(const uint8_t mac[6], std::string macstr, uint
             _next_id = id+1;
         }
     }
+
+    auto it = _points.find(id);
+    if(it != _points.end()){
+        return UINT32_MAX; // id is already used
+    }
+    
     ESP_LOGI(TAG, "Added point: [%s] channel %d", macstr.c_str(), channel);
     _points.emplace(id, std::make_shared<DistancePoint>(id, mac, macstr, channel));
     _points_mac_id.emplace(macstr, id);
