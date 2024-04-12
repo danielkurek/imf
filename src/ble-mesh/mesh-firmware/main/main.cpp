@@ -63,9 +63,9 @@ static size_t buttons_len = sizeof(buttons) / sizeof(buttons[0]);
 void log_init(){
     if(logger_init(ESP_LOG_INFO)){
         logger_output_to_default(true);
-        logger_init_storage();
+        // logger_init_storage();
 
-        logger_output_to_file("/logs/log.txt", 2000);
+        // logger_output_to_file("/logs/log.txt", 2000);
     }
 }
 
