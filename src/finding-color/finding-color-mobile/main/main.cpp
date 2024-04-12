@@ -49,17 +49,60 @@ typedef struct {
     DeviceType type;
 } device_conf_t;
 
+void update_colors(){
+    std::vector<rgb_t> new_colors;
+    for(auto it = s_imf->devices_cbegin(); it != s_imf->devices_cend(); it++){
+        auto device = it->second;
+        if(device == nullptr) continue;
+        rgb_t color;
+        esp_err_t err = device->getRgb(color);
+        if(err == ESP_OK){
+            bool add_color = true;
+            for(auto &&_color : new_colors){
+                if(_color.red == color.red && _color.green == color.green && _color.blue == color.blue){
+                    add_color = false;
+                    break;
+                }
+            }
+            if(add_color){
+                new_colors.push_back(color);
+            }
+        }
+    }
+    colors = std::move(new_colors);
+}
+
+void print_colors(){
+    std::string colors_str;
+    bool first = true;
+    for(auto && color : colors){
+        char rgb_str[RGB_STR_LEN];
+        rgb_to_str(color, RGB_STR_LEN, rgb_str);
+        if(first){
+            colors_str += std::string(rgb_str);
+            first = false;
+        } else
+            colors_str += "," + std::string(rgb_str);
+    }
+    LOGGER_I(TAG, "Using colors: %s", colors_str.c_str());
+}
+
 size_t random_number(size_t max){
     uint32_t rnd = esp_random();
     return rnd % max;
 }
 
 bool new_color(){
+    update_colors();
     if(colors.size() == 0){
         LOGGER_E(TAG, "No colors to choose from!");
         return false;
     }
-    current_color_index = random_number(colors.size());
+    if(colors.size() == 1){
+        current_color_index = 0;
+    } else{
+        current_color_index = random_number(colors.size());
+    }
     LOGGER_I(TAG, "Choosing index=%d as new color", current_color_index);
     char rgb_str[6+1];
     esp_err_t err = rgb_to_str(colors[current_color_index], 6+1, rgb_str);
@@ -77,14 +120,14 @@ bool new_color(){
     return err == ESP_OK;
 }
 
-bool colors_equal(const rgb_t *c1, const rgb_t *c2){
-    if(abs((int16_t) c1->red - (int16_t) c2->red) > color_cmp_threshold){
+bool colors_equal(const rgb_t &c1, const rgb_t &c2){
+    if(abs((int16_t) c1.red - (int16_t) c2.red) > color_cmp_threshold){
         return false;
     }
-    if(abs((int16_t) c1->green - (int16_t) c2->green) > color_cmp_threshold){
+    if(abs((int16_t) c1.green - (int16_t) c2.green) > color_cmp_threshold){
         return false;
     }
-    if(abs((int16_t) c1->blue - (int16_t) c2->blue) > color_cmp_threshold){
+    if(abs((int16_t) c1.blue - (int16_t) c2.blue) > color_cmp_threshold){
         return false;
     }
     return true;
@@ -100,17 +143,16 @@ bool check_color(){
         LOGGER_E(TAG, "Could not get RGB of closest device 0x%04" PRIx16, closest_device->ble_mesh_addr);
         return false;
     }
-    if(colors_equal(&remote_color, &colors[current_color_index])){
+    if(colors_equal(remote_color, colors[current_color_index])){
         return new_color();
     }
     return false;
 }
 
 void update_cb(TickType_t diff_ms){
-    ESP_LOGI(TAG, "Time since last update: %lu", diff_ms);
+    LOGGER_I(TAG, "Time since last update: %" PRIu32, diff_ms);
     TickType_t now_ms = pdTICKS_TO_MS(xTaskGetTickCount());
     if((now_ms - closest_timestamp_ms) >= closest_time_limit){
-        // check_color();
         if(check_color()){
             closest_timestamp_ms = now_ms;
         }
@@ -118,7 +160,7 @@ void update_cb(TickType_t diff_ms){
 }
 
 extern "C" void button_cb(uint8_t button_num){
-    ESP_LOGI(TAG, "Button no. %d was pressed", button_num);
+    LOGGER_I(TAG, "Button no. %d was pressed", button_num);
     if(button_num == 4){
         int16_t level = 0;
         if(Device::this_device){
@@ -224,35 +266,18 @@ extern "C" void app_main(void)
         const device_conf_t *d_conf = &devices_confs[i];
         uint32_t id = s_imf->addDevice(d_conf->type, d_conf->mac, d_conf->wifi_channel, d_conf->ble_addr);
         std::shared_ptr<Device> device = s_imf->getDevice(id);
-        if(device != nullptr){
-            rgb_t color;
-            esp_err_t err = device->getRgb(color);
-            if(err == ESP_OK){
-                bool add_color = true;
-                for(auto &&_color : colors){
-                    if(_color.red == color.red && _color.green == color.green && _color.blue == color.blue){
-                        add_color = false;
-                        break;
-                    }
-                }
-                if(add_color){
-                    colors.push_back(color);
-                }
-            }
+        if(device == nullptr){
+            LOGGER_E(TAG, "Could not add device to IMF");
         }
     }
-    std::string colors_str;
-    bool first = true;
-    for(auto && color : colors){
-        char rgb_str[RGB_STR_LEN];
-        rgb_to_str(color, RGB_STR_LEN, rgb_str);
-        if(first){
-            colors_str += std::string(rgb_str);
-            first = false;
-        } else
-            colors_str += "," + std::string(rgb_str);
-    }
-    LOGGER_I(TAG, "Using colors: %s", colors_str.c_str());
+
+    update_colors();
+    // wait for responses because of lazy loading values
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    // populate colors from responses
+    update_colors();
+    print_colors();
+
     ESP_LOGI(TAG, "IMF register callbacks");
     s_imf->registerCallbacks(button_cb, event_handler, NULL, update_cb, nullptr);
 
