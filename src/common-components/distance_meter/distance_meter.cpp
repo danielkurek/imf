@@ -10,6 +10,11 @@ ESP_EVENT_DEFINE_BASE(DM_EVENT);
 
 static const char *TAG = "DM";
 
+// results of linear regression of real_dist ~ dist_est
+// measurements were taken for distance 1-20m with at least 80 samples per distance
+constexpr float distance_bias = 1.687536 * 100;
+constexpr float distance_multi = 0.659338;
+
 EventGroupHandle_t DistancePoint::_s_ftm_event_group {};
 wifi_event_ftm_report_t DistancePoint::_s_ftm_report{};
 
@@ -49,6 +54,10 @@ void DistancePoint::event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
+uint32_t DistancePoint::distanceCorrection(uint32_t distance_cm){
+    return distance_bias + distance_multi * (float) distance_cm;
+}
+
 uint32_t DistancePoint::filterDistance(uint32_t new_measurement){
     while(_filter_data.size() >= _filter_max_size){
         _filter_sum -= _filter_data.front();
@@ -70,7 +79,7 @@ esp_err_t DistancePoint::measureDistance(uint32_t &distance_cm){
     ftm_result_t ftm_report = measureRawDistance(&ftmi_cfg);
 
     if(ftm_report.status == FTM_STATUS_SUCCESS){
-        distance_cm = filterDistance(ftm_report.dist_est);
+        distance_cm = filterDistance(distanceCorrection(ftm_report.dist_est));
 
         // allow _latest_log = -1 but not anything other
         if(_latest_log + 1 < 0) _latest_log = 0;
@@ -231,7 +240,7 @@ void DistanceMeter::stopTask(){
 static uint32_t nearestDeviceDistanceFunction(const distance_measurement_t& measurement, TickType_t now){
     TickType_t time_diff = (pdTICKS_TO_MS(now) - pdTICKS_TO_MS(measurement.timestamp));
     // in 10s travel by 3m = 300 cm in 10000 ms
-    return measurement.distance_cm + (time_diff * (300 / 10000));
+    return measurement.distance_cm + (time_diff * (300.0 / 10000.0));
 }
 
 std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {

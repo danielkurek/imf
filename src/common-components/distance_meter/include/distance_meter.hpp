@@ -87,6 +87,7 @@ class DistancePoint {
         static const int FTM_FAILURE_BIT = BIT1;
         static EventGroupHandle_t _s_ftm_event_group;
         static wifi_event_ftm_report_t _s_ftm_report;
+        uint32_t distanceCorrection(uint32_t distance_cm);
         uint32_t filterDistance(uint32_t new_measurement);
         uint32_t _id;
         uint8_t _mac[6];
