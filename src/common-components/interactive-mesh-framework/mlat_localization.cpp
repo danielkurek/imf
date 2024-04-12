@@ -10,9 +10,11 @@
 using namespace imf;
 using namespace mlat;
 
-static float distance_scale = 1.0/10.0;
+constexpr float distance_scale = 1.0/100.0; // cm to m
 
 static const char* TAG = "MLAT_LOC";
+
+constexpr int pos_scale = 100;
 
 MlatLocalization::MlatLocalization(std::shared_ptr<Device> this_device, std::vector<std::shared_ptr<Device>> stations)
     : _this_device(this_device){
@@ -36,13 +38,13 @@ void MlatLocalization::stop(){
     }
 }
 void MlatLocalization::locationToPos(const location_local_t &location, float &x, float &y){
-    x = (float) location.local_north / 10;
-    y = (float) location.local_east  / 10;
+    x = (float) location.local_north / pos_scale;
+    y = (float) location.local_east  / pos_scale;
 }
 
 void MlatLocalization::posToLocation(const float x, const float y, location_local_t &location){
-    location.local_north = x * 10;
-    location.local_east  = y * 10;
+    location.local_north = x * pos_scale;
+    location.local_east  = y * pos_scale;
 }
 
 static inline float distance_2d(const position_t pos1, const position_t pos2){
@@ -72,31 +74,31 @@ void MlatLocalization::tick(TickType_t diff){
         float distance = (float)distance_cm * distance_scale;
         float x,y;
         locationToPos(location, x, y);
-        LOGGER_I(TAG, "station with id %" PRIu32 " has distance %" PRIu32 "(%f) pos=x%f,y%f", id, distance_cm, distance, x, y);
+        LOGGER_I(TAG, "using station with id %" PRIu32 " has distance %" PRIu32 "(%f) pos=x%f,y%f", id, distance_cm, distance, x, y);
         anchors.emplace_back((position_t){x,y}, distance);
     }
 
-    LOGGER_I(TAG, "Anchors len %d", anchors.size());
+    LOGGER_I(TAG, "Anchors (%d):", anchors.size());
     for(auto && anchor : anchors){
-        LOGGER_I(TAG, "x=%f,y=%f,d=%f", anchor.pos.x, anchor.pos.y, anchor.distance);
+        LOGGER_I(TAG, "-> x=%f,y=%f,d=%f", anchor.pos.x, anchor.pos.y, anchor.distance);
     }
 
     // perform multilateration according to number of anchors
     if(anchors.size() >= 3){
         solution_t solution = MLAT::solve(anchors);
-        ESP_LOGI(TAG, "resulting pos x=%f,y=%f,err=%f", solution.pos.x, solution.pos.y, solution.error);
+        LOGGER_I(TAG, "resulting pos x=%f,y=%f,err=%f", solution.pos.x, solution.pos.y, solution.error);
         posToLocation(solution.pos.x, solution.pos.y, new_location);
         new_location.uncertainty = (uint16_t) abs(solution.error);
     }
     else if(anchors.size() == 2){
         double_solution_t solutions = MLAT::solve_two_anchors(anchors[0], anchors[1]);
-        ESP_LOGI(TAG, "resulting pos x=%f,y=%f", solutions.pos1.x, solutions.pos1.y);
+        LOGGER_I(TAG, "resulting pos x=%f,y=%f", solutions.pos1.x, solutions.pos1.y);
         posToLocation(solutions.pos1.x, solutions.pos1.y, new_location);
         new_location.uncertainty = (uint16_t) distance_2d(solutions.pos1, solutions.pos2);
     }
     else if(anchors.size() == 1){
         position_t pos = MLAT::solve_single_anchor(anchors[0], 0.0);
-        ESP_LOGI(TAG, "resulting pos x=%f,y=%f", pos.x, pos.y);
+        LOGGER_I(TAG, "resulting pos x=%f,y=%f", pos.x, pos.y);
         posToLocation(pos.x, pos.y, new_location);
         new_location.uncertainty = 0;
     }
@@ -104,6 +106,7 @@ void MlatLocalization::tick(TickType_t diff){
         new_location.local_north = 0;
         new_location.local_east  = 0;
         new_location.uncertainty = 0;
+        LOGGER_I(TAG, "no anchors, setting pos to x=0,y=0");
     }
     _this_device->setLocation(new_location);
 }
