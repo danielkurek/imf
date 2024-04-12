@@ -56,7 +56,7 @@ double_solution_t MLAT::solve_two_anchors(anchor_t anchor0, anchor_t anchor1){
   if(float_equal(dist, 0.0, eps)){
     // prevent division by zero
     solution.valid = false;
-    return solution
+    return solution;
   }
 
   const float a = (pow(anchor0.distance, 2) - pow(anchor1.distance, 2) + pow(dist, 2)) / (2*dist);
