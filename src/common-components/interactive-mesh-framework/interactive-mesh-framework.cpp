@@ -46,9 +46,10 @@ static esp_err_t loc_pos_opt_parse(const char *value, int16_t &north, int16_t &e
 
 Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr, bool local_commands)
     : id(_id), type(_type), ble_mesh_addr(_ble_mesh_addr), fixed_location(false), _local_commands(local_commands){
+    // Only measure distances to stations
     if(_type == DeviceType::Station){
         if(_dm != nullptr){
-            uint32_t id = _dm->addPoint(_wifi_mac_str, _wifi_channel);
+            uint32_t id = _dm->addPoint(_wifi_mac_str, _wifi_channel, _id);
             if(id != UINT32_MAX){
                 _point = _dm->getPoint(id);
             }

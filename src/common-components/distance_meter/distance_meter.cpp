@@ -174,15 +174,15 @@ DistanceMeter::DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t even
     }
 }
 
-uint32_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel){
+uint32_t DistanceMeter::addPoint(uint8_t mac[6], uint8_t channel, uint32_t id){
     char buffer[17+1];
     sprintf(buffer, MACSTR, MAC2STR(mac));
     std::string macstr (buffer);
 
-    return _addPoint(mac, macstr, channel);
+    return _addPoint(mac, macstr, channel, id);
 }
 
-uint32_t DistanceMeter::addPoint(std::string macstr, uint8_t channel){
+uint32_t DistanceMeter::addPoint(std::string macstr, uint8_t channel, uint32_t id){
     uint8_t mac[6];
     int ret = sscanf(macstr.c_str(), MACSTR_SCN, STR2MAC(mac));
     if(ret != 6){
@@ -190,26 +190,34 @@ uint32_t DistanceMeter::addPoint(std::string macstr, uint8_t channel){
         return UINT32_MAX;
     }
 
-    return _addPoint(mac, macstr, channel);
+    return _addPoint(mac, macstr, channel, id);
 }
 
-uint32_t DistanceMeter::_addPoint(const uint8_t mac[6], std::string macstr, uint8_t channel){
+// id = UINT32_MAX means that the id will be assigned by DistanceMeter
+uint32_t DistanceMeter::_addPoint(const uint8_t mac[6], std::string macstr, uint8_t channel, uint32_t id){
     if(_next_id == UINT32_MAX){
         return UINT32_MAX;
     }
 
-    uint32_t id;
+    // if point is already registered return its id
     auto search = _points_mac_id.find(macstr);
     if(search != _points_mac_id.end()){
         return search->second; // MAC is already added
-    } else{
+    }
+
+    if(id == UINT32_MAX){
         id = _next_id;
         _next_id += 1;
-        ESP_LOGI(TAG, "Added point: [%s] channel %d", macstr.c_str(), channel);
-        _points.emplace(id, std::make_shared<DistancePoint>(id, mac, macstr, channel));
-        _points_mac_id.emplace(macstr, id);
-        return id;
+    } else{
+        // internal id counter will place points always after the largest id added
+        if(id >= _next_id){
+            _next_id = id+1;
+        }
     }
+    ESP_LOGI(TAG, "Added point: [%s] channel %d", macstr.c_str(), channel);
+    _points.emplace(id, std::make_shared<DistancePoint>(id, mac, macstr, channel));
+    _points_mac_id.emplace(macstr, id);
+    return id;
 }
 
 std::shared_ptr<DistancePoint> DistanceMeter::getPoint(uint32_t id){
