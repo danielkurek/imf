@@ -24,7 +24,7 @@
 #define SERIAL_TX_GPIO CONFIG_IMF_SERIAL_TX_GPIO
 #define SERIAL_RX_GPIO CONFIG_IMF_SERIAL_RX_GPIO
 
-#define UPDATE_TIME 2000 * 1000 // every 2s
+#define UPDATE_TIME_MS 500
 
 static const char* TAG = "IMF";
 
@@ -86,39 +86,40 @@ esp_err_t Device::initLocalDevice(nvs_handle_t options_handle){
     std::string addr;
     esp_err_t err;
 
-    // save MAC and ble-mesh addr
-    char addr_str[ADDR_STR_LEN];
-    size_t addr_str_len = sizeof(addr_str);
-    err = nvs_get_str(options_handle, BLE_MESH_ADDR_OPT, addr_str, &addr_str_len);
-    if(err == ESP_OK){
-        LOGGER_I(TAG, "Using ble-mesh address stored in nvs for local device: %s", addr_str);
-        err = StrToAddr(addr_str, &ble_mesh_addr);
-        if(err == ESP_OK){
-            valid_addr = true;
-        } else{
-            LOGGER_E(TAG, "Stored ble-mesh address is not valid!");
-        }
-    } else{
-        LOGGER_E(TAG, "Could not get ble-mesh addr from NVS! Err: %d", err);
-    }
+    // get AP channel
     err = nvs_get_u16(options_handle, "softAP/channel", &wifi_channel);
     if(err != ESP_OK){
         LOGGER_E(TAG, "Could not get softAP/channel! Err: %d", err);
     }
 
-    if(!valid_addr){
-        for(int i = 0; i < _maxRetries; i++){
-            addr = _serial->GetField("addr");
-            if(addr.length() > 0 && addr != "FAIL"){
-                err = StrToAddr(addr.c_str(), &ble_mesh_addr);
-                if(err == ESP_OK){
-                    LOGGER_I(TAG, "Using ble-mesh address obtained from ble-mesh device: %s", addr.c_str());
-                    LOGGER_I(TAG, "0x%04" PRIx16, ble_mesh_addr);
-                    valid_addr = true;
-                    break;
-                }
+    // get BLE-Mesh addr
+    for(int i = 0; i < _maxRetries; i++){
+        addr = _serial->GetField("addr");
+        if(addr.length() > 0 && addr != "FAIL"){
+            err = StrToAddr(addr.c_str(), &ble_mesh_addr);
+            if(err == ESP_OK){
+                LOGGER_I(TAG, "Using ble-mesh address obtained from ble-mesh device: %s (0x%04" PRIx16 ")", addr.c_str(), ble_mesh_addr);
+                valid_addr = true;
+                break;
             }
-            vTaskDelay(1000 / portTICK_PERIOD_MS);
+        }
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+    if(!valid_addr){
+        // try to get it from NVS
+        char addr_str[ADDR_STR_LEN];
+        size_t addr_str_len = sizeof(addr_str);
+        err = nvs_get_str(options_handle, BLE_MESH_ADDR_OPT, addr_str, &addr_str_len);
+        if(err == ESP_OK){
+            LOGGER_I(TAG, "Using ble-mesh address stored in nvs for local device: %s", addr_str);
+            err = StrToAddr(addr_str, &ble_mesh_addr);
+            if(err == ESP_OK){
+                valid_addr = true;
+            } else{
+                LOGGER_E(TAG, "Stored ble-mesh address is not valid!");
+            }
+        } else{
+            LOGGER_E(TAG, "Could not get ble-mesh addr from NVS! Err: %d", err);
         }
     }
     if(!valid_addr){
@@ -126,6 +127,7 @@ esp_err_t Device::initLocalDevice(nvs_handle_t options_handle){
         return ESP_FAIL;
     } 
 
+    // save BLE-Mesh addr
     if(valid_addr){
         err = AddrToStr(ble_mesh_addr, addr);
         if(err != ESP_OK){
@@ -583,11 +585,20 @@ void IMF::stopUpdateTask(){
 }
 
 void IMF::_update_task(){
-    static TickType_t _last_update = 0;
+    TickType_t _last_update = 0;
     tick_function_t tick = nullptr;
+    auto it = _states.find(current_state);
+    if(it == _states.end()){
+        LOGGER_W(TAG, "Could not find tick function for given state %" PRId16, current_state);
+        tick = nullptr;
+        board_set_rgb(&internal_rgb_conf, (rgb_t){0,0,0});
+    } else{
+        tick = it->second.tick_f;
+        board_set_rgb(&internal_rgb_conf, it->second.color);
+    }
     while(true){
         ESP_LOGI(TAG, "StackHighWaterMark=%d, heapfree=%d, heapminfree=%d, heapmaxfree=%d", uxTaskGetStackHighWaterMark(NULL), heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-        ESP_LOGI(TAG, "Waiting for semaphore");
+        // ESP_LOGI(TAG, "Waiting for semaphore");
         // if(!xSemaphoreTake(xSemaphoreUpdate, 10000 / portTICK_PERIOD_MS)){
         //     ESP_LOGI(TAG, "Semaphore not given");
         //     continue;
@@ -605,6 +616,7 @@ void IMF::_update_task(){
             
             // do actions when state is switched
             if(current_state != state){
+                ESP_LOGI(TAG, "State has changed");
                 auto it = _states.find(state);
                 if(it == _states.end()){
                     LOGGER_W(TAG, "Could not find tick function for given state %" PRId16, state);
@@ -621,12 +633,13 @@ void IMF::_update_task(){
             current_state = state;
             
             if(tick != nullptr){
+                ESP_LOGI(TAG, "Performing tick state function");
                 TickType_t diff = pdTICKS_TO_MS(now) - pdTICKS_TO_MS(_last_update);
                 tick(diff);
                 _last_update = now;
             }
         }
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(UPDATE_TIME_MS / portTICK_PERIOD_MS);
     }
 }
 
@@ -670,7 +683,7 @@ esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handl
     // }
     
     // _update_cb = update_cb;
-    // err = esp_timer_start_periodic(update_timer, UPDATE_TIME);
+    // err = esp_timer_start_periodic(update_timer, UPDATE_TIME_MS * 1000);
     // if(err != ESP_OK){
     //     ESP_LOGE(TAG, "Failed to start update timer! %s", esp_err_to_name(err));
     //     return err;
@@ -722,7 +735,7 @@ void IMF::setStateData(int16_t state_num, tick_function_t tick_fun, rgb_t color)
 void IMF::addDefaultStates(){
     if(!Device::this_device){
         // try to init local device
-        Device::initLocalDevice();
+        Device::initLocalDevice(getOptionsHandle());
         if(!Device::this_device){
             return;
         }
@@ -734,9 +747,9 @@ void IMF::addDefaultStates(){
                 this->_localization->tick(diff); 
         };
         auto updateTick = [this](TickType_t diff) { if(this->_update_cb) this->_update_cb(diff); };
-        setStateData(0, nullptr,      (rgb_t){ 50, 50, 50});
+        setStateData(0, nullptr,      (rgb_t){  0,  0,255});
         setStateData(1, dmTick,       (rgb_t){255,  0,  0}); // red
-        setStateData(2, topologyTick, (rgb_t){170,100,  0}); // orange
+        setStateData(2, topologyTick, (rgb_t){255,255,  0}); // orange
         setStateData(3, updateTick,   (rgb_t){  0,255,  0}); // green
     } else{
         auto updateTick = [this](TickType_t diff) {
@@ -744,9 +757,9 @@ void IMF::addDefaultStates(){
             if(this->_localization) _localization->tick(diff);
             if(this->_update_cb) this->_update_cb(diff);
         };
-        setStateData(0, nullptr,    (rgb_t){ 50, 50, 50});
+        setStateData(0, nullptr,    (rgb_t){  0,  0,255});
         setStateData(1, nullptr,    (rgb_t){255,  0,  0}); // red
-        setStateData(2, nullptr,    (rgb_t){170,100,  0}); // orange
+        setStateData(2, nullptr,    (rgb_t){255,255,  0}); // orange
         setStateData(3, updateTick, (rgb_t){  0,255,  0}); // green
     }
 }
@@ -764,14 +777,14 @@ void IMF::stopWebConfig(){
     web_config_stop();
 }
 
-esp_err_t IMF::startLocationTopology(){
-    if(_topology){
-        return _topology->start();
+esp_err_t IMF::startLocalization(){
+    if(_localization){
+        return _localization->start();
     }
     return ESP_FAIL;
 }
-void IMF::stopLocationTopology(){
-    if(_topology){
-        _topology->stop();
+void IMF::stopLocalization(){
+    if(_localization){
+        _localization->stop();
     }
 }
