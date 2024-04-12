@@ -91,16 +91,18 @@ esp_err_t DistancePoint::measureDistance(uint32_t &distance_cm){
 ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cfg){
     EventBits_t bits;
 
+    // clear bits so that timeout of xEventGroupWaitBits does not have bits set from previous event
+    xEventGroupClearBits(_s_ftm_event_group, FTM_REPORT_BIT | FTM_FAILURE_BIT);
+
     esp_err_t err = esp_wifi_ftm_initiate_session(ftmi_cfg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to start FTM session");
         return {};
     }
-    // clear bits so that timeout of xEventGroupWaitBits does not have bits set from previous event
-    xEventGroupClearBits(_s_ftm_event_group, FTM_REPORT_BIT | FTM_FAILURE_BIT);
+    
     bits = xEventGroupWaitBits(_s_ftm_event_group, FTM_REPORT_BIT | FTM_FAILURE_BIT,
-                                           pdTRUE, pdFALSE, portMAX_DELAY);
-    if (bits & FTM_REPORT_BIT) {
+                                           pdTRUE, pdFALSE, 5000 / portTICK_PERIOD_MS);
+    if ((bits & FTM_REPORT_BIT) != 0) {
         ftm_result_t ftm_result {};
         memcpy(ftm_result.peer_mac, _s_ftm_report.peer_mac, 6);
         ftm_result.status = _s_ftm_report.status;
