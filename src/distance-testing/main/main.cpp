@@ -30,7 +30,7 @@ extern "C" void event_handler(void* event_handler_arg, esp_event_base_t event_ba
             case DM_MEASUREMENT_DONE:
                 dm_measurement = (dm_measurement_data_t*) event_data;
                 if(dm_measurement->valid)
-                    ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", distance_cm=%" PRIu32, dm_measurement->point_id, dm_measurement->distance_cm);
+                    ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", distance_cm=%" PRIu32 " rssi=%" PRId8, dm_measurement->point_id, dm_measurement->measurement.distance_cm, dm_measurement->measurement.rssi);
                 else
                     ESP_LOGI(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", INVALID", dm_measurement->point_id);
                 break;

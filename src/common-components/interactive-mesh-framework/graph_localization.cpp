@@ -296,15 +296,15 @@ void GraphLocalization::populateGraph(){
     for(auto iter = _stations.begin(); iter != _stations.end(); ++iter){
         auto id = iter->first;
         auto device = iter->second;
-        uint32_t distance_cm;
-        esp_err_t err = device->lastDistance(distance_cm);
+        distance_measurement_t measurement;
+        esp_err_t err = device->lastDistance(measurement);
         if(err != ESP_OK){
             unknown_dist_nodes.push_back(id);
             continue;
         }
         local_nodes.push_back(id);
         addNode(id);
-        addEdge(_this_device->id, id, ((float) distance_cm) / 100.0);
+        addEdge(_this_device->id, id, ((float) measurement.distance_cm) / 100.0);
         vTaskDelay(delay);
     }
     ESP_LOGI(TAG, "Adding unreachable stations");

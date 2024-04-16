@@ -57,7 +57,7 @@ void MlatLocalization::tick(TickType_t diff){
     std::vector<anchor_t> anchors;
     for(auto && [id,station] : _stations){
         location_local_t location;
-        uint32_t distance_cm;
+        distance_measurement_t measurement;
         esp_err_t err;
 
         err = station->getLocation(location);
@@ -66,15 +66,15 @@ void MlatLocalization::tick(TickType_t diff){
             continue;
         }
 
-        err = station->lastDistance(distance_cm);
+        err = station->lastDistance(measurement);
         if(err != ESP_OK){
             LOGGER_I(TAG, "skipping station with id %" PRIu32 ", could not get distance", id);
             continue;
         }
-        float distance = (float)distance_cm * distance_scale;
+        float distance = (float)measurement.distance_cm * distance_scale;
         float x,y;
         locationToPos(location, x, y);
-        LOGGER_I(TAG, "using station with id %" PRIu32 " has distance %" PRIu32 "(%f) pos=x%f,y%f", id, distance_cm, distance, x, y);
+        LOGGER_I(TAG, "using station with id %" PRIu32 " has distance %" PRIu32 "(%f) pos=x%f,y%f", id, measurement.distance_cm, distance, x, y);
         anchors.emplace_back((position_t){x,y}, distance);
     }
 

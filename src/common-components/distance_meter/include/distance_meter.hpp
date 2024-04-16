@@ -32,12 +32,6 @@ typedef struct {
 } dm_nearest_device_change_t;
 
 typedef struct{
-    uint32_t point_id;
-    uint32_t distance_cm;
-    bool valid;
-} dm_measurement_data_t;
-
-typedef struct{
     uint8_t peer_mac[6];
     wifi_ftm_status_t status;
     uint32_t rtt_raw;
@@ -48,8 +42,19 @@ typedef struct{
 
 typedef struct{
     uint32_t distance_cm;
-    TickType_t timestamp;
+    int8_t rssi;
 } distance_measurement_t;
+
+typedef struct{
+    distance_measurement_t measurement;
+    TickType_t timestamp;
+} distance_log_t;
+
+typedef struct{
+    uint32_t point_id;
+    distance_measurement_t measurement;
+    bool valid;
+} dm_measurement_data_t;
 
 class DistancePoint {
     public:
@@ -71,14 +76,14 @@ class DistancePoint {
         
         // default event loop needs to be created before calling this function
         static esp_err_t initDistanceMeasurement();
-        esp_err_t measureDistance(uint32_t &distance_cm);
+        esp_err_t measureDistance(distance_measurement_t &measurement);
         static ftm_result_t measureRawDistance(
                 wifi_ftm_initiator_cfg_t* ftmi_conf);
         const uint8_t* getMac() { return _mac; }
         const std::string getMacStr() { return _macstr; }
         uint8_t getChannel() { return _channel; }
         uint16_t getID() { return _id; }
-        esp_err_t getDistanceFromLog(distance_measurement_t &measurement, size_t offset = 0);
+        esp_err_t getDistanceFromLog(distance_log_t &measurement, size_t offset = 0);
         static constexpr size_t log_size = 5;
     private:
         static void event_handler(void* arg, esp_event_base_t event_base, 
@@ -88,16 +93,17 @@ class DistancePoint {
         static EventGroupHandle_t _s_ftm_event_group;
         static wifi_event_ftm_report_t _s_ftm_report;
         uint32_t distanceCorrection(uint32_t distance_cm);
-        uint32_t filterDistance(uint32_t new_measurement);
+        distance_measurement_t filterDistance(const distance_measurement_t &new_measurement);
         uint32_t _id;
         uint8_t _mac[6];
         std::string _macstr;
         uint8_t _channel;
         size_t _filter_max_size;
-        std::deque<uint32_t> _filter_data;
-        uint64_t _filter_sum = 0;
+        std::deque<distance_measurement_t> _filter_data;
+        uint64_t _filter_distance_sum = 0;
+        int64_t _filter_rssi_sum = 0;
         int _latest_log = -1;
-        distance_measurement_t _distance_log[log_size];
+        distance_log_t _distance_log[log_size];
 };
 
 class DistanceMeter{

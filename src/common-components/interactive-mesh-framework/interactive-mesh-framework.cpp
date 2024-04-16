@@ -68,12 +68,13 @@ Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_
 
 #if CONFIG_IMF_DEBUG_STATIC_DEVICES
 Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr, 
-    rgb_t rgb, location_local_t location, int16_t level, uint32_t distance_cm)
+    rgb_t rgb, location_local_t location, int16_t level, uint32_t distance_cm, int8_t rssi)
     : id(_id), type(_type), ble_mesh_addr(_ble_mesh_addr), _local_commands(false){
     setRgb(rgb);
     setLocation(location);
     setLevel(level);
     debug_distance_cm = distance_cm;
+    debug_rssi = rssi;
 }
 #endif
 
@@ -375,36 +376,36 @@ esp_err_t Device::getLevel(int16_t &level_out){
 #endif
 
 #if CONFIG_IMF_DEBUG_STATIC_DEVICES
-esp_err_t Device::measureDistance(uint32_t &distance_cm){
+esp_err_t Device::measureDistance(distance_measurement_t &measurement){
     if(type == DeviceType::Mobile){
         return ESP_FAIL;
     }
-    distance_cm = debug_distance_cm;
+    measurement.distance_cm = debug_distance_cm;
+    measurement.rssi = debug_rssi;
     return ESP_OK;
 }
 #else
-esp_err_t Device::measureDistance(uint32_t &distance_cm){
+esp_err_t Device::measureDistance(distance_measurement_t &measurement){
     if(type == DeviceType::Mobile || _point == nullptr){
         return ESP_FAIL;
     }
-    return _point->measureDistance(distance_cm);
+    return _point->measureDistance(measurement);
 }
 #endif
 
 #if CONFIG_IMF_DEBUG_STATIC_DEVICES
-esp_err_t Device::lastDistance(uint32_t &distance_cm){
-    distance_cm = debug_distance_cm;
+esp_err_t Device::lastDistance(distance_measurement_t &measurement){
+    measurement.distance_cm = debug_distance_cm;
+    measurement.rssi = debug_rssi;
     return ESP_OK;
 }
 #else
-esp_err_t Device::lastDistance(uint32_t &distance_cm){
-    distance_measurement_t dm;
-    // distance_cm = 200;
-    // return ESP_OK;
+esp_err_t Device::lastDistance(distance_measurement_t &measurement){
+    distance_log_t log_measurement;
     if(!_point) return ESP_FAIL;
-    esp_err_t err = _point->getDistanceFromLog(dm);
+    esp_err_t err = _point->getDistanceFromLog(log_measurement);
     if(err != ESP_OK) return err;
-    distance_cm = dm.distance_cm;
+    measurement = log_measurement.measurement;
     return ESP_OK;
 }
 #endif

@@ -58,18 +58,24 @@ uint32_t DistancePoint::distanceCorrection(uint32_t distance_cm){
     return distance_bias + distance_multi * (float) distance_cm;
 }
 
-uint32_t DistancePoint::filterDistance(uint32_t new_measurement){
+distance_measurement_t DistancePoint::filterDistance(const distance_measurement_t &new_measurement){
     while(_filter_data.size() >= _filter_max_size){
-        _filter_sum -= _filter_data.front();
+        distance_measurement_t measurement = _filter_data.front();
+        _filter_distance_sum -= measurement.distance_cm;
+        _filter_rssi_sum -= measurement.rssi;
         _filter_data.pop_front();
     }
     _filter_data.push_back(new_measurement);
-    _filter_sum += new_measurement;
+    _filter_distance_sum += new_measurement.distance_cm;
+    _filter_rssi_sum += new_measurement.rssi;
 
-    return _filter_sum / _filter_data.size();
+    return (distance_measurement_t){
+        .distance_cm = (uint32_t)(_filter_distance_sum / _filter_data.size()),
+        .rssi = (int8_t) (_filter_rssi_sum / _filter_data.size())
+    };
 }
 
-esp_err_t DistancePoint::measureDistance(uint32_t &distance_cm){
+esp_err_t DistancePoint::measureDistance(distance_measurement_t &measurement){
     wifi_ftm_initiator_cfg_t ftmi_cfg {};
     memcpy(ftmi_cfg.resp_mac, _mac, 6);
     ftmi_cfg.channel = _channel;
@@ -79,7 +85,18 @@ esp_err_t DistancePoint::measureDistance(uint32_t &distance_cm){
     ftm_result_t ftm_report = measureRawDistance(&ftmi_cfg);
 
     if(ftm_report.status == FTM_STATUS_SUCCESS){
-        distance_cm = filterDistance(distanceCorrection(ftm_report.dist_est));
+        // calculate mean rssi (only for logging)
+        int32_t rssi_sum = 0;
+        for(auto && report : ftm_report.ftm_report_data){
+            rssi_sum += report.rssi;
+        }
+        int8_t rssi_mean = rssi_sum / ftm_report.ftm_report_data.size();
+        distance_measurement_t new_measurement = {
+            .distance_cm = distanceCorrection(ftm_report.dist_est),
+            .rssi = rssi_mean
+        };
+        measurement = filterDistance(new_measurement);
+        ESP_LOGI(TAG, "Measured distance to point with id=%" PRIu32 " dist_raw=%" PRIu32 " rssi_raw=%" PRId8 " dist_est=%" PRIu32 " rssi_avg=%" PRId8, _id, ftm_report.dist_est, rssi_mean, measurement.distance_cm, measurement.rssi);
 
         // allow _latest_log = -1 but not anything other
         if(_latest_log + 1 < 0) _latest_log = 0;
@@ -90,7 +107,8 @@ esp_err_t DistancePoint::measureDistance(uint32_t &distance_cm){
         }
         assert(next_log < log_size);
         _distance_log[next_log].timestamp = xTaskGetTickCount();
-        _distance_log[next_log].distance_cm = distance_cm;
+        _distance_log[next_log].measurement.distance_cm = measurement.distance_cm;
+        _distance_log[next_log].measurement.rssi = rssi_mean;
         _latest_log = next_log;
         return ESP_OK;
     }
@@ -135,15 +153,16 @@ ftm_result_t DistancePoint::measureRawDistance(wifi_ftm_initiator_cfg_t* ftmi_cf
     return {};
 }
 
-esp_err_t DistancePoint::getDistanceFromLog(distance_measurement_t &measurement, size_t offset){
+esp_err_t DistancePoint::getDistanceFromLog(distance_log_t &measurement_log, size_t offset){
     ESP_LOGI(TAG, "getDistanceFromLog offset=%d _latest_log=%d", offset, _latest_log);
     if(_latest_log < 0) return ESP_FAIL;
     if(offset >= log_size) return ESP_FAIL;
     size_t index = (_latest_log + offset) % log_size;
     assert(index < log_size);
-    ESP_LOGI(TAG, "returning %d, distance %" PRIu32, index, _distance_log[index].distance_cm);
-    measurement.timestamp = _distance_log[index].timestamp;
-    measurement.distance_cm = _distance_log[index].distance_cm;
+    ESP_LOGI(TAG, "returning %d, distance %" PRIu32, index, _distance_log[index].measurement.distance_cm);
+    measurement_log.timestamp = _distance_log[index].timestamp;
+    measurement_log.measurement.distance_cm = _distance_log[index].measurement.distance_cm;
+    measurement_log.measurement.rssi = _distance_log[index].measurement.rssi;
     return ESP_OK;
 }
 
@@ -251,10 +270,10 @@ void DistanceMeter::stopTask(){
     }
 }
 
-static uint32_t nearestDeviceDistanceFunction(const distance_measurement_t& measurement, TickType_t now){
-    TickType_t time_diff = (pdTICKS_TO_MS(now) - pdTICKS_TO_MS(measurement.timestamp));
+static uint32_t nearestDeviceDistanceFunction(const distance_log_t& log, TickType_t now){
+    TickType_t time_diff = (pdTICKS_TO_MS(now) - pdTICKS_TO_MS(log.timestamp));
     // in 10s travel by 3m = 300 cm in 10000 ms
-    return measurement.distance_cm + (time_diff * (300.0 / 10000.0));
+    return log.measurement.distance_cm + (time_diff * (300.0 / 10000.0));
 }
 
 std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
@@ -264,13 +283,13 @@ std::shared_ptr<DistancePoint> DistanceMeter::nearestPoint() {
     // TickType_t best_time;
     uint32_t best_dist = UINT32_MAX;
     bool first = true;
-    distance_measurement_t measurement;
+    distance_log_t log_measurement;
     esp_err_t err;
     for(const auto& [id, point] : _points){
-        err = point->getDistanceFromLog(measurement);
+        err = point->getDistanceFromLog(log_measurement);
         if(err != ESP_OK) continue;
 
-        uint32_t transformed_distance = nearestDeviceDistanceFunction(measurement, now);
+        uint32_t transformed_distance = nearestDeviceDistanceFunction(log_measurement, now);
         if(first || transformed_distance < best_dist){
             first = false;
             best_dist = transformed_distance;
@@ -343,16 +362,16 @@ void DistanceMeter::tick(TickType_t diff){
     // ESP_LOGI(TAG, "%d reachable points", points.size());
     ESP_LOGI(TAG, "Measuring distance to %d points", _points.size());
     for(const auto& [key, point] : _points){
-        uint32_t distance_cm = UINT32_MAX;
-        err = point->measureDistance(distance_cm);
+        distance_measurement_t measurement {UINT32_MAX, INT8_MIN};
+        err = point->measureDistance(measurement);
         bool valid = err == ESP_OK;
         uint32_t point_id = point->getID();
         dm_measurement_data_t event_data;
         event_data.point_id = point_id;
-        event_data.distance_cm = distance_cm;
+        event_data.measurement = measurement;
         event_data.valid = valid;
         if(valid)
-            ESP_LOGI(TAG, "Distance to point %" PRIu32 " is %" PRIu32, point_id, distance_cm);
+            ESP_LOGI(TAG, "Distance to point %" PRIu32 " is %" PRIu32 " with rssi %" PRId8 , point_id, measurement.distance_cm, measurement.rssi);
         err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
         if(err != ESP_OK){
             ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
@@ -368,10 +387,10 @@ void DistanceMeter::tick(TickType_t diff){
     }
 
     // check if this device is in near proximity
-    distance_measurement_t measurement;
-    err = nearest_point->getDistanceFromLog(measurement);
+    distance_log_t log_measurement;
+    err = nearest_point->getDistanceFromLog(log_measurement);
     if(err == ESP_OK){
-        auto nearest_distance = nearestDeviceDistanceFunction(measurement, now);
+        auto nearest_distance = nearestDeviceDistanceFunction(log_measurement, now);
         if(nearest_distance >= _distance_threshold_cm){
             nearest_point = nullptr;
         }   
