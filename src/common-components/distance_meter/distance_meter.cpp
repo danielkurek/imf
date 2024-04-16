@@ -166,7 +166,8 @@ esp_err_t DistancePoint::getDistanceFromLog(distance_log_t &measurement_log, siz
     return ESP_OK;
 }
 
-DistanceMeter::DistanceMeter(bool wifi_initialized) : _points() {
+DistanceMeter::DistanceMeter(bool wifi_initialized, bool only_reachable)
+        : _points(), _only_reachable(only_reachable) {
     esp_event_loop_args_t loop_args{
         EVENT_LOOP_QUEUE_SIZE, // queue_size
         "DM-loop",             // task_name
@@ -185,7 +186,8 @@ DistanceMeter::DistanceMeter(bool wifi_initialized) : _points() {
     }
 }
 
-DistanceMeter::DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t event_loop_handle) : _points() {
+DistanceMeter::DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t event_loop_handle, bool only_reachable) 
+        : _points(), _only_reachable(only_reachable) {
     _event_loop_hdl = event_loop_handle;
     esp_err_t err = DistancePoint::initDistanceMeasurement();
     if(err != ESP_OK){
@@ -352,29 +354,44 @@ std::vector<std::shared_ptr<DistancePoint>> DistanceMeter::reachablePoints(){
     return result;
 }
 
+esp_err_t DistanceMeter::measureDistance(std::shared_ptr<DistancePoint> point){
+    if(!point) return ESP_FAIL;
+    
+    esp_err_t err;
+    distance_measurement_t measurement {UINT32_MAX, INT8_MIN};
+    TickType_t now = xTaskGetTickCount();
+
+    err = point->measureDistance(measurement);
+    bool valid = err == ESP_OK;
+    dm_measurement_data_t event_data;
+    event_data.point_id = point->getID();
+    event_data.measurement = measurement;
+    event_data.valid = valid;
+    if(valid)
+        ESP_LOGI(TAG, "Distance to point %" PRIu32 " is %" PRIu32 " with rssi %" PRId8 , point->getID(), measurement.distance_cm, measurement.rssi);
+    err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
+    if(err != ESP_OK){
+        ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
+        return ESP_FAIL;
+    }
+    
+    return ESP_OK;
+}
+
 void DistanceMeter::tick(TickType_t diff){
     static std::shared_ptr<DistancePoint> s_nearest_point = nullptr;
     esp_err_t err;
 
-    TickType_t now = xTaskGetTickCount();
-
-    // auto points = reachablePoints();
-    // ESP_LOGI(TAG, "%d reachable points", points.size());
-    ESP_LOGI(TAG, "Measuring distance to %d points", _points.size());
-    for(const auto& [key, point] : _points){
-        distance_measurement_t measurement {UINT32_MAX, INT8_MIN};
-        err = point->measureDistance(measurement);
-        bool valid = err == ESP_OK;
-        uint32_t point_id = point->getID();
-        dm_measurement_data_t event_data;
-        event_data.point_id = point_id;
-        event_data.measurement = measurement;
-        event_data.valid = valid;
-        if(valid)
-            ESP_LOGI(TAG, "Distance to point %" PRIu32 " is %" PRIu32 " with rssi %" PRId8 , point_id, measurement.distance_cm, measurement.rssi);
-        err = esp_event_post_to(_event_loop_hdl, DM_EVENT, DM_MEASUREMENT_DONE, &event_data, sizeof(event_data), pdMS_TO_TICKS(10));
-        if(err != ESP_OK){
-            ESP_LOGE(TAG, "failed to post an event! %s", esp_err_to_name(err));
+    if(_only_reachable){
+        auto points = reachablePoints();
+        ESP_LOGI(TAG, "%d reachable points", points.size());
+        for(auto && point : points){
+            measureDistance(point);
+        }
+    } else{
+        ESP_LOGI(TAG, "Measuring distance to %d points", _points.size());
+        for(const auto& [key, point] : _points){
+            measureDistance(point);
         }
     }
 

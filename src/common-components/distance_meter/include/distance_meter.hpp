@@ -108,8 +108,8 @@ class DistancePoint {
 
 class DistanceMeter{
     public:
-        DistanceMeter(bool wifi_initialized);
-        DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t event_loop_handle);
+        DistanceMeter(bool wifi_initialized, bool only_reachable = false);
+        DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t event_loop_handle, bool only_reachable = false);
 
         // user specified ID can be passed as parameter, if it is UINT32_MAX, ID will be assigned as the next largest ID added to this point
         // return   ID of added Point (if point already is added, ID of the existing point is returned)
@@ -125,11 +125,13 @@ class DistanceMeter{
         esp_err_t registerEventHandle(esp_event_handler_t event_handler, void *handler_args);
     private:
         uint32_t _addPoint(const uint8_t mac[6], std::string macstr, uint8_t channel, uint32_t id);
+        esp_err_t measureDistance(std::shared_ptr<DistancePoint> point);
         std::vector<std::shared_ptr<DistancePoint>> reachablePoints();
         static void taskWrapper(void* param){
             static_cast<DistanceMeter *>(param)->task();
         }
         void task();
+        bool _only_reachable;
         std::unordered_map<uint32_t, std::shared_ptr<DistancePoint>> _points;
         std::unordered_map<std::string, uint32_t> _points_mac_id;
         esp_event_loop_handle_t _event_loop_hdl;
