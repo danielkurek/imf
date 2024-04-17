@@ -79,8 +79,8 @@ esp_err_t DistancePoint::measureDistance(distance_measurement_t &measurement){
     wifi_ftm_initiator_cfg_t ftmi_cfg {};
     memcpy(ftmi_cfg.resp_mac, _mac, 6);
     ftmi_cfg.channel = _channel;
-    ftmi_cfg.frm_count = 16;
-    ftmi_cfg.burst_period = 2;
+    ftmi_cfg.frm_count = _frm_count;
+    ftmi_cfg.burst_period = _burst_period;
 
     ftm_result_t ftm_report = measureRawDistance(&ftmi_cfg);
 
@@ -164,6 +164,22 @@ esp_err_t DistancePoint::getDistanceFromLog(distance_log_t &measurement_log, siz
     measurement_log.measurement.distance_cm = _distance_log[index].measurement.distance_cm;
     measurement_log.measurement.rssi = _distance_log[index].measurement.rssi;
     return ESP_OK;
+}
+
+esp_err_t DistancePoint::setFrameCount(uint8_t frm_count){
+    if(frm_count == 0 || frm_count == 16 || frm_count == 24
+        || frm_count == 32 || frm_count == 64){
+        _frm_count = frm_count;
+        return ESP_OK;
+    }
+    return ESP_FAIL;
+}
+esp_err_t DistancePoint::setBurstPeriod(uint16_t burst_period){
+    if(burst_period == 0 || (burst_period >= 2 && burst_period < 256)){
+        _burst_period = burst_period;
+        return ESP_OK;
+    }
+    return ESP_FAIL;
 }
 
 DistanceMeter::DistanceMeter(bool wifi_initialized, bool only_reachable)

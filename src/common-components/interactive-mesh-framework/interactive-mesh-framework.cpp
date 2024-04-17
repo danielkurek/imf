@@ -60,6 +60,10 @@ Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_
             _point = std::make_shared<DistancePoint>(UINT32_MAX, wifi_mac, _wifi_mac_str, _wifi_channel);
         }
     }
+    if(_point){
+        _point->setFrameCount(8);
+        _point->setBurstPeriod(0);
+    }
 }
 
 Device::Device(uint32_t _id, DeviceType _type, std::string _wifi_mac_str, uint8_t _wifi_channel, uint16_t _ble_mesh_addr)

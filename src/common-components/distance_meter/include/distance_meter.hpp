@@ -84,6 +84,8 @@ class DistancePoint {
         uint8_t getChannel() { return _channel; }
         uint32_t getID() { return _id; }
         esp_err_t getDistanceFromLog(distance_log_t &measurement, size_t offset = 0);
+        esp_err_t setFrameCount(uint8_t frm_count);
+        esp_err_t setBurstPeriod(uint16_t burst_period);
         static constexpr size_t log_size = 5;
     private:
         static void event_handler(void* arg, esp_event_base_t event_base, 
@@ -98,6 +100,8 @@ class DistancePoint {
         uint8_t _mac[6];
         std::string _macstr;
         uint8_t _channel;
+        uint8_t _frm_count = 16;
+        uint16_t _burst_period = 0;
         size_t _filter_max_size;
         std::deque<distance_measurement_t> _filter_data;
         uint64_t _filter_distance_sum = 0;
