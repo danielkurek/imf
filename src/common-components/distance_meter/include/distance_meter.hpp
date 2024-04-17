@@ -82,7 +82,7 @@ class DistancePoint {
         const uint8_t* getMac() { return _mac; }
         const std::string getMacStr() { return _macstr; }
         uint8_t getChannel() { return _channel; }
-        uint16_t getID() { return _id; }
+        uint32_t getID() { return _id; }
         esp_err_t getDistanceFromLog(distance_log_t &measurement, size_t offset = 0);
         static constexpr size_t log_size = 5;
     private:

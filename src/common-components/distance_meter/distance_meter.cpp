@@ -90,7 +90,7 @@ esp_err_t DistancePoint::measureDistance(distance_measurement_t &measurement){
         for(auto && report : ftm_report.ftm_report_data){
             rssi_sum += report.rssi;
         }
-        int8_t rssi_mean = rssi_sum / ftm_report.ftm_report_data.size();
+        int8_t rssi_mean = rssi_sum / (int32_t) ftm_report.ftm_report_data.size();
         distance_measurement_t new_measurement = {
             .distance_cm = distanceCorrection(ftm_report.dist_est),
             .rssi = rssi_mean
@@ -167,7 +167,7 @@ esp_err_t DistancePoint::getDistanceFromLog(distance_log_t &measurement_log, siz
 }
 
 DistanceMeter::DistanceMeter(bool wifi_initialized, bool only_reachable)
-        : _points(), _only_reachable(only_reachable) {
+        : _only_reachable(only_reachable), _points() {
     esp_event_loop_args_t loop_args{
         EVENT_LOOP_QUEUE_SIZE, // queue_size
         "DM-loop",             // task_name
@@ -187,7 +187,7 @@ DistanceMeter::DistanceMeter(bool wifi_initialized, bool only_reachable)
 }
 
 DistanceMeter::DistanceMeter(bool wifi_initialized, esp_event_loop_handle_t event_loop_handle, bool only_reachable) 
-        : _points(), _only_reachable(only_reachable) {
+        : _only_reachable(only_reachable), _points() {
     _event_loop_hdl = event_loop_handle;
     esp_err_t err = DistancePoint::initDistanceMeasurement();
     if(err != ESP_OK){
@@ -359,7 +359,6 @@ esp_err_t DistanceMeter::measureDistance(std::shared_ptr<DistancePoint> point){
     
     esp_err_t err;
     distance_measurement_t measurement {UINT32_MAX, INT8_MIN};
-    TickType_t now = xTaskGetTickCount();
 
     err = point->measureDistance(measurement);
     bool valid = err == ESP_OK;
@@ -395,7 +394,7 @@ void DistanceMeter::tick(TickType_t diff){
         }
     }
 
-    now = xTaskGetTickCount();
+    TickType_t now = xTaskGetTickCount();
 
     auto nearest_point = nearestPoint();
     
