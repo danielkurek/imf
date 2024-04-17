@@ -157,17 +157,20 @@ static void check_log_position(int size){
     if(pos + size >= conf.max_log_size){
         pos = 0;
         seek = true;
+        conf.storage_overwriting = true;
     }
-    if(conf.storage_protect_start <= conf.storage_protect_end){
-        if(pos < conf.storage_protect_end && pos + size >= conf.storage_protect_start - 1){
-            pos = conf.storage_protect_end;
-            seek = true;
-        }
-    } else{
-        // protect region wraps around
-        if(pos + size >= conf.storage_protect_start - 1 || pos < conf.storage_protect_end){
-            pos = conf.storage_protect_end;
-            seek = true;
+    if(conf.storage_overwriting){
+        if(conf.storage_protect_start <= conf.storage_protect_end){
+            if(pos < conf.storage_protect_end && pos + size >= conf.storage_protect_start - 1){
+                pos = conf.storage_protect_end;
+                seek = true;
+            }
+        } else{
+            // protect region wraps around
+            if(pos + size >= conf.storage_protect_start - 1 || pos < conf.storage_protect_end){
+                pos = conf.storage_protect_end;
+                seek = true;
+            }
         }
     }
     

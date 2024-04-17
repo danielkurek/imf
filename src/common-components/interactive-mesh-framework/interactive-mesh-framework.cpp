@@ -641,6 +641,7 @@ void IMF::_update_task(){
                 _last_update = now;
             }
         }
+        logger_sync_file();
         vTaskDelay(UPDATE_TIME_MS / portTICK_PERIOD_MS);
     }
 }
