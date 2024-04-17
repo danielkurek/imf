@@ -16,6 +16,8 @@ extern "C"{
 #define LOGGER_STORAGE_MOUNT "/logs"
 #define LOGGER_STORAGE_LABEL "logs"
 #define LOGGER_FILE(filename) LOGGER_STORAGE_MOUNT "/" filename
+#define LOGGER_DEFAULT_FILENAME "log.txt"
+
 typedef struct {
   esp_log_level_t level;
   FILE *log_file;
@@ -62,6 +64,7 @@ bool logger_dump_log_file();
 bool logger_delete_log(const char *filename);
 FILE * logger_get_file();
 
+bool logger_file_close();
 void logger_storage_close();
 void logger_stop();
 

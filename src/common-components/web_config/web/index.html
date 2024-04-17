@@ -24,6 +24,9 @@
         <button onclick="fetchItemValues();">Load saved values</button>
         <br />
         <button onclick="rebootDevice();">Reboot</button>
+        <br />
+        <a href="api/v1/logs">show logs</a>
+        <button onclick="deleteLogs();">Delete logs</button>
     </div>
     <script>
         function showStatus(msg){
@@ -122,9 +125,11 @@
             }
         }
 
-        function fetchItemValues(){
-            settingsItems.forEach((item) => showItemStatus(item, "Loading value..."));
-            settingsItems.forEach(fetchItemValue);
+        async function fetchItemValues(){
+            for(item of settingsItems){
+                showItemStatus(item, "Loading value...");
+                await fetchItemValue(item);
+            }
         }
 
         async function saveItemValue(item){
@@ -149,33 +154,24 @@
             return false;
         }
 
-        function saveItemValues(){
+        async function saveItemValues(){
             let promises = [];
+            let allSuccessful = true;
             for(item of settingsItems){
-                promises.push(saveItemValue(item));
-            }
-            Promise.all(promises).then((values) => {
-                let allSuccessful = true;
-                for(const value of values){
-                    if(value != true){
-                        allSuccessful = false;
-                        break;
-                    }
+                if(await saveItemValue(item) == false){
+                    allSuccessful = false;
                 }
-                fetch(`${urlPrefix}/api/v1/nvs_save`).then(
-                    async function(response) {
-                        if(!response.ok){
-                            showError(await response.text());
-                        } else{
-                            if(allSuccessful){
-                                showStatus("All saved successfully");
-                            } else{
-                                showError("Some settings were not saved");
-                            }
-                        }
-                    }
-                );
-            });
+            }
+            let response = await fetch(`${urlPrefix}/api/v1/nvs_save`);
+            if(!response.ok){
+                showError(await response.text());
+            } else{
+                if(allSuccessful){
+                    showStatus("All saved successfully");
+                } else{
+                    showError("Some settings were not saved");
+                }
+            }
         }
 
         async function rebootDevice(){
@@ -187,6 +183,24 @@
             }
 
             showStatus("Rebooting...");
+        }
+
+        async function deleteLogs(){
+            if(confirm("Do you want to delete logs?") == false){
+                return;
+            }
+            const response = await fetch(`${urlPrefix}/api/v1/logs`, {
+                method: "DELETE",
+                mode: "cors",
+                cache: "no-cache"
+            });
+            
+            if(!response.ok){
+                showError(await response.text());
+                return;
+            }
+
+            showStatus("Logs deleted");
         }
 
         let error_banner = document.getElementById("error-banner");

@@ -84,7 +84,7 @@ bool logger_init_storage(){
     return true;
 }
 
-static bool logger_file_close(){
+bool logger_file_close(){
     logger_sync_file();
     if(conf.log_file != NULL){
         ESP_LOGI(TAG, "closing file");
@@ -92,6 +92,7 @@ static bool logger_file_close(){
             ESP_LOGE(TAG, "could not close logging file");
             return false;
         }
+        conf.log_file = NULL;
     }
     conf.to_file = false;
     return true;
@@ -404,7 +405,7 @@ bool logger_delete_log(const char *filename){
     }
     int res = remove(filename);
     ESP_LOGI(TAG, "remove status %d", res);
-    return res != 0;
+    return res == 0;
 }
 
 void logger_storage_close(){

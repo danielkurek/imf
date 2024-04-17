@@ -43,6 +43,9 @@ static const char *TAG = "web_config";
 extern const uint8_t index_html_start[] asm("_binary_index_html_start");
 extern const uint8_t index_html_end[] asm("_binary_index_html_end");
 
+static const char* log_path = LOGGER_FILE(LOGGER_DEFAULT_FILENAME);
+static const long int log_protect_region = 2000;
+
 static esp_err_t ssid_validate(const char *received_value);
 static esp_err_t channel_validate(const char *received_value);
 static esp_err_t password_validate(const char *received_value);
@@ -377,7 +380,11 @@ static esp_err_t nvs_write_post_handler_str(httpd_req_t *req, const config_optio
         return httpd_resp_sendstr(req, "Cannot set key");
     }
 
-    LOGGER_I(TAG, "changed %s to %s", option->key, received_value);
+    if(option->value_to_log){
+        LOGGER_I(TAG, "changed %s to %s", option->key, received_value);
+    } else{
+        LOGGER_I(TAG, "Value of %s was changed", option->key);
+    }
     
     return httpd_resp_sendstr(req, received_value);
 }
@@ -540,6 +547,24 @@ static esp_err_t log_get_handler(httpd_req_t *req){
     return ESP_OK;
 }
 
+static esp_err_t log_delete_handler(httpd_req_t *req){
+    response_custom_header(req);
+
+    if(!logger_file_close()){
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to close log file");
+    }
+    if(!logger_delete_log(log_path)){
+        // try to reopen log file
+        logger_output_to_file(log_path, log_protect_region);
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to delete log file");
+    }
+    if(!logger_output_to_file(log_path, log_protect_region)){
+        return httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create new log file");
+    }
+
+    return httpd_resp_sendstr(req, "Ok");
+}
+
 static esp_err_t reboot_get_handler(httpd_req_t *req){
     web_config_data_t *data = (web_config_data_t *) req->user_ctx;
 
@@ -628,6 +653,13 @@ static void web_config_register_uri(httpd_handle_t server, web_config_data_t *us
         .user_ctx = user_ctx};
     httpd_register_uri_handler(server, &log_download);
 
+    const httpd_uri_t log_delete = {
+        .uri = API_PATH("/logs"),
+        .method = HTTP_DELETE,
+        .handler = log_delete_handler,
+        .user_ctx = user_ctx};
+    httpd_register_uri_handler(server, &log_delete);
+    
     const httpd_uri_t reboot = {
         .uri = API_PATH("/reboot"),
         .method = HTTP_GET,
@@ -659,6 +691,7 @@ static httpd_handle_t start_webserver(void)
 
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+    config.max_uri_handlers = 24;
 
     // allow wildcard matching
     config.uri_match_fn = httpd_uri_match_wildcard;
@@ -825,8 +858,7 @@ static void init_logging(){
     if(logger_init(ESP_LOG_INFO)){
         logger_output_to_default(true);
         logger_init_storage();
-        const char* filename = "/logs/log.txt";
-        logger_output_to_file(filename, 2000);
+        logger_output_to_file(log_path, log_protect_region);
     }
 }
 
