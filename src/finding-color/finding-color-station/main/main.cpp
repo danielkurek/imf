@@ -40,11 +40,6 @@ typedef struct {
     DeviceType type;
 } device_conf_t;
 
-size_t random_number(size_t max){
-    uint32_t rnd = esp_random();
-    return rnd % max;
-}
-
 extern "C" void button_cb(uint8_t button_num){
     ESP_LOGI(TAG, "Button no. %d was pressed", button_num);
     if(button_num == 0){

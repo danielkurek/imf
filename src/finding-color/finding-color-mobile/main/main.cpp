@@ -12,6 +12,7 @@
 
 #include <vector>
 #include <memory>
+#include <cmath>
 
 #ifdef CONFIG_IDF_TARGET_ESP32C3
 #define CONFIG_BUTTON GPIO_NUM_9
@@ -30,7 +31,7 @@ static TickType_t closest_timestamp_ms;
 static std::vector<rgb_t> colors;
 static size_t current_color_index;
 
-constexpr uint32_t closest_time_limit = 10000;
+constexpr TickType_t closest_time_limit_ms = 5000 / portTICK_PERIOD_MS;
 
 constexpr int16_t color_cmp_threshold = 10;
 
@@ -54,7 +55,8 @@ void update_colors(){
     for(auto it = s_imf->devices_cbegin(); it != s_imf->devices_cend(); it++){
         auto device = it->second;
         if(device == nullptr) continue;
-        rgb_t color;
+        if(device->type != DeviceType::Station) continue;
+        rgb_t color {0,0,0};
         esp_err_t err = device->getRgb(color);
         if(err == ESP_OK){
             bool add_color = true;
@@ -94,6 +96,7 @@ size_t random_number(size_t max){
 
 bool new_color(){
     update_colors();
+    print_colors();
     if(colors.size() == 0){
         LOGGER_E(TAG, "No colors to choose from!");
         return false;
@@ -121,28 +124,34 @@ bool new_color(){
 }
 
 bool colors_equal(const rgb_t &c1, const rgb_t &c2){
-    if(abs((int16_t) c1.red - (int16_t) c2.red) > color_cmp_threshold){
+    if(std::abs((int16_t) c1.red - (int16_t) c2.red) > color_cmp_threshold){
         return false;
     }
-    if(abs((int16_t) c1.green - (int16_t) c2.green) > color_cmp_threshold){
+    if(std::abs((int16_t) c1.green - (int16_t) c2.green) > color_cmp_threshold){
         return false;
     }
-    if(abs((int16_t) c1.blue - (int16_t) c2.blue) > color_cmp_threshold){
+    if(std::abs((int16_t) c1.blue - (int16_t) c2.blue) > color_cmp_threshold){
         return false;
     }
     return true;
 }
 
 bool check_color(){
+    // current color is not valid
+    if(colors.size() == 0){
+        new_color();
+        return false;
+    }
     if(closest_device == nullptr){
         return false;
     }
-    rgb_t remote_color;
+    rgb_t remote_color {0,0,0};
     esp_err_t err = closest_device->getRgb(remote_color);
     if(err != ESP_OK){
         LOGGER_E(TAG, "Could not get RGB of closest device 0x%04" PRIx16, closest_device->ble_mesh_addr);
         return false;
     }
+    ESP_LOGW(TAG, "Remote color: r=%" PRIu8 " g=%" PRIu8 " b=%" PRIu8, remote_color.red, remote_color.green, remote_color.blue);
     if(colors_equal(remote_color, colors[current_color_index])){
         return new_color();
     }
@@ -152,7 +161,7 @@ bool check_color(){
 void update_cb(TickType_t diff_ms){
     LOGGER_I(TAG, "Time since last update: %" PRIu32, diff_ms);
     TickType_t now_ms = pdTICKS_TO_MS(xTaskGetTickCount());
-    if((now_ms - closest_timestamp_ms) >= closest_time_limit){
+    if((now_ms - closest_timestamp_ms) >= closest_time_limit_ms){
         if(check_color()){
             closest_timestamp_ms = now_ms;
         }
