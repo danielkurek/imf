@@ -60,14 +60,23 @@ class Location:
     def __str__(self):
         return f"N{int(self.north):05}E{int(self.east):05}A{int(self.altitude):05}F{int(self.floor):03}U{int(self.uncertainty):05}"
     def parse(value: str):
-        if len(value) != 28:
-            print(f"Error: unexpected location value - expected length 28, got {len(value)}")
-            return None
-        north = int(value[1:6])
-        east = int(value[7:12])
-        alt = int(value[13:18])
-        floor = int(value[19:22])
-        uncertainty = int(value[23:])
+        north_idx = value.find("N")
+        east_idx = value.find("E")
+        altitude_idx = value.find("A")
+        floor_idx = value.find("F")
+        uncertainty_idx = value.find("U")
+        indices = [north_idx, east_idx, altitude_idx, floor_idx, uncertainty_idx]
+        if -1 in indices:
+            print("Error: could not parse location value - some part is missing")
+        for i in range(len(indices)-1):
+            if not (indices[i] < indices[i+1]):
+                print("Error: could not parse location value")
+                return None
+        north = int(value[north_idx+1:east_idx])
+        east = int(value[east_idx+1:altitude_idx])
+        alt = int(value[altitude_idx+1:floor_idx])
+        floor = int(value[floor_idx+1:uncertainty_idx])
+        uncertainty = int(value[uncertainty_idx+1:])
         return Location(north,east,alt,floor,uncertainty)
 
 class Node:
