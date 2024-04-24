@@ -8,7 +8,7 @@ import sys
 from enum import Enum
 
 from PySide6.QtCore import (QEasingCurve, QLineF,
-                            QParallelAnimationGroup, QPointF,
+                            QParallelAnimationGroup, QPointF, QPoint,
                             QPropertyAnimation, QRectF, Qt, Signal, Slot, 
                             QTimer, QIODeviceBase, QObject)
 from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF
@@ -243,6 +243,8 @@ class GraphView(QGraphicsView):
         self.update_positions()
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
+
+        self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
     
     @Slot()
     def start(self):
@@ -258,6 +260,35 @@ class GraphView(QGraphicsView):
     def clear(self):
         self.scene().clear()
         self._node_map.clear()
+
+    def drawBackground(self, painter: QPainter, rect: QRectF):
+        lines = []
+        major_step = math.floor(abs(self._graph_x_scale)*100)
+        left = int(math.ceil(rect.left()/float(major_step))*major_step)
+        right = int(math.floor(rect.right()/float(major_step))*major_step)
+        for x in range(left, right+1, major_step):
+            lines.append(QLineF(QPointF(x, rect.top()), QPointF(x, rect.bottom())))
+        top = int(math.ceil(rect.top()/float(major_step))*major_step)
+        bottom = int(math.floor(rect.bottom()/float(major_step))*major_step)
+        for y in range(top, bottom+1, major_step):
+            lines.append(QLineF(QPointF(rect.left(), y), QPointF(rect.right(), y)))
+        painter.drawLines(lines)
+    
+    def wheelEvent(self, event):
+        factor = 1.1
+        if event.angleDelta().y() < 0:
+            factor = 0.9
+        if QApplication.keyboardModifiers() == Qt.ControlModifier:
+            factor = 1.5
+            if event.angleDelta().y() < 0:
+                factor = 0.5
+        view_pos = event.position()
+        view_pos = QPoint(view_pos.x(), view_pos.y())
+        scene_pos = self.mapToScene(view_pos)
+        self.centerOn(scene_pos)
+        self.scale(factor, factor)
+        delta = self.mapToScene(view_pos) - self.mapToScene(self.viewport().rect().center())
+        self.centerOn(scene_pos - delta)
     
     def loc_to_pos(self, loc: Location):
         x = loc.north * self._graph_x_scale
@@ -307,7 +338,7 @@ class GraphView(QGraphicsView):
         pos = gnode.pos()
         saved_pos = self.loc_to_pos(node.loc)
         # check if node was moved by user
-        if not equal_eps(pos.x(), saved_pos[0]) or not equal_eps(pos.y(), saved_pos[1]):
+        if not equal_eps(pos.x(), saved_pos[0], abs(self._graph_x_scale)) or not equal_eps(pos.y(), saved_pos[1], abs(self._graph_y_scale)):
             # set to user location
             north, east = self.pos_to_loc(pos)
             loc = node.loc
@@ -360,6 +391,7 @@ class MainWindow(QMainWindow):
         self.m_ui.setupUi(self)
 
         self.graph = GraphView()
+        self.graph.setDragMode(QGraphicsView.ScrollHandDrag)
         self.setCentralWidget(self.graph)
 
         self.m_ui.actionConnect.setEnabled(True)
