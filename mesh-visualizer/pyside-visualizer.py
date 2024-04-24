@@ -1,3 +1,8 @@
+# based on example project Networkx viewer and Terminal
+# https://doc.qt.io/qtforpython-6/examples/example_external_networkx.html
+# https://doc.qt.io/qtforpython-6/examples/example_serialport_terminal.html
+
+
 import math
 import sys
 from enum import Enum
@@ -10,8 +15,11 @@ from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (QApplication, QComboBox, QGraphicsItem,
                                QGraphicsObject, QGraphicsScene, QGraphicsView,
                                QStyleOptionGraphicsItem, QVBoxLayout, QWidget,
-                               QMessageBox)
+                               QMessageBox, QMainWindow, QLabel)
 from PySide6.QtSerialPort import QSerialPort
+
+from ui_mainwindow import Ui_MainWindow
+from visualizaer_settingdialog import SettingsDialog
 
 def equal_eps(x: float, y: float, eps = 1e-6):
     return abs(x-y) < eps
@@ -226,12 +234,27 @@ class GraphView(QGraphicsView):
         self.update_positions()
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
-        self.timer.start(2000)
+    
+    @Slot()
+    def start(self):
+        if not self.timer.isActive():
+            self.timer.start(2000)
+    
+    @Slot()
+    def stop(self):
+        if self.timer.isActive():
+            self.timer.stop()
+    
+    @Slot()
+    def clear(self):
+        self.scene().clear()
+        self._node_map.clear()
     
     def loc_to_pos(self, loc: Location):
         x = loc.north * self._graph_x_scale
         y = loc.east  * self._graph_y_scale
         return x,y
+    
     def pos_to_loc(self, pos: QPointF):
         north = pos.x() / self._graph_x_scale
         east  = pos.y() / self._graph_y_scale
@@ -316,39 +339,72 @@ class GraphView(QGraphicsView):
             self._update_node(self._node_map[node.addr])
 
 
-class MainWindow(QWidget):
+class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__()
 
-
-        self.view = GraphView()
-
-        v_layout = QVBoxLayout(self)
-        v_layout.addWidget(self.view)
-
+        self.m_ui = Ui_MainWindow()
+        self.m_status = QLabel()
+        self.m_settings = SettingsDialog(self)
         self.m_serial = QSerialPort(self)
+        self.serial_comm = SerialComm()
+        self.m_ui.setupUi(self)
+
+        self.graph = GraphView()
+        self.setCentralWidget(self.graph)
+
+        self.m_ui.actionConnect.setEnabled(True)
+        self.m_ui.actionDisconnect.setEnabled(False)
+        self.m_ui.actionQuit.setEnabled(True)
+        self.m_ui.actionConfigure.setEnabled(True)
+
+        self.m_ui.statusBar.addWidget(self.m_status)
+
+        self.m_ui.actionConnect.triggered.connect(self.open_serial_port)
+        self.m_ui.actionDisconnect.triggered.connect(self.close_serial_port)
+        self.m_ui.actionQuit.triggered.connect(self.close)
+        self.m_ui.actionConfigure.triggered.connect(self.m_settings.show)
+        self.m_ui.actionClear.triggered.connect(self.graph.clear)
+        # self.m_ui.actionAbout.triggered.connect(self.about)
+        self.m_ui.actionAboutQt.triggered.connect(qApp.aboutQt)
+
         self.m_serial.errorOccurred.connect(self.handle_error)
         self.m_serial.readyRead.connect(self.read_data)
         
-        self.serial_comm = SerialComm()
-        self.serial_comm.node_change.connect(self.view.node_changed)
-        self.view.get_data.connect(self.write_data)
-        
-        self.open_serial_port()
+        self.serial_comm.node_change.connect(self.graph.node_changed)
+        self.graph.get_data.connect(self.write_data)
     
     @Slot()
     def open_serial_port(self):
-        self.m_serial.setPortName("/dev/ttyUSB0")
-        self.m_serial.setBaudRate(115200)
-        self.m_serial.setDataBits(QSerialPort.Data8)
-        self.m_serial.setParity(QSerialPort.NoParity)
-        self.m_serial.setStopBits(QSerialPort.OneStop)
-        self.m_serial.setFlowControl(QSerialPort.NoFlowControl)
+        s = self.m_settings.settings()
+        self.m_serial.setPortName(s.name)
+        self.m_serial.setBaudRate(s.baud_rate)
+        self.m_serial.setDataBits(s.data_bits)
+        self.m_serial.setParity(s.parity)
+        self.m_serial.setStopBits(s.stop_bits)
+        self.m_serial.setFlowControl(s.flow_control)
         if self.m_serial.open(QIODeviceBase.ReadWrite):
-            print("connected")
+            self.graph.setEnabled(True)
+            self.graph.start()
+            self.m_ui.actionConnect.setEnabled(False)
+            self.m_ui.actionDisconnect.setEnabled(True)
+            self.m_ui.actionConfigure.setEnabled(False)
+            self.show_status_message("Connected")
         else:
+            self.graph.stop()
             QMessageBox.critical(self, "Error", self.m_serial.errorString())
-
+            self.show_status_message("Open error")
+    @Slot()
+    def close_serial_port(self):
+        if self.m_serial.isOpen():
+            self.m_serial.close()
+        self.graph.setEnabled(False)
+        self.m_ui.actionConnect.setEnabled(True)
+        self.m_ui.actionDisconnect.setEnabled(False)
+        self.m_ui.actionConfigure.setEnabled(True)
+        self.show_status_message("Disconnected")
+        self.graph.stop()
+    
     @Slot(bytearray)
     def write_data(self, data):
         print(f"sending to serial {data=}")
@@ -368,6 +424,9 @@ class MainWindow(QWidget):
             QMessageBox.critical(self, "Critical Error",
                                  self.m_serial.errorString())
             self.close_serial_port()
+    @Slot(str)
+    def show_status_message(self, message):
+        self.m_status.setText(message)
 
 
 if __name__ == "__main__":
