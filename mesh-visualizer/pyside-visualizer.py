@@ -19,7 +19,7 @@ from PySide6.QtWidgets import (QApplication, QComboBox, QGraphicsItem,
 from PySide6.QtSerialPort import QSerialPort
 
 from ui_mainwindow import Ui_MainWindow
-from visualizaer_settingdialog import SettingsDialog
+from visualizer_settingdialog import SettingsDialog
 
 def equal_eps(x: float, y: float, eps = 1e-6):
     return abs(x-y) < eps
