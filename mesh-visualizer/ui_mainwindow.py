@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 ################################################################################
-## Form generated from reading UI file 'mainwindowojcnXX.ui'
+## Form generated from reading UI file 'mainwindowHUFQOk.ui'
 ##
 ## Created by: Qt User Interface Compiler version 6.6.3
 ##
@@ -54,6 +54,14 @@ class Ui_MainWindow(object):
         icon4 = QIcon()
         icon4.addFile(u"images/application-exit.png", QSize(), QIcon.Normal, QIcon.Off)
         self.actionQuit.setIcon(icon4)
+        self.actionFlip_X = QAction(MainWindow)
+        self.actionFlip_X.setObjectName(u"actionFlip_X")
+        self.actionFlip_X.setCheckable(True)
+        self.actionFlip_X.setMenuRole(QAction.NoRole)
+        self.actionFlip_Y = QAction(MainWindow)
+        self.actionFlip_Y.setObjectName(u"actionFlip_Y")
+        self.actionFlip_Y.setCheckable(True)
+        self.actionFlip_Y.setMenuRole(QAction.NoRole)
         self.centralWidget = QWidget(MainWindow)
         self.centralWidget.setObjectName(u"centralWidget")
         self.verticalLayout = QVBoxLayout(self.centralWidget)
@@ -93,6 +101,8 @@ class Ui_MainWindow(object):
         self.mainToolBar.addAction(self.actionDisconnect)
         self.mainToolBar.addAction(self.actionConfigure)
         self.mainToolBar.addAction(self.actionClear)
+        self.mainToolBar.addAction(self.actionFlip_X)
+        self.mainToolBar.addAction(self.actionFlip_Y)
 
         self.retranslateUi(MainWindow)
 
@@ -141,6 +151,8 @@ class Ui_MainWindow(object):
 #if QT_CONFIG(shortcut)
         self.actionQuit.setShortcut(QCoreApplication.translate("MainWindow", u"Ctrl+Q", None))
 #endif // QT_CONFIG(shortcut)
+        self.actionFlip_X.setText(QCoreApplication.translate("MainWindow", u"Flip X", None))
+        self.actionFlip_Y.setText(QCoreApplication.translate("MainWindow", u"Flip Y", None))
         self.menuCalls.setTitle(QCoreApplication.translate("MainWindow", u"Calls", None))
         self.menuTools.setTitle(QCoreApplication.translate("MainWindow", u"Tools", None))
         self.menuHelp.setTitle(QCoreApplication.translate("MainWindow", u"Help", None))

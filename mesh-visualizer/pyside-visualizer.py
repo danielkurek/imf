@@ -21,6 +21,10 @@ from PySide6.QtSerialPort import QSerialPort
 from ui_mainwindow import Ui_MainWindow
 from visualizer_settingdialog import SettingsDialog
 
+HELP = """<b>Mesh Visualizer</b> helps to manage applications using Interactive
+ Mesh Framework. Individual nodes are visually represented. Nodes can be moved
+ by dragging. Properties can be set using side menu."""
+
 def equal_eps(x: float, y: float, eps = 1e-6):
     return abs(x-y) < eps
 
@@ -51,6 +55,8 @@ class CmdField(Enum):
     ONOFF = 4
 
 class Location:
+    north_limits = (-32768, 32767)
+    east_limits = (-32768, 32767)
     def __init__(self, north, east, altitude, floor, uncertainty):
         self.north = int(north)
         self.east = int(east)
@@ -111,7 +117,7 @@ class SerialComm(QObject):
         field,value = values[0], values[1]
         addr = None
         if ':' in field:
-            addr, field = field.split(':')
+            addr, field = field.split(':', 1)
         print(f"{addr=} {field=} {value=}")
         success = False
         if self.local_addr is not None and addr == self.local_addr:
@@ -165,7 +171,10 @@ class NodeG(QGraphicsObject):
         super().__init__(parent)
         self._node = node
         self._color = "#5AD469"
-        self._rect = QRectF(0, 0, 85, 85)
+        width = 85
+        height = 85
+        self._rect = QRectF(-width/2, -height/2, width, height)
+        self.last_pos_update = self.pos()
 
         self.setFlag(QGraphicsItem.ItemIsMovable)
         self.setFlag(QGraphicsItem.ItemSendsGeometryChanges)
@@ -237,14 +246,19 @@ class GraphView(QGraphicsView):
         self.setScene(self._scene)
         self._node_map = {}
 
+        self.nodes_enabled = True
+
         # Used to add space between nodes
         self._graph_x_scale = 1
         self._graph_y_scale = -1
-        self.update_positions()
+        self._flip_x = False
+        self._flip_y = False
         self.timer = QTimer(self)
         self.timer.timeout.connect(self.update)
 
         self.setResizeAnchor(QGraphicsView.AnchorUnderMouse)
+        self.updateSceneBounds()
+        self.centerOn(0.0,0.0)
     
     @Slot()
     def start(self):
@@ -256,11 +270,42 @@ class GraphView(QGraphicsView):
         if self.timer.isActive():
             self.timer.stop()
     
+    @Slot(bool)
+    def flip_x(self, state):
+        print(f"flip x {state}")
+        self._flip_x = state
+        self.updateSceneBounds()
+        self.update_positions()
+    
+    @Slot(bool)
+    def flip_y(self, state):
+        print(f"flip y {state}")
+        self._flip_y = state
+        self.updateSceneBounds()
+        self.update_positions()
+    
     @Slot()
     def clear(self):
         self.scene().clear()
         self._node_map.clear()
-
+    
+    @Slot(bool)
+    def setEnabled_nodes(self, enabled):
+        self.nodes_enabled = enabled
+        if self.nodes_enabled:
+            self.start()
+        else:
+            self.stop()
+        for gnode in self._node_map.values():
+            gnode.setEnabled(enabled)
+    
+    def updateSceneBounds(self):
+        x1,y1 = self.loc_to_pos(Location(Location.north_limits[0], Location.east_limits[0], 0,0,0))
+        x2,y2 = self.loc_to_pos(Location(Location.north_limits[1], Location.east_limits[1], 0,0,0))
+        x_min, x_max = (x1,x2) if x1 < x2 else (x2,x1)
+        y_min, y_max = (y1,y2) if y1 < y2 else (y2,y1)
+        self._scene.setSceneRect(x_min, y_min, x_max - x_min, y_max - y_min)
+    
     def drawBackground(self, painter: QPainter, rect: QRectF):
         lines = []
         major_step = math.floor(abs(self._graph_x_scale)*100)
@@ -317,28 +362,18 @@ class GraphView(QGraphicsView):
         for gnode in self._node_map.values():
             x, y = self.loc_to_pos(gnode._node.loc)
             gnode.setPos(QPointF(x,y))
+            gnode.last_pos_update = QPointF(x,y)
 
-        # Change position of all nodes using an animation
-        # self.animations = QParallelAnimationGroup()
-        # for node, pos in positions.items():
-        #     x, y = pos
-        #     x *= self._graph_scale
-        #     y *= self._graph_scale
-        #     item = self._nodes_map[node]
-
-        #     animation = QPropertyAnimation(item, b"pos")
-        #     animation.setDuration(1000)
-        #     animation.setEndValue(QPointF(x, y))
-        #     animation.setEasingCurve(QEasingCurve.OutExpo)
-        #     self.animations.addAnimation(animation)
-
-        # self.animations.start()
+    def _update_nodes(self):
+        for gnode in self._node_map.values():
+            self._update_node(gnode)
+    
     def _update_node(self, gnode):
         node = gnode._node
         pos = gnode.pos()
-        saved_pos = self.loc_to_pos(node.loc)
+        last_pos = gnode.last_pos_update
         # check if node was moved by user
-        if not equal_eps(pos.x(), saved_pos[0], abs(self._graph_x_scale)) or not equal_eps(pos.y(), saved_pos[1], abs(self._graph_y_scale)):
+        if not equal_eps(pos.x(), last_pos.x(), abs(self._graph_x_scale)) or not equal_eps(pos.y(), last_pos.x(), abs(self._graph_y_scale)):
             # set to user location
             north, east = self.pos_to_loc(pos)
             loc = node.loc
@@ -348,6 +383,7 @@ class GraphView(QGraphicsView):
             # update position
             x, y = self.loc_to_pos(node.loc)
             gnode.setPos(QPointF(x,y))
+            gnode.last_pos_update = QPointF(x,y)
             gnode.update()
         
 
@@ -357,6 +393,8 @@ class GraphView(QGraphicsView):
         item = NodeG(node)
         x, y = self.loc_to_pos(node.loc)
         item.setPos(QPointF(x,y))
+        item.last_pos_update = QPointF(x,y)
+        item.setEnabled(self.nodes_enabled)
         self.scene().addItem(item)
         # item.position_change.connect(self.node_moved)
         self._node_map[node.addr] = item
@@ -406,14 +444,20 @@ class MainWindow(QMainWindow):
         self.m_ui.actionQuit.triggered.connect(self.close)
         self.m_ui.actionConfigure.triggered.connect(self.m_settings.show)
         self.m_ui.actionClear.triggered.connect(self.graph.clear)
-        # self.m_ui.actionAbout.triggered.connect(self.about)
+        self.m_ui.actionAbout.triggered.connect(self.about)
         self.m_ui.actionAboutQt.triggered.connect(qApp.aboutQt)
+        self.m_ui.actionFlip_X.toggled.connect(self.graph.flip_x)
+        self.m_ui.actionFlip_Y.toggled.connect(self.graph.flip_y)
 
         self.m_serial.errorOccurred.connect(self.handle_error)
         self.m_serial.readyRead.connect(self.read_data)
         
         self.serial_comm.node_change.connect(self.graph.node_changed)
         self.graph.get_data.connect(self.write_data)
+    
+    @Slot()
+    def about(self):
+        QMessageBox.about(self, "About Mesh Visualizer", HELP)
     
     @Slot()
     def open_serial_port(self):
@@ -425,7 +469,7 @@ class MainWindow(QMainWindow):
         self.m_serial.setStopBits(s.stop_bits)
         self.m_serial.setFlowControl(s.flow_control)
         if self.m_serial.open(QIODeviceBase.ReadWrite):
-            self.graph.setEnabled(True)
+            self.graph.setEnabled_nodes(True)
             self.graph.start()
             self.m_ui.actionConnect.setEnabled(False)
             self.m_ui.actionDisconnect.setEnabled(True)
@@ -439,7 +483,7 @@ class MainWindow(QMainWindow):
     def close_serial_port(self):
         if self.m_serial.isOpen():
             self.m_serial.close()
-        self.graph.setEnabled(False)
+        self.graph.setEnabled_nodes(False)
         self.m_ui.actionConnect.setEnabled(True)
         self.m_ui.actionDisconnect.setEnabled(False)
         self.m_ui.actionConfigure.setEnabled(True)
