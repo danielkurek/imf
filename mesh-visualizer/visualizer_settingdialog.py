@@ -49,6 +49,7 @@ class SettingsDialog(QDialog):
         self.m_ui.baudRateBox.setInsertPolicy(QComboBox.NoInsert)
 
         self.m_ui.applyButton.clicked.connect(self.apply)
+        self.m_ui.refreshButton.clicked.connect(self.fill_ports_info)
         self.m_ui.serialPortInfoListBox.currentIndexChanged.connect(self.show_port_info)
         self.m_ui.baudRateBox.currentIndexChanged.connect(self.check_custom_baud_rate_policy)
         self.m_ui.serialPortInfoListBox.currentIndexChanged.connect(
@@ -132,7 +133,8 @@ class SettingsDialog(QDialog):
         self.m_ui.flowControlBox.addItem("None", QSerialPort.NoFlowControl)
         self.m_ui.flowControlBox.addItem("RTS/CTS", QSerialPort.HardwareControl)
         self.m_ui.flowControlBox.addItem("XON/XOFF", QSerialPort.SoftwareControl)
-
+    
+    @Slot()
     def fill_ports_info(self):
         self.m_ui.serialPortInfoListBox.clear()
         for info in QSerialPortInfo.availablePorts():
