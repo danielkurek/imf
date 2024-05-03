@@ -1,17 +1,8 @@
-/*
- * TODO list:
- *  - support for multiple int types NVS (c++ templates?)
- *  - api get firmware version
- *  - perform OTA from requested URL (with version check)
- *  - log download
- */
-
 #include <stdio.h>
 #include "web_config.h"
 #include "wifi_connect.h"
 #include "http_common.h"
 #include "logger.h"
-#include "ota.h"
 
 #include <regex.h>
 #include <esp_wifi.h>
@@ -25,7 +16,7 @@
 #include <errno.h>
 #include "cJSON.h"
 
-#define SCRATCH_BUFSIZE (4000)
+#define SCRATCH_BUFSIZE (10240)
 
 #define MIN(X, Y) (((X) < (Y)) ? (X) : (Y))
 
@@ -522,25 +513,32 @@ static esp_err_t log_get_handler(httpd_req_t *req){
     char *chunk = data->scratch_buf;
     size_t chunksize;
     do{
+        vTaskDelay(1);
+        ESP_LOGI(TAG, "Reading file to buffer");
         chunksize = fread(chunk, 1, SCRATCH_BUFSIZE, fd);
         if(chunksize == 0){
+            ESP_LOGI(TAG, "finished reading file");
             break;
         }
+        ESP_LOGI(TAG, "Sending chunk of size %d", chunksize);
         esp_err_t err = httpd_resp_send_chunk(req, chunk, chunksize);
         if(err != ESP_OK){
-            ESP_LOGI(TAG, "setting position");
+            ESP_LOGI(TAG, "failed to send chunk, aborting");
+
+            // abort sending file
+            httpd_resp_sendstr_chunk(req, NULL);
+
             if(fsetpos(fd, &orig_pos) != 0){
                 ESP_LOGE(TAG, "cannot set position of log file; %s", strerror(errno));
             }
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to read the log");
             return ESP_FAIL;
         }
-    } while(chunksize >= SCRATCH_BUFSIZE);
+    } while(chunksize != 0);
 
     ESP_LOGI(TAG, "setting position");
     if(fsetpos(fd, &orig_pos) != 0){
         ESP_LOGE(TAG, "cannot set position of log file; %s", strerror(errno));
-        return ESP_FAIL;
     }
 
     httpd_resp_send_chunk(req, NULL, 0);
@@ -575,37 +573,6 @@ static esp_err_t reboot_get_handler(httpd_req_t *req){
     ESP_LOGI(TAG, "restarting");
     esp_restart();
 
-    return ESP_OK;
-}
-
-static esp_err_t ota_post_handler(httpd_req_t *req){
-    static char url[128];
-    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
-    
-    // load url from POST body
-    long int received = http_load_post_req_to_buf(req, data->scratch_buf, sizeof(data->scratch_buf));
-    if(received < 0){
-        return ESP_FAIL;
-    }
-
-    strlcpy(url, data->scratch_buf, sizeof(url));
-
-    // validate URL
-    int reg_err = regexec(&data->url_regex, url, 0, NULL, 0);
-    if (reg_err != 0) {
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed validate URL");
-        return ESP_FAIL;
-    }
-
-    esp_https_ota_config_t ota_config = ota_config_default(url);
-
-    esp_err_t err = ota_start(&ota_config);
-    if(err != ESP_OK){
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed OTA update");
-        return ESP_FAIL;
-    }
-
-    httpd_resp_sendstr(req, "Done");
     return ESP_OK;
 }
 
@@ -667,12 +634,6 @@ static void web_config_register_uri(httpd_handle_t server, web_config_data_t *us
         .user_ctx = user_ctx};
     httpd_register_uri_handler(server, &reboot);
 
-    const httpd_uri_t ota = {
-        .uri = API_PATH("/ota"),
-        .method = HTTP_POST,
-        .handler = ota_post_handler,
-        .user_ctx = user_ctx};
-    httpd_register_uri_handler(server, &ota);
 }
 
 static esp_err_t prepare_url_regex(web_config_data_t *data){
@@ -683,11 +644,22 @@ static esp_err_t prepare_url_regex(web_config_data_t *data){
     return ESP_OK;
 }
 
-static httpd_handle_t start_webserver(void)
+static esp_err_t start_webserver(void)
 {
-    static web_config_data_t data;
+    static web_config_data_t *data = NULL;
 
-    prepare_url_regex(&data);
+    if(data) {
+        ESP_LOGE(TAG, "Web config already started");
+        return ESP_ERR_INVALID_STATE;
+    }
+
+    data = calloc(1, sizeof(web_config_data_t));
+    if(!data){
+        ESP_LOGE(TAG, "Failed to allocate memory for data!");
+        return ESP_ERR_NO_MEM;
+    }
+
+    prepare_url_regex(data);
 
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
@@ -698,50 +670,25 @@ static httpd_handle_t start_webserver(void)
 
     // Start the httpd server
     ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
-    if (httpd_start(&server, &config) == ESP_OK) {
-        data.server = server;
-        if(nvs_open("config", NVS_READWRITE, &data.config_handle) != ESP_OK){
-            ESP_LOGI(TAG, "Error opening NVS!");
-            return NULL;
-        }
-
-        ESP_LOGI(TAG, "Registering URI handlers");
-        web_config_register_uri(server, &data);
-        return server;
+    if (httpd_start(&server, &config) != ESP_OK) {
+        ESP_LOGE(TAG, "Error starting server!");
+        return ESP_FAIL;
+    }
+    data->server = server;
+    if(nvs_open("config", NVS_READWRITE, &(data->config_handle)) != ESP_OK){
+        ESP_LOGI(TAG, "Error opening NVS!");
+        return ESP_FAIL;
     }
 
-    ESP_LOGI(TAG, "Error starting server!");
-    return NULL;
+    ESP_LOGI(TAG, "Registering URI handlers");
+    web_config_register_uri(server, data);
+    return ESP_OK;
 }
 
 static esp_err_t stop_webserver(httpd_handle_t server)
 {
     // Stop the httpd server
     return httpd_stop(server);
-}
-
-static void disconnect_handler(void* arg, esp_event_base_t event_base,
-                               int32_t event_id, void* event_data)
-{
-    httpd_handle_t* server = (httpd_handle_t*) arg;
-    if (*server) {
-        ESP_LOGI(TAG, "Stopping webserver");
-        if (stop_webserver(*server) == ESP_OK) {
-            *server = NULL;
-        } else {
-            ESP_LOGE(TAG, "Failed to stop http server");
-        }
-    }
-}
-
-static void connect_handler(void* arg, esp_event_base_t event_base,
-                            int32_t event_id, void* event_data)
-{
-    httpd_handle_t* server = (httpd_handle_t*) arg;
-    if (*server == NULL) {
-        ESP_LOGI(TAG, "Starting webserver");
-        *server = start_webserver();
-    }
 }
 
 static esp_err_t wifi_connect_nvs(){
@@ -885,8 +832,6 @@ esp_err_t web_config_set_custom_options(size_t size, config_option_t* options_ar
 
 void web_config_start()
 {
-    static httpd_handle_t server = NULL;
-
     esp_err_t ret = nvs_flash_init();
     if (ret == ESP_ERR_NVS_NO_FREE_PAGES || ret == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         ESP_ERROR_CHECK(nvs_flash_erase());
@@ -905,12 +850,9 @@ void web_config_start()
 
     ESP_ERROR_CHECK(wifi_initialize());
 
-    // register http server
-    ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &connect_handler, &server));
-    ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, WIFI_EVENT_STA_DISCONNECTED, &disconnect_handler, &server));
-
     init_logging();
     LOGGER_I(TAG, "Booted to Web config");
 
-    server = start_webserver();
+    // register http server
+    start_webserver();
 }
