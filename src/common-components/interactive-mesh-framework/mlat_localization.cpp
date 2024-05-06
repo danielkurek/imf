@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstdint>
 #include "logger.h"
+#include <algorithm>
 
 using namespace imf;
 using namespace mlat;
@@ -15,6 +16,8 @@ constexpr float distance_scale = 1.0/100.0; // cm to m
 static const char* TAG = "MLAT_LOC";
 
 constexpr int pos_scale = 100;
+
+constexpr size_t closest_anchors_limit = 5;
 
 MlatLocalization::MlatLocalization(std::shared_ptr<Device> this_device, std::vector<std::shared_ptr<Device>> stations)
     : _this_device(this_device){
@@ -57,24 +60,30 @@ void MlatLocalization::tick(TickType_t diff){
     std::vector<anchor_t> anchors;
     for(auto && [id,station] : _stations){
         location_local_t location;
-        distance_measurement_t measurement;
+        distance_log_t dist_log;
         esp_err_t err;
-
+        
         err = station->getLocation(location);
-        if(err != ESP_OK || location.uncertainty >= std::numeric_limits<uint16_t>::max()/2){
-            LOGGER_I(TAG, "skipping station with id %" PRIu32 ", could not get location or uncertainty is too high", id);
+        if(err != ESP_OK){
+            LOGGER_I(TAG, "skip id %" PRIu32 ", no location", id);
+            continue;
+        }
+        if(location.uncertainty >= std::numeric_limits<uint16_t>::max()/2){
+            LOGGER_I(TAG, "skip id %" PRIu32 ", high uncertainty");
             continue;
         }
 
-        err = station->lastDistance(measurement);
+        err = station->lastDistance(dist_log);
         if(err != ESP_OK){
-            LOGGER_I(TAG, "skipping station with id %" PRIu32 ", could not get distance", id);
+            LOGGER_I(TAG, "skip id %" PRIu32 ", no distance", id);
             continue;
         }
-        float distance = (float)measurement.distance_cm * distance_scale;
+
+        float distance = (float)dist_log.measurement.distance_cm * distance_scale;
         float x,y;
         locationToPos(location, x, y);
-        LOGGER_I(TAG, "using station with id %" PRIu32 " has distance %" PRIu32 "(%f) pos=x%f,y%f", id, measurement.distance_cm, distance, x, y);
+        LOGGER_I(TAG, "id %" PRIu32 " distance %" PRIu32 "(%f, RSSI %" PRId8 ") pos=x%f,y%f", id, dist_log.measurement.distance_cm, 
+            distance, dist_log.measurement.rssi, x, y);
         anchors.emplace_back((position_t){x,y}, distance);
     }
 
@@ -85,7 +94,23 @@ void MlatLocalization::tick(TickType_t diff){
 
     // perform multilateration according to number of anchors
     if(anchors.size() >= 3){
-        solution_t solution = MLAT::solve(anchors);
+        // use only x closest distances (closer distances are generally more accurate)
+        std::sort(anchors.begin(), anchors.end(), [](anchor_t a, anchor_t b)
+                                  {
+                                      return a.distance < b.distance;
+                                  });
+        std::vector<anchor_t> closest_anchors;
+        for(auto && anchor : anchors){
+            closest_anchors.push_back(anchor);
+            if(closest_anchors.size() >= closest_anchors_limit){
+                break;
+            }
+        }
+        LOGGER_I(TAG, "Closest anchors (%d):", closest_anchors.size());
+        for(auto && anchor : closest_anchors){
+            LOGGER_I(TAG, "-> x=%f,y=%f,d=%f", anchor.pos.x, anchor.pos.y, anchor.distance);
+        }
+        solution_t solution = MLAT::solve(closest_anchors);
         LOGGER_I(TAG, "resulting pos x=%f,y=%f,err=%f", solution.pos.x, solution.pos.y, solution.error);
         posToLocation(solution.pos.x, solution.pos.y, new_location);
         new_location.uncertainty = (uint16_t) abs(solution.error);

@@ -40,6 +40,31 @@ typedef struct {
     DeviceType type;
 } device_conf_t;
 
+extern "C" void event_handler(void* event_handler_arg, esp_event_base_t event_base,
+                   int32_t event_id, void* event_data){
+    if(event_base == DM_EVENT){
+        dm_measurement_data_t *dm_measurement;
+        dm_nearest_device_change_t *dm_nearest_dev;
+        switch(event_id){
+            case DM_MEASUREMENT_DONE:
+                dm_measurement = (dm_measurement_data_t*) event_data;
+                if(dm_measurement->valid){
+                    LOGGER_I(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", distance_cm=%" PRIu32 " rssi=%" PRId8, dm_measurement->point_id, dm_measurement->measurement.distance_cm, dm_measurement->measurement.rssi);
+                } else{
+                    LOGGER_I(TAG, "DM_MEASUREMENT_DONE, id=%" PRIu32 ", INVALID", dm_measurement->point_id);
+                }
+                break;
+            case DM_NEAREST_DEVICE_CHANGE:
+                dm_nearest_dev = (dm_nearest_device_change_t*) event_data;
+                LOGGER_I(TAG, "DM_NEAREST_DEVICE_CHANGE, from: %" PRIx32 " | to: %" PRIx32, dm_nearest_dev->old_point_id, dm_nearest_dev->new_point_id);
+
+                break;
+            default:
+                LOGGER_I(TAG, "Unknown event of DM, id=%" PRId32, event_id);
+        }
+    }
+}
+
 extern "C" void button_cb(uint8_t button_num){
     ESP_LOGI(TAG, "Button no. %d was pressed", button_num);
     if(button_num == 0){
@@ -127,7 +152,7 @@ extern "C" void app_main(void)
         uint32_t id = s_imf->addDevice(d_conf->type, d_conf->mac, d_conf->wifi_channel, d_conf->ble_addr);
     }
     ESP_LOGI(TAG, "IMF register callbacks");
-    s_imf->registerCallbacks(button_cb, nullptr, NULL, nullptr, nullptr);
+    s_imf->registerCallbacks(button_cb, event_handler, NULL, nullptr, nullptr);
 
     ESP_LOGI(TAG, "IMF start");
     s_imf->start();

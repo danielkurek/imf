@@ -397,19 +397,16 @@ esp_err_t Device::measureDistance(distance_measurement_t &measurement){
 #endif
 
 #if CONFIG_IMF_DEBUG_STATIC_DEVICES
-esp_err_t Device::lastDistance(distance_measurement_t &measurement){
-    measurement.distance_cm = debug_distance_cm;
-    measurement.rssi = debug_rssi;
+esp_err_t Device::lastDistance(distance_log_t &distance_log){
+    distance_log.measurement.distance_cm = debug_distance_cm;
+    distance_log.measurement.rssi = debug_rssi;
+    distance_log.timestamp = xTaskGetTickCount();
     return ESP_OK;
 }
 #else
-esp_err_t Device::lastDistance(distance_measurement_t &measurement){
-    distance_log_t log_measurement;
+esp_err_t Device::lastDistance(distance_log_t &distance_log){
     if(!_point) return ESP_FAIL;
-    esp_err_t err = _point->getDistanceFromLog(log_measurement);
-    if(err != ESP_OK) return err;
-    measurement = log_measurement.measurement;
-    return ESP_OK;
+    return _point->getDistanceFromLog(distance_log);
 }
 #endif
 
@@ -575,7 +572,7 @@ esp_err_t IMF::start() {
 }
 
 esp_err_t IMF::startUpdateTask(){
-    auto ret = xTaskCreatePinnedToCore(_update_task_wrapper, "UpdateTask", 1024*48, this, tskIDLE_PRIORITY, &_xUpdateHandle, 1);
+    auto ret = xTaskCreatePinnedToCore(_update_task_wrapper, "UpdateTask", 1024*48, this, tskIDLE_PRIORITY+2, &_xUpdateHandle, 1);
     if(ret != pdPASS){
         ESP_LOGE(TAG, "Could not create UpdateTask");
         return ESP_FAIL;
@@ -603,11 +600,6 @@ void IMF::_update_task(){
     }
     while(true){
         ESP_LOGI(TAG, "StackHighWaterMark=%d, heapfree=%d, heapminfree=%d, heapmaxfree=%d", uxTaskGetStackHighWaterMark(NULL), heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-        // ESP_LOGI(TAG, "Waiting for semaphore");
-        // if(!xSemaphoreTake(xSemaphoreUpdate, 10000 / portTICK_PERIOD_MS)){
-        //     ESP_LOGI(TAG, "Semaphore not given");
-        //     continue;
-        // }
 
         TickType_t now = xTaskGetTickCount();
         esp_err_t err;
@@ -621,7 +613,7 @@ void IMF::_update_task(){
             
             // do actions when state is switched
             if(current_state != state){
-                ESP_LOGI(TAG, "State has changed");
+                LOGGER_I(TAG, "Change state to %" PRId16, state);
                 auto it = _states.find(state);
                 if(it == _states.end()){
                     LOGGER_W(TAG, "Could not find tick function for given state %" PRId16, state);
@@ -639,7 +631,7 @@ void IMF::_update_task(){
             
             if(tick != nullptr){
                 ESP_LOGI(TAG, "Performing tick state function");
-                TickType_t diff = pdTICKS_TO_MS(now) - pdTICKS_TO_MS(_last_update);
+                TickType_t diff = pdTICKS_TO_MS(now - _last_update);
                 tick(diff);
                 _last_update = now;
             }
@@ -776,6 +768,7 @@ void IMF::startWebConfig(){
         LOGGER_E(TAG, "Could not set custom web config options! Err: %d", err);
         return;
     }
+    board_set_rgb(&internal_rgb_conf, (rgb_t){120,0,60});
     web_config_start();
 }
 

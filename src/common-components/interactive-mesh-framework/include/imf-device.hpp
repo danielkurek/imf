@@ -31,7 +31,7 @@ namespace imf{
             esp_err_t setLevel(int16_t level);
             esp_err_t getLevel(int16_t &level_out);
             esp_err_t measureDistance(distance_measurement_t &measurement);
-            esp_err_t lastDistance(distance_measurement_t &measurement);
+            esp_err_t lastDistance(distance_log_t &distance_log);
             const uint32_t id;
             const DeviceType type;
             const uint16_t ble_mesh_addr;

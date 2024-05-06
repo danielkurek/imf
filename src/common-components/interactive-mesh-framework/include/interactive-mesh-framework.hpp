@@ -1,6 +1,7 @@
 #ifndef INTERACTIVE_MESH_FRAMEWORK_H_
 #define INTERACTIVE_MESH_FRAMEWORK_H_
 
+#include <inttypes.h>
 #include "web_config.h"
 #include "serial_comm_server.hpp"
 #include "color/color.h"
@@ -40,6 +41,7 @@ namespace imf{
     class IMF{
         public:
             IMF(const std::vector<button_gpio_config_t> &buttons, bool default_states = true);
+            IMF(bool default_states = true) : IMF({}, default_states) {}
             esp_err_t start();
             esp_err_t registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args, tick_function_t update_func, state_change_t state_change_cb);
             uint32_t addDevice(DeviceType type, std::string wifi_mac_str, uint8_t wifi_channel, uint16_t ble_mesh_addr);

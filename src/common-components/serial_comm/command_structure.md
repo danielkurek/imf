@@ -8,7 +8,6 @@ There are 3 command types:
 
 - `GET (<addr>:)<field>`
 - `PUT (<addr>:)<field> <value>`
-- `STATUS`
 
 Each command must end with new line (`\n`).
 

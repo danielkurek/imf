@@ -563,7 +563,7 @@ static esp_err_t mesh_init(void)
         return err;
     }
     
-    bt_mesh_set_device_name("TEST1");
+    bt_mesh_set_device_name("IMF Node");
 
     err = esp_ble_mesh_node_prov_enable(ESP_BLE_MESH_PROV_ADV | ESP_BLE_MESH_PROV_GATT);
     if (err != ESP_OK) {
