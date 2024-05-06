@@ -12,7 +12,6 @@
 #include "esp_check.h"
 
 #include "mlat_localization.hpp"
-#include "graph_localization.hpp"
 
 #define EVENT_LOOP_QUEUE_SIZE 16
 
