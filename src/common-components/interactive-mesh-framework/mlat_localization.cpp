@@ -1,6 +1,5 @@
 #include "mlat_localization.hpp"
 #include "mlat.hpp"
-#include "neato_esp.h"
 #include "esp_random.h"
 #include <string>
 #include <cmath>
