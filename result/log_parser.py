@@ -2,11 +2,16 @@ import sys
 from enum import Enum
 import re
 import json
+import argparse
 
-def print_usage():
-    print("log_parser.py input_log output_file")
-    print("   output file is a json file")
+parser = argparse.ArgumentParser(description="Process logs from devices using IMF framework")
+parser.add_argument("input_file", type=str, help="input log file")
+parser.add_argument("output_file", type=str, help="output file (json)")
+parser.add_argument("-p", "--parser", dest="parser", choices=["mlat", "colors"], 
+                    default="mlat", help="which parser to use")
 
+class LogParser:
+    line_regex = re.compile(r"^.\|. \((\d+)\) (\w+): (.*)[\n\r]*$")
 
 class MlatDataEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -24,12 +29,13 @@ class MlatAnchor:
         self.dist = dist
 
 class MlatData:
-    def __init__(self, timestamp_start=None, timestamp_end=None, anchors=None, chosen_anchors=None, result_pos=[None, None]):
+    def __init__(self, timestamp_start=None, timestamp_end=None, anchors=None, chosen_anchors=None, result_pos=[None, None], current_color=None):
         self.timestamp_start = timestamp_start
         self.timestamp_end = timestamp_end
         self.anchors = anchors if anchors else []
         self.chosen_anchors = chosen_anchors if chosen_anchors else []
         self.result_pos = result_pos
+        self.current_color = current_color
 
 
 class MlatParser:
@@ -44,15 +50,21 @@ class MlatParser:
     def __init__(self):
         self.state = self.State.READING
         self.data = []
+        self._current_color = None
         self._reading_obj = None
-        self.line_regex = re.compile(r"^.\|. \((\d+)\) (\w+): (.*)[\n\r]*$")
         self.position_regex = re.compile(r"x=(-?\d+\.?\d*),y=(-?\d+\.?\d*)")
         self.anchor_regex = re.compile(r"^-> x=(-?\d+\.?\d*),y=(-?\d+\.?\d*),d=(-?\d+\.?\d*)")
+        self.color_regex = re.compile(r"color to ([0-9a-f]{6})")
     
     def reading_state(self, timestamp, tag, msg):
         if tag == self.tag_MLAT:
-            self._reading_obj = MlatData(timestamp_start=timestamp)
+            self._reading_obj = MlatData(timestamp_start=timestamp, current_color=self._current_color)
             return self.reading_mlat(timestamp, tag, msg)
+        if tag == self.tag_APP:
+            if msg.startswith("Setting new color"):
+                color_result = self.color_regex.search(msg)
+                if color_result:
+                    self._current_color = color_result.group(1)
         return self.State.READING
     
     def reading_mlat(self, timestamp, tag, msg):
@@ -61,7 +73,7 @@ class MlatParser:
                 self._reading_obj.timestamp_end = timestamp
                 self.data.append(self._reading_obj)
                 self._reading_obj = None
-            return self.State.READING
+            return self.reading_state(self.State.READING)
         if msg.startswith("no anchors, setting pos") or msg.startswith("resulting pos"):
             result = self.position_regex.search(msg)
             if not result:
@@ -95,10 +107,10 @@ class MlatParser:
         return self.state
 
     def parse_line(self, line):
-        result = self.line_regex.match(line)
+        result = LogParser.line_regex.match(line)
         if not result:
             return
-        timestamp = result.group(1)
+        timestamp = int(result.group(1))
         tag = result.group(2)
         msg = result.group(3)
         if self.state == self.State.READING:
@@ -112,6 +124,31 @@ class MlatParser:
             f.write(json.dumps(self.data, cls=MlatDataEncoder))
         print(f"found {len(self.data)} data points")
 
+class ColorChangeParser:
+    def __init__(self):
+        self.data = []
+        self.color_regex = re.compile(r"color to ([0-9a-f]{6})")
+    
+    def parse_line(self, line):
+        result = LogParser.line_regex.match(line)
+        if not result:
+            return
+        timestamp = int(result.group(1))
+        tag = result.group(2)
+        msg = result.group(3)
+        if tag != "APP":
+            return
+        if msg.startswith("Setting new color"):
+            color_result = self.color_regex.search(msg)
+            if not color_result:
+                print("Error: could not parse new color")
+                return
+            self.data.append({"timestamp": timestamp, "color": color_result.group(1)})
+    def output(self, filename):
+        with open(filename, "w") as f:
+            f.write(json.dumps(self.data))
+        print(f"found {len(self.data)} data points")
+
 def parse_log(filename, output_filename, parser):
     f = open(filename, "r")
     while True:
@@ -123,7 +160,10 @@ def parse_log(filename, output_filename, parser):
     parser.output(output_filename)
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print_usage()
-        sys.exit(1)
-    parse_log(sys.argv[1], sys.argv[2], MlatParser())
+    args = parser.parse_args()
+    parser = None
+    if args.parser == "colors":
+        parser = ColorChangeParser()
+    else:
+        parser = MlatParser()
+    parse_log(args.input_file, args.output_file, parser)
