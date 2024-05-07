@@ -1,8 +1,21 @@
+/**
+ * @file board.c
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref board.h
+ * @version 0.1
+ * @date 2023-11-09
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
 #include "board.h"
 #include "led_strip.h"
 #include "driver/gpio.h"
 #include "esp_log.h"
 
+/**
+ * @brief GPIO pin for controlling power of external board (configured via `idf.py menuconfig`)
+ */
 #define EXT_POWER_CTRL_GPIO CONFIG_EXT_POWER_GPIO
 
 static const char* TAG = "BOARD";
@@ -115,11 +128,10 @@ esp_err_t board_led_init(rgb_conf_t *conf){
     return ESP_OK;
 }
 
-esp_err_t board_buttons_release_register_callback(board_button_callback_t callback){
+void board_buttons_release_register_callback(board_button_callback_t callback){
     for(size_t i = 0; i < s_buttons_len; i++){
         s_buttons[i].callback = callback;
     }
-    return ESP_OK;
 }
 
 static void button_cb(void* button_handle, void* user_data){

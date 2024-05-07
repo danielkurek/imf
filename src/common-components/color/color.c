@@ -1,3 +1,14 @@
+/**
+ * @file color.c
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref color.h
+ * @version 0.1
+ * @date 2023-08-19
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
+
 #include <stdio.h>
 #include "color/color.h"
 #include <inttypes.h>
