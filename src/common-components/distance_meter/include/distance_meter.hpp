@@ -231,7 +231,8 @@ class DistanceMeter{
          * @param mac WiFi MAC address of the point
          * @param channel WiFi channel of the point
          * @param id requested id of the created point (UINT32_MAX=no preference -> `largest_id`+1 will be assigned)
-         * @return uint32_t resulting id of created point or id of already created point with same mac, UINT32_MAX if an error occurred
+         * @return uint32_t resulting id of created point or id of already created point with same mac, 
+         *                  UINT32_MAX if id is used by other point or an error occurred
          */
         uint32_t addPoint(uint8_t mac[6], uint8_t channel, uint32_t id = UINT32_MAX);
         /**
@@ -240,29 +241,108 @@ class DistanceMeter{
          * @param macstr WiFi MAC address of the point in string form ("xx:xx:xx:xx:xx:xx")
          * @param channel WiFi channel of the point
          * @param id requested id of the created point (UINT32_MAX=no preference -> `largest_id`+1 will be assigned)
-         * @return uint32_t resulting id of created point or id of already created point with same mac, UINT32_MAX if an error occurred
+         * @return uint32_t resulting id of created point or id of already created point with same mac, 
+         *                  UINT32_MAX if id is used by other point or an error occurred
          */
         uint32_t addPoint(std::string macstr, uint8_t channel, uint32_t id = UINT32_MAX);
+        /**
+         * @brief Get Distance Point
+         * 
+         * @param id id of the Distance point
+         * @return std::shared_ptr<DistancePoint> return shared_ptr of the point or nullptr if point is not found
+         */
         std::shared_ptr<DistancePoint> getPoint(uint32_t id);
+
+        /**
+         * @brief Function that should be called periodically, measures distances and generates events
+         * 
+         * @param diff Time difference since last run
+         */
         void tick(TickType_t diff);
+
+        /**
+         * @brief Create thread that periodically calls tick()
+         */
         void startTask();
+
+        /**
+         * @brief Delete thread
+         */
         void stopTask();
-        // nearest point in last x amount of seconds
+        
+        /**
+         * @brief Nearest point in last x seconds (updated in tick() function)
+         * 
+         * @return std::shared_ptr<DistancePoint> 
+         */
         std::shared_ptr<DistancePoint> nearestPoint();
+
+        /**
+         * @brief Helper function to register event handler for events by this object
+         * 
+         * @param event_handler event handler function
+         * @param handler_args args that will be passed to every event handler function
+         * @return esp_err_t returns ESP_OK if succeeds
+         */
         esp_err_t registerEventHandle(esp_event_handler_t event_handler, void *handler_args);
     private:
+
+        /**
+         * @brief Create point (called by addPoint())
+         * 
+         * @param mac WiFi MAC address in binary form
+         * @param macstr WiFi MAC address in string form ("xx:xx:xx:xx:xx:xx")
+         * @param channel WiFi channel
+         * @param id requested id of the created point (UINT32_MAX=no preference -> `largest_id`+1 will be assigned)
+         * @return uint32_t resulting id of created point or id of already created point with same mac, 
+         *                  UINT32_MAX if id is used by other point or an error occurred
+         */
         uint32_t _addPoint(const uint8_t mac[6], std::string macstr, uint8_t channel, uint32_t id);
+
+        /**
+         * @brief Helper function that measures distance to given @p point , produces events
+         * 
+         * @param point point to which the distance will be measured
+         * @return esp_err_t returns ESP_OK if the measurement is valid and event was posted
+         */
         esp_err_t measureDistance(std::shared_ptr<DistancePoint> point);
+
+        /**
+         * @brief Discover reachable points by performing WiFi Scan
+         * 
+         * @return std::vector<std::shared_ptr<DistancePoint>> reachable points that were found
+         */
         std::vector<std::shared_ptr<DistancePoint>> reachablePoints();
+
+        /**
+         * @brief Necessary wrapper for creating thread that performs object's method
+         * @param param pointer to DistanceMeter (usually @p this )
+         */
         static void taskWrapper(void* param){
             static_cast<DistanceMeter *>(param)->task();
         }
+        /**
+         * @brief Task that is performed by created thread in startTask()
+         */
         void task();
+
         bool _only_reachable;
+        /**
+         * @brief container for storing managed points
+         */
         std::unordered_map<uint32_t, std::shared_ptr<DistancePoint>> _points;
+        /**
+         * @brief map for searching point id by WiFi MAC string
+         */
         std::unordered_map<std::string, uint32_t> _points_mac_id;
         esp_event_loop_handle_t _event_loop_hdl;
+        /**
+         * @brief Time threshold for determining closest point
+         */
         const uint32_t time_threshold = 10000 * (1000 / configTICK_RATE_HZ);
+        /**
+         * @brief Distance threshold for determining closest point
+         */
         const uint32_t _distance_threshold_cm = 10 * 100;
         TaskHandle_t _xHandle = NULL;
         uint32_t _next_id = 0;

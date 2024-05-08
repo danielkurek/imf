@@ -22,10 +22,9 @@ Currently to keep things simple there is no support for escaping. So you cannot 
 Response is asynchronous from commands. It is just a channel to notify the other device of value change for given field.
 
 Response structure:
-```
+
+```text
 (<addr>:)<field>=<value>
 ```
 
 `(<addr>:)`, `<field>`, `<value>` have the same meaning as in [command section](#commands).
-
-

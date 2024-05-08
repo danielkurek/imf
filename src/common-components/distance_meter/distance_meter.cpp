@@ -1,3 +1,13 @@
+/**
+ * @file distance_meter.cpp
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref distance_meter.hpp
+ * @version 0.1
+ * @date 2023-10-24
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
 #include "distance_meter.hpp"
 #include "esp_log.h"
 #include "esp_event.h"
@@ -10,9 +20,15 @@ ESP_EVENT_DEFINE_BASE(DM_EVENT);
 
 static const char *TAG = "DM";
 
-// results of linear regression of real_dist ~ dist_est
-// measurements were taken for distance 1-20m with at least 80 samples per distance
+/**
+ * @brief Resulting bias of linear regression of real_dist ~ dist_est
+ * measurements were taken for distance 1-20m with at least 80 samples per distance
+ */
 constexpr float distance_bias = 1.687536 * 100;
+/**
+ * @brief Resulting multiplier of linear regression of real_dist ~ dist_est
+ * measurements were taken for distance 1-20m with at least 80 samples per distance
+ */
 constexpr float distance_multi = 0.659338;
 
 EventGroupHandle_t DistancePoint::_s_ftm_event_group {};
@@ -85,12 +101,13 @@ esp_err_t DistancePoint::measureDistance(distance_measurement_t &measurement){
     ftm_result_t ftm_report = measureRawDistance(&ftmi_cfg);
 
     if(ftm_report.status == FTM_STATUS_SUCCESS){
-        // calculate mean rssi (only for logging)
+        // calculate mean rssi
         int32_t rssi_sum = 0;
         for(auto && report : ftm_report.ftm_report_data){
             rssi_sum += report.rssi;
         }
         int8_t rssi_mean = rssi_sum / (int32_t) ftm_report.ftm_report_data.size();
+        // filter distance
         distance_measurement_t new_measurement = {
             .distance_cm = distanceCorrection(ftm_report.dist_est),
             .rssi = rssi_mean
@@ -174,6 +191,7 @@ esp_err_t DistancePoint::setFrameCount(uint8_t frm_count){
     }
     return ESP_FAIL;
 }
+
 esp_err_t DistancePoint::setBurstPeriod(uint16_t burst_period){
     if(burst_period == 0 || (burst_period >= 2 && burst_period < 256)){
         _burst_period = burst_period;
@@ -230,8 +248,10 @@ uint32_t DistanceMeter::addPoint(std::string macstr, uint8_t channel, uint32_t i
     return _addPoint(mac, macstr, channel, id);
 }
 
-// id = UINT32_MAX means that the id will be assigned by DistanceMeter
 uint32_t DistanceMeter::_addPoint(const uint8_t mac[6], std::string macstr, uint8_t channel, uint32_t id){
+    // id = UINT32_MAX means that the id will be assigned by DistanceMeter
+
+    // check if next id is available
     if(_next_id == UINT32_MAX){
         return UINT32_MAX;
     }

@@ -569,7 +569,8 @@ static esp_err_t reboot_get_handler(httpd_req_t *req){
     response_custom_header(req);
 
     httpd_resp_sendstr(req, "Done");
-    web_config_stop(data->server);
+    vTaskDelay(1000 / portTICK_PERIOD_MS);
+    deinit_logging();
     ESP_LOGI(TAG, "restarting");
     esp_restart();
 
@@ -816,7 +817,7 @@ static void deinit_logging(){
 
 void web_config_stop(httpd_handle_t server){
     ESP_LOGI(TAG, "Stopping server");
-    // stop_webserver(server);
+    stop_webserver(server);
     deinit_logging();
 }
 

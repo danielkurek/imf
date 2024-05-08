@@ -20,15 +20,15 @@ extern "C"{
 #endif
 
 typedef struct{
-    uint8_t red;
-    uint8_t green;
-    uint8_t blue;
+    uint8_t red;    /**< red channel */
+    uint8_t green;  /**< gren channel */
+    uint8_t blue;   /**< blue channel */
 } rgb_t;
 
 typedef struct{
-    uint16_t lightness;
-    uint16_t hue;
-    uint16_t saturation;
+    uint16_t lightness; /**< color lightness channel */
+    uint16_t hue;       /**< hue of the color */
+    uint16_t saturation; /**< color saturation */
 } hsl_t;
 
 /**

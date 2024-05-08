@@ -6,9 +6,11 @@
 
 #define RX_BUF_SIZE 512
 
+using namespace com;
+
 static const char* TAG = "SerialComm";
 
-std::string GetCmdName(CmdType type) {
+std::string com::GetCmdName(CmdType type) {
     switch (type)
     {
     case CmdType::GET:
@@ -26,7 +28,7 @@ std::string GetCmdName(CmdType type) {
     }
 }
 
-CmdType ParseCmdType(const std::string& cmdType) {
+CmdType com::ParseCmdType(const std::string& cmdType) {
     if(cmdType == "GET") {
         return CmdType::GET;
     }
@@ -39,41 +41,9 @@ CmdType ParseCmdType(const std::string& cmdType) {
     return CmdType::None;
 }
 
-std::string GetStatusName(CommStatus type) {
-    switch (type)
-    {
-    case CommStatus::OK:
-        return "OK";
-        break;
-    case CommStatus::FAIL:
-        return "FAIL";
-        break;
-    case CommStatus::BOOTLOADER:
-        return "BTLD";
-        break;
-    default:
-        return "UNKWN";
-        break;
-    }
-}
-
-CommStatus ParseStatus(const std::string& status) {
-    if(status == "OK"){
-        return CommStatus::OK;
-    }
-    else if(status == "FAIL"){
-        return CommStatus::OK;
-    }
-    else if(status == "BTLD"){
-        return CommStatus::OK;
-    }
-
-    return CommStatus::None;
-}
-
-esp_err_t AddrToStr(uint16_t addr, std::string& out){
-    char buf[ADDR_STR_LEN];
-    int ret = snprintf(buf, ADDR_STR_LEN, "%04" PRIx16, addr);
+esp_err_t com::AddrToStr(uint16_t addr, std::string& out){
+    char buf[addr_str_len];
+    int ret = snprintf(buf, addr_str_len, "%04" PRIx16, addr);
     if(ret > 0){
         out = std::string(buf);
         return ESP_OK;
@@ -81,7 +51,7 @@ esp_err_t AddrToStr(uint16_t addr, std::string& out){
     return ESP_FAIL;
 }
 
-esp_err_t StrToAddr(const char *addrStr, uint16_t *addrOut){
+esp_err_t com::StrToAddr(const char *addrStr, uint16_t *addrOut){
     errno = 0;
     char *end;
     unsigned long int result = strtoul(addrStr, &end, 16);
@@ -93,7 +63,7 @@ esp_err_t StrToAddr(const char *addrStr, uint16_t *addrOut){
     return ESP_OK;
 }
 
-esp_err_t MakeField(uint16_t addr, const std::string& field, std::string& out){
+esp_err_t com::MakeField(uint16_t addr, const std::string& field, std::string& out){
     if(field.length() <= 0) return ESP_FAIL;
 
     std::string addr_str;
@@ -104,7 +74,7 @@ esp_err_t MakeField(uint16_t addr, const std::string& field, std::string& out){
     return ESP_OK;
 }
 
-FieldParseErr ParseField(const std::string& input, std::string& field, uint16_t& addr){
+FieldParseErr com::ParseField(const std::string& input, std::string& field, uint16_t& addr){
     if(input.length() <= 0) return FieldParseErr::empty_field;
     auto pos = input.find_first_of(':');
     if(pos != std::string::npos){

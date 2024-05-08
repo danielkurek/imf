@@ -147,6 +147,11 @@ static void update_max_file_size(){
     ESP_LOGI(TAG, "Max log size: %" PRIu32, conf.max_log_size);
 }
 
+/**
+ * @brief Manages log position (protection of start of the log and overwriting)
+ * 
+ * @param size number of bytes that will be written to file
+ */
 static void check_log_position(int size){
     if(size < 0) size = 0;
     bool seek = false;
@@ -212,6 +217,8 @@ bool logger_output_to_file(const char* filename, long int protect_start_bytes){
 
     conf.storage_protect_log_start = protect_start_bytes != 0;
     conf.storage_overwriting = false;
+
+    // configure log protection
     if(conf.storage_protect_log_start){
         conf.storage_protect_start = ftell(conf.log_file);
         if(conf.storage_protect_start < 0L){
@@ -256,7 +263,6 @@ void logger_set_file_overwrite(){
         return;
     }
     ESP_LOGI(TAG, "file %s size %"PRId32", used %d", conf.log_file_name, file_size, conf.storage_size_used);
-    conf.storage_size_used -= file_size;
     conf.storage_overwriting = true;
 }
 
@@ -331,9 +337,12 @@ void logger_write(esp_log_level_t level, const char * tag, const char * format, 
                 }
                 if(written >= 0){
                     writes_to_file += 1;
+                    // periodically sync to storage to prevent loss of logs during sudden power loss
                     if(writes_to_file > 10){
                         logger_sync_file();
                         writes_to_file = 0;
+
+                        // update used storage
                         size_t total = 0, used = 0;
                         esp_err_t err_ret = esp_littlefs_info(PARTITION_LABEL, &total, &used);
                         if(err_ret == ESP_OK){

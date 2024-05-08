@@ -4,6 +4,8 @@
 #include "esp_log.h"
 #include <string>
 
+using namespace com;
+
 static const char *TAG = "SerialCli";
 
 SerialCommCli::SerialCommCli(const uart_port_t port, int tx_io_num, int rx_io_num, const TickType_t cache_threshold)
@@ -79,6 +81,7 @@ void SerialCommCli::processInput(const std::string& input){
                 ESP_LOGE(TAG, "Could not make field string!");
                 return;
             }
+            [[fallthrough]];
         case FieldParseErr::no_addr:
             // field is correct
             if(pdTRUE != xSemaphoreTake(_semMutex, 1500 / portTICK_PERIOD_MS)){

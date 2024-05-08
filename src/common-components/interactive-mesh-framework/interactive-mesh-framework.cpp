@@ -28,13 +28,20 @@
 static const char* TAG = "IMF";
 
 using namespace imf;
-
-static esp_timer_handle_t update_timer;
+using namespace com;
 
 std::shared_ptr<SerialCommCli> Device::_serial = std::make_shared<SerialCommCli>(UART_NUM_1, SERIAL_TX_GPIO, SERIAL_RX_GPIO, 1000 / portTICK_PERIOD_MS);
 std::shared_ptr<DistanceMeter> Device::_dm = nullptr;
 std::shared_ptr<Device> Device::this_device = nullptr;
 
+/**
+ * @brief Parser for Location option in web_config
+ * 
+ * @param[in] value location input
+ * @param[out] north parsed north location
+ * @param[out] east parsed east location
+ * @return esp_err_t ESP_OK if parsed correctly
+ */
 static esp_err_t loc_pos_opt_parse(const char *value, int16_t &north, int16_t &east){
     int ret = sscanf(value, "N%" SCNd16 "E%" SCNd16, &north, &east);
     if(ret == 2){
@@ -112,9 +119,9 @@ esp_err_t Device::initLocalDevice(nvs_handle_t options_handle){
     }
     if(!valid_addr){
         // try to get it from NVS
-        char addr_str[ADDR_STR_LEN];
-        size_t addr_str_len = sizeof(addr_str);
-        err = nvs_get_str(options_handle, BLE_MESH_ADDR_OPT, addr_str, &addr_str_len);
+        char addr_str[addr_str_len];
+        size_t addr_len = sizeof(addr_str);
+        err = nvs_get_str(options_handle, BLE_MESH_ADDR_OPT, addr_str, &addr_len);
         if(err == ESP_OK){
             LOGGER_I(TAG, "Using ble-mesh address stored in nvs for local device: %s", addr_str);
             err = StrToAddr(addr_str, &ble_mesh_addr);
@@ -144,6 +151,7 @@ esp_err_t Device::initLocalDevice(nvs_handle_t options_handle){
             }
         }
     }
+    // detect device type configured in `idf.py menuconfig`
 #if CONFIG_IMF_MOBILE_DEVICE
     DeviceType type = DeviceType::Mobile;
 #else
@@ -168,7 +176,9 @@ esp_err_t Device::initLocalDevice(nvs_handle_t options_handle){
             this_device->setRgb(color);
         }
     }
+    // default location
     location_local_t location {0,0,0,0,UINT16_MAX};
+    // check if location was configured in web_config
     size_t pos_len = ((6+1)*2)+1;
     char pos_str[pos_len];
     err = nvs_get_str(options_handle, LOCATION_POS_OPT, pos_str, &pos_len);
@@ -422,22 +432,41 @@ std::string Device::_getMAC(){
     return "";
 }
 
+/**
+ * @brief Validate Color option from web_config
+ * 
+ * @param value color input from web_config
+ * @return esp_err_t ESP_OK if input value is valid
+ */
 static esp_err_t color_validate(const char *value){
     rgb_t color;
     return str_to_rgb(value, &color);
 }
 
+/**
+ * @brief Validate Bluetooth mesh address option from web_config
+ * 
+ * @param value color input from web_config
+ * @return esp_err_t ESP_OK if input value is valid
+ */
 static esp_err_t ble_mesh_addr_validate(const char *value){
     uint16_t addr;
     return StrToAddr(value, &addr);
 }
 
+/**
+ * @brief Validate location option from web_config
+ * 
+ * @param value color input from web_config
+ * @return esp_err_t ESP_OK if input value is valid
+ */
 static esp_err_t loc_pos_validate(const char *value){
     // allow empty string
     if(strlen(value) == 0) return ESP_OK;
     int16_t north, east;
     return loc_pos_opt_parse(value, north, east);
 }
+
 
 IMF::IMF(const std::vector<button_gpio_config_t> &buttons, bool default_states){
     esp_err_t err;
@@ -446,7 +475,7 @@ IMF::IMF(const std::vector<button_gpio_config_t> &buttons, bool default_states){
     logger_output_to_default(true);
     logger_init_storage();
 
-    logger_output_to_file("/logs/log.txt", 2000);
+    logger_output_to_file(LOGGER_FILE(LOGGER_DEFAULT_FILENAME), 2000);
 
     // Init board helper functions
     board_init(buttons.size(), &buttons[0]);
@@ -456,7 +485,7 @@ IMF::IMF(const std::vector<button_gpio_config_t> &buttons, bool default_states){
     // event loop init
     esp_event_loop_args_t loop_args{
         EVENT_LOOP_QUEUE_SIZE, // queue_size
-        "IMF-loop",             // task_name
+        "IMF-loop",            // task_name
         tskIDLE_PRIORITY,      // task_priority
         1024*4,                // task_stack_size
         tskNO_AFFINITY         // task_core_id
@@ -513,7 +542,6 @@ IMF::IMF(const std::vector<button_gpio_config_t> &buttons, bool default_states){
     _dm = std::make_shared<DistanceMeter>(false, _event_loop_hdl);
     Device::setDM(_dm);
 
-    xSemaphoreUpdate = xSemaphoreCreateBinary();
     auto serial = Device::getSerialCli();
     if(serial)
         serial->startReadTask();
@@ -558,10 +586,9 @@ esp_err_t IMF::start() {
     _wait_for_ble_mesh(20);
 
     Device::initLocalDevice(getOptionsHandle());
-    // _devices.emplace(0, Device::this_device);
     _init_localization();
     
-    // _dm->startTask();
+    // create AP only for station devices
 #ifdef CONFIG_IMF_STATION_DEVICE 
     wifi_init_ap_default();
 #endif
@@ -579,6 +606,7 @@ esp_err_t IMF::startUpdateTask(){
     }
     return ESP_OK;
 }
+
 void IMF::stopUpdateTask(){
     if(_xUpdateHandle){
         vTaskDelete(_xUpdateHandle);
@@ -589,6 +617,7 @@ void IMF::stopUpdateTask(){
 void IMF::_update_task(){
     TickType_t _last_update = 0;
     tick_function_t tick = nullptr;
+    // get current state
     auto it = _states.find(current_state);
     if(it == _states.end()){
         LOGGER_W(TAG, "Could not find tick function for given state %" PRId16, current_state);
@@ -598,13 +627,13 @@ void IMF::_update_task(){
         tick = it->second.tick_f;
         board_set_rgb(&internal_rgb_conf, it->second.color);
     }
+    // perform state tick functions
     while(true){
-        ESP_LOGI(TAG, "StackHighWaterMark=%d, heapfree=%d, heapminfree=%d, heapmaxfree=%d", uxTaskGetStackHighWaterMark(NULL), heap_caps_get_free_size(MALLOC_CAP_8BIT), heap_caps_get_minimum_free_size(MALLOC_CAP_8BIT), heap_caps_get_largest_free_block(MALLOC_CAP_8BIT));
-
         TickType_t now = xTaskGetTickCount();
         esp_err_t err;
         if(Device::this_device){
             int16_t state;
+            // get current state
             err = Device::this_device->getLevel(state);
             if(err != ESP_OK){
                 state = 0;
@@ -629,6 +658,7 @@ void IMF::_update_task(){
             }
             current_state = state;
             
+            // perform state tick function
             if(tick != nullptr){
                 ESP_LOGI(TAG, "Performing tick state function");
                 TickType_t diff = pdTICKS_TO_MS(now - _last_update);
@@ -636,58 +666,29 @@ void IMF::_update_task(){
                 _last_update = now;
             }
         }
-        logger_sync_file();
+        logger_sync_file(); // prevent loss of logs due to sudden power loss
         vTaskDelay(UPDATE_TIME_MS / portTICK_PERIOD_MS);
     }
-}
-
-void IMF::_update_timer_cb(){
-    ESP_LOGI(TAG, "Update timer tick");
-    xSemaphoreGive(xSemaphoreUpdate);
 }
 
 esp_err_t IMF::registerCallbacks(board_button_callback_t btn_cb, esp_event_handler_t event_handler, void *handler_args, tick_function_t update_cb, state_change_t state_change_cb) 
 { 
     esp_err_t err = ESP_OK;
     if(btn_cb != nullptr){
-        err = board_buttons_release_register_callback(btn_cb);
-        if(err != ESP_OK){
-            ESP_LOGE(TAG, "Cannot register board button callback");
-            return err;
-        }
+        board_buttons_release_register_callback(btn_cb);
     }
     if(event_handler != nullptr){
         err = _dm->registerEventHandle(event_handler, handler_args);
         if(err != ESP_OK){
-            ESP_LOGE(TAG, "Cannot board register DM event handle");
+            LOGGER_E(TAG, "Cannot board register DM event handle");
             return err;
         }
     }
     _update_cb = update_cb;
     _state_change_cb = state_change_cb;
-    // esp_timer_create_args_t args = {
-    //     .callback = _update_timer_cb_wrapper,
-    //     .arg = this,
-    //     .dispatch_method = ESP_TIMER_TASK,
-    //     .name = "UpdateTimer",
-    //     .skip_unhandled_events = true
-    // };
-    
-    // _update_timer_cb();
-    // err = esp_timer_create(&args, &(update_timer));
-    // if(err != ESP_OK){
-    //     ESP_LOGE(TAG, "Failed initializing update timer! %s", esp_err_to_name(err));
-    //     return err;
-    // }
-    
-    // _update_cb = update_cb;
-    // err = esp_timer_start_periodic(update_timer, UPDATE_TIME_MS * 1000);
-    // if(err != ESP_OK){
-    //     ESP_LOGE(TAG, "Failed to start update timer! %s", esp_err_to_name(err));
-    //     return err;
-    // }
     return err;
 }
+
 uint32_t IMF::addDevice(DeviceType type, std::string _wifi_mac_str, uint8_t wifi_channel, uint16_t ble_mesh_addr) {
     if(_next_id == UINT32_MAX){
         return UINT32_MAX;
@@ -703,7 +704,6 @@ std::shared_ptr<Device> IMF::getDevice(uint32_t id){
     if(search != _devices.end()){
         return search->second;
     }
-
     return nullptr;
 }
 
@@ -715,9 +715,8 @@ esp_err_t IMF::connectToAP(const std::string& ssid, const std::string& password)
     return wifi_connect_simple(ssid.c_str(), password.c_str());
 }
 
-esp_err_t IMF::addOption(const config_option_t& option){
+void IMF::addOption(const config_option_t& option){
     _options.push_back(option);
-    return ESP_OK;
 }
 
 void IMF::setStateData(int16_t state_num, tick_function_t tick_fun, rgb_t color){
@@ -735,6 +734,7 @@ void IMF::addDefaultStates(){
         // try to init local device
         Device::initLocalDevice(getOptionsHandle());
         if(!Device::this_device){
+            LOGGER_E(TAG, "Could not add default states");
             return;
         }
     }
@@ -768,7 +768,7 @@ void IMF::startWebConfig(){
         LOGGER_E(TAG, "Could not set custom web config options! Err: %d", err);
         return;
     }
-    board_set_rgb(&internal_rgb_conf, (rgb_t){120,0,60});
+    board_set_rgb(&internal_rgb_conf, (rgb_t){120,0,60}); // light pink
     web_config_start();
 }
 

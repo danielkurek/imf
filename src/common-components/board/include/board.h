@@ -107,7 +107,6 @@ esp_err_t board_stop_blinking(rgb_conf_t *conf);
  * @brief Register callback for button presses (must be called only after board_init())
  * 
  * @param callback callback function
- * @return esp_err_t returns ESP_OK on success
  */
 void board_buttons_release_register_callback(board_button_callback_t callback);
 

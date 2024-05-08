@@ -4,9 +4,9 @@
 #include <sstream>
 #include <string>
 
-static const char *TAG = "SerialSrv";
+using namespace com;
 
-// #ifdef CONFIG_SERIAL_COMM_SERVER
+static const char *TAG = "SerialSrv";
 
 SerialCommSrv::SerialCommSrv(const uart_port_t port, int tx_io_num, int rx_io_num, uint16_t default_addr)
      : SerialComm(port, tx_io_num, rx_io_num), _default_addr(default_addr){
@@ -45,7 +45,6 @@ esp_err_t SerialCommSrv::SetField(uint16_t addr, const std::string& field, const
 
     xSemaphoreGive(_semMutex);
 
-    // TODO: make sure _change_callback is not blocking
     if(do_callback && _change_callback != nullptr){
         _change_callback(addr, field, value);
     }
