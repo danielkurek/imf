@@ -1,6 +1,8 @@
 # Interactive mesh framework (IMF)
 
-Framework for interactive distributed network of luminous devices. Devices are based on ESP32-S3.
+Framework for interactive distributed network of luminous devices. Devices are based on ESP32-S3. Framework was developed as part of bachelor thesis at Charles University Faculty of Mathematics and Physics (Prague, Czech Republic).
+
+Author: Daniel Kurek 09.05.2024
 
 ## Folder structure
 
