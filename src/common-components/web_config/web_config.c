@@ -40,6 +40,7 @@ static const long int log_protect_region = 2000;
 static esp_err_t ssid_validate(const char *received_value);
 static esp_err_t channel_validate(const char *received_value);
 static esp_err_t password_validate(const char *received_value);
+static void deinit_logging();
 
 static const config_option_t options[] ={
     {
@@ -564,8 +565,6 @@ static esp_err_t log_delete_handler(httpd_req_t *req){
 }
 
 static esp_err_t reboot_get_handler(httpd_req_t *req){
-    web_config_data_t *data = (web_config_data_t *) req->user_ctx;
-
     response_custom_header(req);
 
     httpd_resp_sendstr(req, "Done");
