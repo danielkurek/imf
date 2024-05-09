@@ -1,6 +1,6 @@
 # Animace cesty zařízení 0011
 
-V animaci můžeme vidět cestu mobilního zařízení s adresou 0011. Zařízení se pohybovalo mezi stanicemi podle pravidel hry (pohybovalo vždy ke stanici se stejnou barvou jako bylo na zařízení). Stanice jsou zobrazené na polohách, které byli použity pro multilateraci mobilních zařízení. U každé stanice je popisek s barvou, kterou měli po celou dobu průběhu animace.
+V animaci můžeme vidět cestu mobilního zařízení s adresou 0011. Zařízení se pohybovalo mezi stanicemi podle pravidel hry (pohybovalo vždy ke stanici se stejnou barvou, jako bylo na zařízení). U každé stanice je popisek s barvou, kterou měli po celou dobu průběhu animace.
 
 Vypočítaná cesta mobilního zařízení je zobrazená modrou tečkovanou čárou. Oranžová čára je pouze pro srovnání s alternativní metodou výpočtu polohy, a to Levenberg-Marquardt, tato metoda byla spuštěna na PC s naměřenými daty ze zařízení. Pro přehlednost je vykresleno vždy pouze 5 posledních pozic zařízení.
 
