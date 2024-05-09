@@ -1,5 +1,10 @@
 # Source code of Interactive mesh framework
 
+To initialize repository run the following command. Some external libraries are added as git submodule.
+```bash
+git submodule update --init --recursive
+```
+
 ## Documentation
 
 This project uses Doxygen code documentation. To generate documentation run the following command.
