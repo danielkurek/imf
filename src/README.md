@@ -30,7 +30,6 @@ doxygen Doxyfile
 - `finding-color/` - example projects
   - `finding-color-mobile/` - project for mobile device
   - `finding-color-station/` - project for station device
-- `ftm-testing/` - application used for collection of WiFi FTM measurements for distance analysis
 - `scripts/` - shell scripts that automates flashing and monitoring devices (only for Linux with tmux installed)
 - `Doxyfile` - Doxygen configuration
 
