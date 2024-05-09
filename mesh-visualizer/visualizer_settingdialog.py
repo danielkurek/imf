@@ -1,5 +1,10 @@
-# Copyright (C) 2022 The Qt Company Ltd.
-# SPDX-License-Identifier: LicenseRef-Qt-Commercial OR BSD-3-Clause
+##
+# @file visualizer_settingdialog.py
+# @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+#
+
+# based on example:
+# https://doc.qt.io/qtforpython-6/examples/example_serialport_terminal.html
 
 import sys
 

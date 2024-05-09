@@ -1,3 +1,13 @@
+/**
+ * @file interactive-mesh-framework.cpp
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref interactive-mesh-framework.hpp and @ref imf-device.hpp
+ * @version 0.1
+ * @date 2023-10-24
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
 #include "interactive-mesh-framework.hpp"
 #include "imf-device.hpp"
 #include "serial_comm_client.hpp"

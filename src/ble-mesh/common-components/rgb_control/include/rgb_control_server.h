@@ -1,3 +1,13 @@
+/**
+ * @file rgb_control_server.h
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief RGB server model for Bluetooth mesh (abstraction for HSL model)
+ * @version 0.1
+ * @date 2023-08-20
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #ifndef BLE_MESH_RGB_CONTROL_SERVER_H_
 #define BLE_MESH_RGB_CONTROL_SERVER_H_
 
@@ -29,7 +39,6 @@
     }
 
 
-// ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_setup_pub, 2 + 30, ROLE_NODE);
 #define BLE_MESH_MODEL_RGB_SETUP_SRV_DEFINE(_name, _state) \
     static esp_ble_mesh_light_hsl_setup_srv_t _name = { \
         .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP, \
@@ -38,7 +47,6 @@
         .state = _state, \
     }
 
-// ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_hue_pub, 2 + 30, ROLE_NODE);
 #define BLE_MESH_MODEL_RGB_SRV_ELM1_DEFINE(_name, _state) \
     static esp_ble_mesh_light_hsl_hue_srv_t _name = { \
         .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP, \
@@ -47,7 +55,6 @@
         .state = _state, \
     }
 
-// ESP_BLE_MESH_MODEL_PUB_DEFINE(light_hsl_sat_pub, 2 + 30, ROLE_NODE);
 #define BLE_MESH_MODEL_RGB_SRV_ELM2_DEFINE(_name, _state) \
     static esp_ble_mesh_light_hsl_sat_srv_t _name = { \
         .rsp_ctrl.get_auto_rsp = ESP_BLE_MESH_SERVER_AUTO_RSP, \
@@ -56,27 +63,35 @@
         .state = _state, \
     }
 
-/**
- *  srv_pub  Pointer to the unique struct esp_ble_mesh_model_pub_t.
- *  srv_data Pointer to the unique struct esp_ble_mesh_light_hsl_srv_t defined by BLE_MESH_MODEL_RGB_SRV_DEFINE.
+/** 
+ *  @brief Definition for element of RGB server
+ * 
+ *  @param srv_pub  Pointer to the unique struct esp_ble_mesh_model_pub_t.
+ *  @param srv_data Pointer to the unique struct esp_ble_mesh_light_hsl_srv_t defined by BLE_MESH_MODEL_RGB_SRV_DEFINE.
  */
 #define BLE_MESH_MODEL_RGB_SRV(srv_pub, srv_data) \
     ESP_BLE_MESH_MODEL_LIGHT_HSL_SRV(srv_pub, srv_data)
 /**
- *  srv_pub  Pointer to the unique struct esp_ble_mesh_model_pub_t.
- *  srv_data Pointer to the unique struct esp_ble_mesh_light_hsl_setup_srv_t defined by BLE_MESH_MODEL_RGB_SETUP_SRV_DEFINE.
+ *  @brief Definition for element of RGB setup server
+ * 
+ *  @param srv_pub  Pointer to the unique struct esp_ble_mesh_model_pub_t.
+ *  @param srv_data Pointer to the unique struct esp_ble_mesh_light_hsl_setup_srv_t defined by BLE_MESH_MODEL_RGB_SETUP_SRV_DEFINE.
  */
 #define BLE_MESH_MODEL_RGB_SETUP_SRV(srv_pub, srv_data) \
     ESP_BLE_MESH_MODEL_LIGHT_HSL_SETUP_SRV(srv_pub, srv_data)
 /**
- *  srv_pub  Pointer to the unique struct esp_ble_mesh_model_pub_t.
- *  srv_data Pointer to the unique struct esp_ble_mesh_light_hsl_hue_srv_t defined by BLE_MESH_MODEL_RGB_SRV_ELM1_DEFINE.
+ *  @brief Definition for element of RGB server model (should be placed in element 1)
+ *  
+ *  @param srv_pub  Pointer to the unique struct esp_ble_mesh_model_pub_t.
+ *  @param srv_data Pointer to the unique struct esp_ble_mesh_light_hsl_hue_srv_t defined by BLE_MESH_MODEL_RGB_SRV_ELM1_DEFINE.
  */
 #define BLE_MESH_MODEL_RGB_ELM1_SRV(srv_pub, srv_data) \
     ESP_BLE_MESH_MODEL_LIGHT_HSL_HUE_SRV(srv_pub, srv_data)
 /**
- *  srv_pub  Pointer to the unique struct esp_ble_mesh_model_pub_t.
- *  srv_data Pointer to the unique struct esp_ble_mesh_light_hsl_sat_srv_t defined by BLE_MESH_MODEL_RGB_SRV_ELM2_DEFINE.
+ *  @brief Definition for element of RGB server model (should be placed in element 2)
+ *  
+ *  @param srv_pub  Pointer to the unique struct esp_ble_mesh_model_pub_t.
+ *  @param srv_data Pointer to the unique struct esp_ble_mesh_light_hsl_sat_srv_t defined by BLE_MESH_MODEL_RGB_SRV_ELM2_DEFINE.
  */
 #define BLE_MESH_MODEL_RGB_ELM2_SRV(srv_pub, srv_data) \
     ESP_BLE_MESH_MODEL_LIGHT_HSL_SAT_SRV(srv_pub, srv_data)
@@ -88,6 +103,12 @@
  */
 typedef void (* ble_mesh_rgb_control_server_change_cb_t)(rgb_t new_rgb);
 
+/**
+ * @brief Register callback for color change on this server
+ * 
+ * @param callback callback function
+ * @return esp_err_t ESP_OK if succeeds
+ */
 esp_err_t ble_mesh_rgb_control_server_register_change_callback(ble_mesh_rgb_control_server_change_cb_t callback);
 
 #endif // BLE_MESH_RGB_CONTROL_SERVER_H_

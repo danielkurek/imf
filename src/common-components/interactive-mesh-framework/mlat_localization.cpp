@@ -1,3 +1,14 @@
+/**
+ * @file mlat_localization.cpp
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref mlat_localization.hpp
+ * @version 0.1
+ * @date 2024-03-20
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
+
 #include "mlat_localization.hpp"
 #include "mlat.hpp"
 #include "esp_random.h"

@@ -1,3 +1,14 @@
+/**
+ * @file rgb_control_client.c
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of RGB client model (Bluetooth mesh)
+ * @version 0.1
+ * @date 2023-08-20
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
 #include "rgb_control_client.h"

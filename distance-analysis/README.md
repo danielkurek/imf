@@ -1,3 +1,3 @@
 # Distance analysis
 
-This folder analysis distance measurement using WiFi FTM. Data collected using project `src/ftm-testing` are saved in folder `esp32-s3-data`. Analysis of the data is done in `ftm_stat.ipynb` using R language. There is also result of linear regression that is used for correction of distances in this project.
+This folder analysis distance measurement using WiFi FTM. Data collected using ESP32-S3 devices are saved in folder `esp32-s3-data` where `ftm_main_*m.csv` files contains final distance estimate and `ftm_raw_*m.csv` files contains raw data about individual WiFi FTM frames. Analysis of the data is done in `ftm_stat.ipynb` using R language. There is also result of linear regression that is used for correction of distances in this project.

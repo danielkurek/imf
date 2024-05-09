@@ -1,12 +1,13 @@
-/* main.c - Application main entry point */
-
-/*
- * SPDX-FileCopyrightText: 2017 Intel Corporation
- * SPDX-FileContributor: 2018-2021 Espressif Systems (Shanghai) CO LTD
- *
- * SPDX-License-Identifier: Apache-2.0
+/**
+ * @file main.cpp
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Firmware for Bluetooth mesh communication device (secondary module)
+ * @version 0.1
+ * @date 2023-06-26
+ * 
+ * @copyright Copyright (c) 2023
+ * 
  */
-
 
 // General imports
 
@@ -39,6 +40,8 @@ static const char* TAG = "MESH-FMW";
 #define CONFIG_BUTTON GPIO_NUM_1
 #define SERIAL_TX_GPIO CONFIG_SERIAL_TX_GPIO
 #define SERIAL_RX_GPIO CONFIG_SERIAL_RX_GPIO
+
+using namespace com;
 
 
 // NVS handle for reading the web_config options

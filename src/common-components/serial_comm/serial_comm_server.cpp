@@ -1,3 +1,13 @@
+/**
+ * @file serial_comm_server.cpp
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref serial_comm_server.hpp
+ * @version 0.1
+ * @date 2023-10-22
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
 #include "serial_comm_server.hpp"
 #include "serial_comm_common.hpp"
 #include "esp_log.h"

@@ -1,3 +1,13 @@
+/**
+ * @file mlat.cpp
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref mlat.hpp
+ * @version 0.1
+ * @date 2024-03-19
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 #include "mlat.hpp"
 
 #include <eigen3/Eigen/Dense>

@@ -1,3 +1,14 @@
+/**
+ * @file logger.c
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref logger.h
+ * @version 0.1
+ * @date 2023-06-13
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
+
 #include "logger.h"
 #include <stdio.h>
 #include <stdarg.h>

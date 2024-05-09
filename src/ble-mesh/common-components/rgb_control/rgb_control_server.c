@@ -1,3 +1,14 @@
+/**
+ * @file rgb_control_server.c
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of RGB server model (Bluetooth mesh)
+ * @version 0.1
+ * @date 2023-08-20
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
+
 #include "rgb_control_server.h"
 #include "color/hsl.h"
 

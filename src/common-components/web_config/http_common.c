@@ -1,3 +1,13 @@
+/**
+ * @file http_common.c
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref http_common.h
+ * @version 0.1
+ * @date 2023-08-14
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
 #include "http_common.h"
 
 long int http_load_post_req_to_buf(httpd_req_t *req, char *buf, size_t buf_size){

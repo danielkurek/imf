@@ -1,3 +1,13 @@
+/**
+ * @file main.cpp
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Example project for IMF framework
+ * @version 0.1
+ * @date 2024-05-05
+ * 
+ * @copyright Copyright (c) 2024
+ * 
+ */
 
 #include "interactive-mesh-framework.hpp"
 #include "driver/gpio.h"

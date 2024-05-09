@@ -1,3 +1,14 @@
+/**
+ * @file wifi_connect.c
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref wifi_connect.h
+ * @version 0.1
+ * @date 2023-06-20
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
+
 // Based on protocol example from esp-idf
 
 #include <string.h>

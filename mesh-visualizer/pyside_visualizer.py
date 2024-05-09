@@ -1,7 +1,11 @@
+##
+# @file pyside_visualizer.py
+# @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+#
+
 # based on example project Networkx viewer and Terminal
 # https://doc.qt.io/qtforpython-6/examples/example_external_networkx.html
 # https://doc.qt.io/qtforpython-6/examples/example_serialport_terminal.html
-
 
 import math
 import sys

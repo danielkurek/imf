@@ -1,3 +1,14 @@
+/**
+ * @file serial_comm_common.cpp
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref erial_comm_common.hpp
+ * @version 0.1
+ * @date 2023-10-13
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
+
 #include "serial_comm_common.hpp"
 #include <cinttypes>
 #include <sstream>

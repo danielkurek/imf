@@ -1,3 +1,8 @@
+##
+# @file visualizer_common.py
+# @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+#
+
 from enum import Enum
 from PySide6.QtCore import QObject, Signal
 

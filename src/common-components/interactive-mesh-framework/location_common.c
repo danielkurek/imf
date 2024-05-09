@@ -1,3 +1,13 @@
+/**
+ * @file location_common.c
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref location_common.h
+ * @version 0.1
+ * @date 2023-12-09
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
 #include "location_common.h"
 #include <stdio.h>
 #include <math.h>

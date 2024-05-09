@@ -1,3 +1,13 @@
+/**
+ * @file web_config.c
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref web_config.h
+ * @version 0.1
+ * @date 2023-08-11
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
 #include <stdio.h>
 #include "web_config.h"
 #include "wifi_connect.h"

@@ -1,3 +1,14 @@
+/**
+ * @file main.cpp
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Example project implementing game 'Find Your Color' using IMF framework (for mobile device)
+ * @version 0.1
+ * @date 2023-11-23
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
+
 #include <stdio.h>
 #include <inttypes.h>
 #include "esp_log.h"

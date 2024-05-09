@@ -1,5 +1,13 @@
-// #ifdef CONFIG_SERIAL_COMM_CLIENT
-
+/**
+ * @file serial_comm_client.cpp
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief Implementation of @ref serial_comm_client.hpp
+ * @version 0.1
+ * @date 2023-10-13
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
 #include "serial_comm_client.hpp"
 #include "esp_log.h"
 #include <string>

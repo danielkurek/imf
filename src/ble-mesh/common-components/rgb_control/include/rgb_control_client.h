@@ -1,3 +1,13 @@
+/**
+ * @file rgb_control_client.h
+ * @author Daniel Kurek (daniel.kurek.dev@gmail.com)
+ * @brief RGB client model for Bluetooth mesh (abstraction for HSL model)
+ * @version 0.1
+ * @date 2023-08-20
+ * 
+ * @copyright Copyright (c) 2023
+ * 
+ */
 #ifndef BLE_MESH_RGB_CONTROL_CLIENT_H_
 #define BLE_MESH_RGB_CONTROL_CLIENT_H_
 
@@ -27,11 +37,43 @@ typedef struct {
     uint8_t  delay;       /*!< Indicate message execution delay (C.1) */
 } esp_ble_mesh_rgb_set_t;
 
+/**
+ * @brief Callback for GET command
+ * 
+ * @param addr address of the device
+ * @param rgb color of the device
+ */
 typedef void(*ble_mesh_rgb_client_get_cb)(uint16_t addr, rgb_t rgb);
 
+/**
+ * @brief Register callback for GET command
+ * 
+ * @param get_cb callback function
+ */
 void ble_mesh_rgb_client_register_get_cb(ble_mesh_rgb_client_get_cb get_cb);
+
+/**
+ * @brief Set RGB color of a device
+ * 
+ * @param common common Bluetooth mesh params (mainly for address, ...)
+ * @param set_state parameters to set (color, ...)
+ * @return esp_err_t ESP_OK if message is sent
+ */
 esp_err_t ble_mesh_rgb_client_set_state(esp_ble_mesh_client_common_param_t *common, esp_ble_mesh_rgb_set_t *set_state);
+
+/**
+ * @brief Get RGB color of a device
+ * 
+ * @param common common Bluetooth mesh params (mainly for address, ...)
+ * @return esp_err_t ESP_OK if message is sent
+ */
 esp_err_t ble_mesh_rgb_client_get_state(esp_ble_mesh_client_common_param_t *common);
+
+/**
+ * @brief Initialize RGB model
+ * 
+ * @return esp_err_t ESP_OK if succeeds
+ */
 esp_err_t ble_mesh_rgb_client_init();
 
 #endif
