@@ -5,7 +5,6 @@
 
 import math
 import sys
-from enum import Enum
 
 from PySide6.QtCore import (QEasingCurve, QLineF,
                             QParallelAnimationGroup, QPointF, QPoint,
@@ -15,11 +14,14 @@ from PySide6.QtGui import QBrush, QColor, QPainter, QPen, QPolygonF
 from PySide6.QtWidgets import (QApplication, QComboBox, QGraphicsItem,
                                QGraphicsObject, QGraphicsScene, QGraphicsView,
                                QStyleOptionGraphicsItem, QVBoxLayout, QWidget,
-                               QMessageBox, QMainWindow, QLabel)
+                               QMessageBox, QMainWindow, QLabel, QSplitter)
 from PySide6.QtSerialPort import QSerialPort
 
 from ui_mainwindow import Ui_MainWindow
 from visualizer_settingdialog import SettingsDialog
+from visualizer_nodeeditor import NodeEditor
+from visualizer_common import *
+
 
 HELP = """<b>Mesh Visualizer</b> helps to manage applications using Interactive
  Mesh Framework. Individual nodes are visually represented. Nodes can be moved
@@ -27,135 +29,6 @@ HELP = """<b>Mesh Visualizer</b> helps to manage applications using Interactive
 
 def equal_eps(x: float, y: float, eps = 1e-6):
     return abs(x-y) < eps
-
-class CmdType(Enum):
-    def __str__(self):
-        if self == self.GET:
-            return "GET"
-        if self == self.PUT:
-            return "PUT"
-        return ""
-    GET = 1
-    PUT = 2
-
-class CmdField(Enum):
-    def __str__(self):
-        if self == self.RGB:
-            return "rgb"
-        if self == self.LOC:
-            return "loc"
-        if self == self.LEVEL:
-            return "level"
-        if self == self.ONOFF:
-            return "onoff"
-        return ""
-    RGB = 1
-    LOC = 2
-    LEVEL = 3
-    ONOFF = 4
-
-class Location:
-    north_limits = (-32768, 32767)
-    east_limits = (-32768, 32767)
-    def __init__(self, north, east, altitude, floor, uncertainty):
-        self.north = int(north)
-        self.east = int(east)
-        self.altitude = int(altitude)
-        self.floor = int(floor)
-        self.uncertainty = int(uncertainty)
-    def __str__(self):
-        return f"N{int(self.north):05}E{int(self.east):05}A{int(self.altitude):05}F{int(self.floor):03}U{int(self.uncertainty):05}"
-    def parse(value: str):
-        north_idx = value.find("N")
-        east_idx = value.find("E")
-        altitude_idx = value.find("A")
-        floor_idx = value.find("F")
-        uncertainty_idx = value.find("U")
-        indices = [north_idx, east_idx, altitude_idx, floor_idx, uncertainty_idx]
-        if -1 in indices:
-            print("Error: could not parse location value - some part is missing")
-        for i in range(len(indices)-1):
-            if not (indices[i] < indices[i+1]):
-                print("Error: could not parse location value")
-                return None
-        north = int(value[north_idx+1:east_idx])
-        east = int(value[east_idx+1:altitude_idx])
-        alt = int(value[altitude_idx+1:floor_idx])
-        floor = int(value[floor_idx+1:uncertainty_idx])
-        uncertainty = int(value[uncertainty_idx+1:])
-        return Location(north,east,alt,floor,uncertainty)
-
-class Node:
-    def __init__(self, addr, loc = None, rgb = None, level = None):
-        self.addr = addr
-        self.loc = loc
-        self.rgb = rgb
-        self.level = level
-    def __str__(self):
-        return f"A:{self.addr}\nC:{self.rgb}\nL:{self.level}\nx={self.loc.north if self.loc is not None else "?"} y={self.loc.east if self.loc is not None else "?"}"
-
-class SerialComm(QObject):
-
-    node_change = Signal(Node)
-
-    def __init__(self):
-        self.cache = {}
-        self.local_addr = None
-        super().__init__()
-    
-    def parse_response(self, rsp):
-        if isinstance(rsp, bytes):
-            rsp = rsp.decode("utf-8")
-        if not isinstance(rsp, str):
-            print(f"Error: bad type of response expected bytes or str (actual={type(rsp)})")
-            sys.exit(1)
-        rsp = rsp.strip()
-        values = rsp.split('=')
-        if len(values) != 2:
-            print("Error: cannot parse response")
-            return
-        field,value = values[0], values[1]
-        addr = None
-        if ':' in field:
-            addr, field = field.split(':', 1)
-        print(f"{addr=} {field=} {value=}")
-        success = False
-        if self.local_addr is not None and addr == self.local_addr:
-            print("skipping local device")
-            return
-        if addr not in self.cache:
-            self.cache[addr] = Node(addr)
-        if field == "loc":
-            loc = Location.parse(value)
-            if loc is None:
-                print("Not saving the value")
-                return
-            self.cache[addr].loc = loc
-            success = True
-        elif field == "rgb":
-            self.cache[addr].rgb = value
-            success = True
-        elif field == "level":
-            self.cache[addr].level = value
-            success = True
-        if success:
-            print(f"node {addr} changed")
-            self.node_change.emit(self.cache[addr])
-    
-    def format_cmd(cmd_type: CmdType, addr: str, field: CmdField, value):
-        cmd_type_str = str(cmd_type)
-        if cmd_type_str is None or len(cmd_type_str) == 0:
-            print("Error, unknown cmd type")
-            return None
-        field_str = str(field)
-        if field_str is None or len(field_str) == 0:
-            print("Error, unknown field")
-            return None
-        value_str = str(value)
-        if cmd_type == CmdType.PUT and len(value_str) == 0:
-            print("Error, value cannot be empty for cmd PUT")
-            return None
-        return f"{cmd_type_str} {addr + ":" + field_str if addr is not None else field_str}{" " + value_str if cmd_type == CmdType.PUT else ""}\n".encode()
 
 class NodeG(QGraphicsObject):
 
@@ -263,7 +136,7 @@ class GraphView(QGraphicsView):
     @Slot()
     def start(self):
         if not self.timer.isActive():
-            self.timer.start(2000)
+            self.timer.start(5000)
     
     @Slot()
     def stop(self):
@@ -336,13 +209,15 @@ class GraphView(QGraphicsView):
         self.centerOn(scene_pos - delta)
     
     def loc_to_pos(self, loc: Location):
-        x = loc.north * self._graph_x_scale
-        y = loc.east  * self._graph_y_scale
+        if loc is None:
+            return 0,0
+        x = loc.east * self._graph_x_scale * (-1 if self._flip_x else 1)
+        y = loc.north  * self._graph_y_scale * (-1 if self._flip_y else 1)
         return x,y
     
     def pos_to_loc(self, pos: QPointF):
-        north = pos.x() / self._graph_x_scale
-        east  = pos.y() / self._graph_y_scale
+        north  = (pos.y() * (-1 if self._flip_y else 1)) / self._graph_y_scale
+        east = (pos.x() * (-1 if self._flip_x else 1)) / self._graph_x_scale 
         return north, east
 
     def update(self):
@@ -372,8 +247,11 @@ class GraphView(QGraphicsView):
         node = gnode._node
         pos = gnode.pos()
         last_pos = gnode.last_pos_update
+        north, east = self.pos_to_loc(pos)
         # check if node was moved by user
-        if not equal_eps(pos.x(), last_pos.x(), abs(self._graph_x_scale)) or not equal_eps(pos.y(), last_pos.x(), abs(self._graph_y_scale)):
+        print(f"{pos.x()-last_pos.x()=} {pos.y()-last_pos.y()=}")
+        if (not equal_eps(pos.x(), last_pos.x(), abs(self._graph_x_scale)) or not equal_eps(pos.y(), last_pos.y(), abs(self._graph_y_scale))) \
+            and (node.loc and node.loc.north != north and node.loc.east != east):
             # set to user location
             north, east = self.pos_to_loc(pos)
             loc = node.loc
@@ -416,7 +294,6 @@ class GraphView(QGraphicsView):
         else:
             self._update_node(self._node_map[node.addr])
 
-
 class MainWindow(QMainWindow):
     def __init__(self, parent=None):
         super().__init__()
@@ -428,14 +305,21 @@ class MainWindow(QMainWindow):
         self.serial_comm = SerialComm()
         self.m_ui.setupUi(self)
 
+        self.node_editor = NodeEditor(self.serial_comm)
+
         self.graph = GraphView()
         self.graph.setDragMode(QGraphicsView.ScrollHandDrag)
-        self.setCentralWidget(self.graph)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
+        self.splitter.addWidget(self.graph)
+        self.splitter.addWidget(self.node_editor)
+        self.splitter.setSizes([350,250])
+        self.setCentralWidget(self.splitter)
 
         self.m_ui.actionConnect.setEnabled(True)
         self.m_ui.actionDisconnect.setEnabled(False)
         self.m_ui.actionQuit.setEnabled(True)
         self.m_ui.actionConfigure.setEnabled(True)
+        self.node_editor.setEnabled(False)
 
         self.m_ui.statusBar.addWidget(self.m_status)
 
@@ -454,6 +338,7 @@ class MainWindow(QMainWindow):
         
         self.serial_comm.node_change.connect(self.graph.node_changed)
         self.graph.get_data.connect(self.write_data)
+        self.node_editor.serial_write.connect(self.write_data)
     
     @Slot()
     def about(self):
@@ -470,6 +355,7 @@ class MainWindow(QMainWindow):
         self.m_serial.setFlowControl(s.flow_control)
         if self.m_serial.open(QIODeviceBase.ReadWrite):
             self.graph.setEnabled_nodes(True)
+            self.node_editor.setEnabled(True)
             self.graph.start()
             self.m_ui.actionConnect.setEnabled(False)
             self.m_ui.actionDisconnect.setEnabled(True)
@@ -484,6 +370,7 @@ class MainWindow(QMainWindow):
         if self.m_serial.isOpen():
             self.m_serial.close()
         self.graph.setEnabled_nodes(False)
+        self.node_editor.setEnabled(False)
         self.m_ui.actionConnect.setEnabled(True)
         self.m_ui.actionDisconnect.setEnabled(False)
         self.m_ui.actionConfigure.setEnabled(True)
